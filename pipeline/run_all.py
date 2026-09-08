@@ -34,6 +34,7 @@ INGEST_SCRIPTS = [
 # Los transforms corren despues de la ingesta y dependen de ella: production
 # normaliza el panel pozo-mes que consumen los transforms financieros.
 TRANSFORM_SCRIPTS: list[tuple[str, Path]] = [
+    ("transform/financials", TRANSFORM / "financials_ypf.py"),
     ("transform/production", TRANSFORM / "production_wells.py"),
     ("transform/decline", TRANSFORM / "decline_curves.py"),
     ("transform/economics", TRANSFORM / "well_economics.py"),

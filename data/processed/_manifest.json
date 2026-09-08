@@ -51,5 +51,18 @@
     "breakeven_brent_mediano": 47.5,
     "pozos_con_npv_positivo": 0.739,
     "prima_riesgo_pais_musd_mediana": 0.99
+  },
+  "financials_ypf": {
+    "generated_at": "2026-09-08T22:24:06+00:00",
+    "source": "data/raw/financials/ypf/filings",
+    "outputs": [
+      "data/processed/financials_ypf.parquet",
+      "data/processed/financials_ypf_long.parquet",
+      "data/processed/financials_ypf.json"
+    ],
+    "trimestres": 27,
+    "desde": "2019Q4",
+    "hasta": "2026Q2",
+    "kpis": 21
   }
 }
