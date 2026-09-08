@@ -1,0 +1,24 @@
+# Datos crudos: nunca se commitean
+data/raw/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.vercel/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Entorno y secretos
+.env
+.env.local
+.env.*.local
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
