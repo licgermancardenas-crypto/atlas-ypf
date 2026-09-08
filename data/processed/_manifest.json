@@ -80,5 +80,23 @@
     "r2_mezcla": 0.8705,
     "r2_largo": 0.4701,
     "observaciones_operativo": 15
+  },
+  "market_reaction": {
+    "generated_at": "2026-09-08T23:17:02+00:00",
+    "sources": [
+      "data/processed/financials_ypf_long.parquet",
+      "data/raw/market/stock/YPF.json",
+      "data/raw/macro/country-risk/embi.json"
+    ],
+    "outputs": [
+      "data/processed/market_events.parquet",
+      "data/processed/market_reaction.json"
+    ],
+    "balances": 22,
+    "con_reaccion_negativa": 16,
+    "retorno_anormal_mediano": -0.0085,
+    "car_0_3_mediano": 0.0117,
+    "peor": "2021Q4",
+    "mejor": "2021Q1"
   }
 }

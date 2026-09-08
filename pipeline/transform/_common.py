@@ -95,6 +95,22 @@ def save_json(payload, dest: Path, indent: int | None = None) -> int:
     return dest.stat().st_size
 
 
+def serie_yahoo(path: Path, nombre: str, campo: str = "close"):
+    """Serie diaria de un JSON crudo de Yahoo, indexada por fecha (sin huso).
+
+    La usan todos los transforms que cruzan mercado, así que vive acá y no
+    duplicada en cada uno.
+    """
+    import pandas as pd  # local: _common lo usan scripts que no siempre traen pandas
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    resultado = payload["chart"]["result"][0]
+    fechas = pd.to_datetime(resultado["timestamp"], unit="s", utc=True).tz_localize(None).normalize()
+    valores = resultado["indicators"]["quote"][0][campo]
+    serie = pd.Series(valores, index=fechas, name=nombre, dtype="float64")
+    return serie[~serie.index.duplicated(keep="last")].dropna()
+
+
 def rel(path: Path) -> str:
     return path.resolve().relative_to(ROOT).as_posix()
 

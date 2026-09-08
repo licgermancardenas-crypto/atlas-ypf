@@ -24,31 +24,36 @@ INGEST = ROOT / "pipeline" / "ingest"
 TRANSFORM = ROOT / "pipeline" / "transform"
 
 # Orden deliberado: primero lo liviano, para fallar rápido si no hay red.
+# El tercer elemento son los argumentos propios de esa etapa, si los tiene.
 INGEST_SCRIPTS = [
-    ("market/stock", INGEST / "stock_prices.py"),
-    ("market/oil", INGEST / "brent_wti.py"),
-    ("macro/fx", INGEST / "fx_ars_usd.py"),
-    ("production", INGEST / "production_wells.py"),
-    ("financials/ypf", INGEST / "financials_ypf.py"),
+    # Los comparables (VIST, PAM) no son opcionales acá: el event study de
+    # transform/market_reaction.py estima el retorno anormal contra Vista.
+    ("market/stock", INGEST / "stock_prices.py", ["--with-comparables"]),
+    ("market/oil", INGEST / "brent_wti.py", []),
+    ("macro/fx", INGEST / "fx_ars_usd.py", []),
+    ("macro/country-risk", INGEST / "country_risk.py", []),
+    ("production", INGEST / "production_wells.py", []),
+    ("financials/ypf", INGEST / "financials_ypf.py", []),
 ]
 
 # Los transforms corren despues de la ingesta y dependen de ella: production
 # normaliza el panel pozo-mes que consumen los transforms financieros.
-TRANSFORM_SCRIPTS: list[tuple[str, Path]] = [
-    ("transform/financials", TRANSFORM / "financials_ypf.py"),
-    ("transform/production", TRANSFORM / "production_wells.py"),
-    ("transform/decline", TRANSFORM / "decline_curves.py"),
-    ("transform/economics", TRANSFORM / "well_economics.py"),
-    ("transform/sensitivity", TRANSFORM / "ebitda_sensitivity.py"),
+TRANSFORM_SCRIPTS: list[tuple[str, Path, list[str]]] = [
+    ("transform/financials", TRANSFORM / "financials_ypf.py", []),
+    ("transform/production", TRANSFORM / "production_wells.py", []),
+    ("transform/decline", TRANSFORM / "decline_curves.py", []),
+    ("transform/economics", TRANSFORM / "well_economics.py", []),
+    ("transform/sensitivity", TRANSFORM / "ebitda_sensitivity.py", []),
+    ("transform/market", TRANSFORM / "market_reaction.py", []),
 ]
 
 
-def run(nombre: str, script: Path, extra: list[str]) -> int:
+def run(nombre: str, script: Path, propios: list[str], extra: list[str]) -> int:
     if not script.exists():
         print(f"[run_all] {nombre}: falta {script.name}, se saltea")
         return 0
     print(f"\n[run_all] === {nombre} ({script.name}) ===", flush=True)
-    result = subprocess.run([sys.executable, str(script), *extra], cwd=ROOT)
+    result = subprocess.run([sys.executable, str(script), *propios, *extra], cwd=ROOT)
     if result.returncode != 0:
         print(f"[run_all] {nombre}: FALLO (exit {result.returncode})")
     return result.returncode
@@ -66,7 +71,9 @@ def main() -> int:
     if args.only:
         etapas = [e for e in etapas if args.only in e[0]]
 
-    fallidas = [nombre for nombre, script in etapas if run(nombre, script, extra) != 0]
+    fallidas = [
+        nombre for nombre, script, propios in etapas if run(nombre, script, propios, extra) != 0
+    ]
 
     print(f"\n[run_all] {len(etapas) - len(fallidas)}/{len(etapas)} etapas OK")
     if fallidas:
