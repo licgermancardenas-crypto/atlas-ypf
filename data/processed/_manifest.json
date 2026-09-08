@@ -66,7 +66,7 @@
     "kpis": 21
   },
   "ebitda_sensitivity": {
-    "generated_at": "2026-09-08T22:28:31+00:00",
+    "generated_at": "2026-09-08T23:32:08+00:00",
     "sources": [
       "data/processed/financials_ypf.parquet",
       "data/raw/market/oil/brent.json",
@@ -76,7 +76,8 @@
       "data/processed/ebitda_quarterly.parquet",
       "data/processed/ebitda_sensitivity.json"
     ],
-    "r2_operativo": 0.8383,
+    "r2_operativo": 0.9116,
+    "r2_ingresos": 0.739,
     "r2_mezcla": 0.8705,
     "r2_largo": 0.4701,
     "observaciones_operativo": 15
@@ -98,5 +99,21 @@
     "car_0_3_mediano": 0.0117,
     "peor": "2021Q4",
     "mejor": "2021Q1"
+  },
+  "scenario_engine": {
+    "generated_at": "2026-09-08T23:34:59+00:00",
+    "source": "data/processed/ebitda_sensitivity.json",
+    "outputs": [
+      "data/processed/scenario_coefficients.json",
+      "web/lib/scenarioEngine.ts"
+    ],
+    "drivers": [
+      "brent_usd",
+      "produccion_kboed",
+      "lifting_cost_usd_boe",
+      "crudo_procesado_kbbld"
+    ],
+    "casos": 7,
+    "r2_ebitda": 0.9116
   }
 }

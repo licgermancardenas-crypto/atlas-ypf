@@ -14,12 +14,15 @@ firme es ese número miente por omisión.
 
 Tres modelos, a propósito:
 
-- El operativo (`adj_ebitda ~ brent + produccion + lifting cost`) es el que
-  tiene sentido económico y el que alimenta el simulador. El costo de extracción
-  entra como regresor porque es la mitad de la historia del caso: entre 2024 y
-  2026 el lifting cost de YPF cayó de US$ 16 a US$ 8,4 por boe, y sin esa
-  variable el modelo le atribuye a Brent una mejora que en realidad es de
-  eficiencia (el R² pasa de 0,27 a 0,84 al sumarla).
+- El operativo (`adj_ebitda ~ brent + produccion + lifting cost + crudo
+  procesado`) es el que tiene sentido económico y el que alimenta el simulador.
+  El costo de extracción entra como regresor porque es la mitad de la historia
+  del caso: entre 2024 y 2026 el lifting cost de YPF cayó de US$ 16 a US$ 8,4
+  por boe, y sin esa variable el modelo le atribuye a Brent una mejora que en
+  realidad es de eficiencia (el R² pasa de 0,27 a 0,84 al sumarla). El crudo
+  procesado entra porque la otra mitad del EBITDA es downstream: sumarlo lleva
+  el R² a 0,91 y recorta un tercio del residual del 2Q26, el trimestre en que el
+  margen de refino saltó de 14,9 a 23,2 US$/bbl.
 - El de mezcla (`adj_ebitda ~ brent + shale oil`) cuenta lo mismo desde el
   volumen: cuánto del EBITDA viene de que el barril es cada vez más de shale.
 - El largo (`adj_ebitda ~ brent`) usa los 27 trimestres disponibles. Sirve de
@@ -72,7 +75,18 @@ BRENT_GRID = [50, 60, 70, 80, 90, 100, 110, 120]
 PRODUCCION_GRID = [480, 500, 520, 540, 560, 580]
 LIFTING_GRID = [7.0, 8.5, 10.0, 12.0, 14.0, 16.0]
 
-REGRESORES_OPERATIVO = ["brent_usd", "produccion_kboed", "lifting_cost_usd_boe"]
+REGRESORES_OPERATIVO = [
+    "brent_usd",
+    "produccion_kboed",
+    "lifting_cost_usd_boe",
+    "crudo_procesado_kbbld",
+]
+# Los ingresos se modelan aparte porque el simulador necesita el margen, no solo
+# el EBITDA. El lifting cost no entra: es un costo, no mueve la linea de arriba.
+REGRESORES_INGRESOS = ["brent_usd", "produccion_kboed", "crudo_procesado_kbbld"]
+
+# Variables que el simulador deja fijas en el ultimo dato cuando barre una grilla.
+FIJAS_EN_GRILLA = ["lifting_cost_usd_boe", "crudo_procesado_kbbld"]
 
 
 def serie_diaria(path: Path, nombre: str) -> pd.Series:
@@ -177,7 +191,7 @@ def grilla_escenarios(modelo, ultimo: pd.Series) -> list[dict]:
                 {
                     "brent_usd": brent,
                     "produccion_kboed": produccion,
-                    "lifting_cost_usd_boe": float(ultimo.lifting_cost_usd_boe),
+                    **{v: float(ultimo[v]) for v in FIJAS_EN_GRILLA},
                 },
             )
             salida.append(
@@ -202,6 +216,7 @@ def grilla_costos(modelo, ultimo: pd.Series) -> list[dict]:
                 "brent_usd": float(ultimo.brent_usd),
                 "produccion_kboed": float(ultimo.produccion_kboed),
                 "lifting_cost_usd_boe": lifting,
+                "crudo_procesado_kbbld": float(ultimo.crudo_procesado_kbbld),
             },
         )
         salida.append(
@@ -232,6 +247,9 @@ def descomponer_ultimo(modelo, panel: pd.DataFrame) -> dict:
     efecto_costo = float(modelo.params["lifting_cost_usd_boe"]) * (
         actual.lifting_cost_usd_boe - previo.lifting_cost_usd_boe
     )
+    efecto_downstream = float(modelo.params["crudo_procesado_kbbld"]) * (
+        actual.crudo_procesado_kbbld - previo.crudo_procesado_kbbld
+    )
     delta_real = float(actual.adj_ebitda_musd - previo.adj_ebitda_musd)
 
     return {
@@ -243,13 +261,18 @@ def descomponer_ultimo(modelo, panel: pd.DataFrame) -> dict:
         "efecto_precio_musd": round(efecto_precio, 1),
         "efecto_volumen_musd": round(efecto_volumen, 1),
         "efecto_costo_musd": round(efecto_costo, 1),
-        "residual_musd": round(delta_real - efecto_precio - efecto_volumen - efecto_costo, 1),
+        "efecto_downstream_musd": round(efecto_downstream, 1),
+        "residual_musd": round(
+            delta_real - efecto_precio - efecto_volumen - efecto_costo - efecto_downstream, 1
+        ),
         "brent_previo": round(float(previo.brent_usd), 1),
         "brent_actual": round(float(actual.brent_usd), 1),
         "produccion_previa_kboed": float(previo.produccion_kboed),
         "produccion_actual_kboed": float(actual.produccion_kboed),
         "lifting_previo_usd_boe": float(previo.lifting_cost_usd_boe),
         "lifting_actual_usd_boe": float(actual.lifting_cost_usd_boe),
+        "procesado_previo_kbbld": float(previo.crudo_procesado_kbbld),
+        "procesado_actual_kbbld": float(actual.crudo_procesado_kbbld),
     }
 
 
@@ -292,6 +315,11 @@ def main() -> int:
     panel = construir_panel()
 
     operativo, datos_op = ajustar(panel, REGRESORES_OPERATIVO)
+    ingresos, datos_ingresos = ajustar(panel, REGRESORES_INGRESOS, y="revenues_musd")
+    # Especificacion alternativa: agrega el atraso cambiario. Se estima para
+    # poder decir con numeros que no es significativo (p 0,12 sobre 11
+    # trimestres), en vez de dejarlo afuera sin explicacion.
+    fx, datos_fx = ajustar(panel, REGRESORES_OPERATIVO + ["fx_var_real"])
     mezcla, datos_mezcla = ajustar(panel, ["brent_usd", "shale_oil_kbbld"])
     largo, datos_largo = ajustar(panel, ["brent_usd"])
     for nombre, modelo in (("operativo", operativo), ("mezcla   ", mezcla), ("largo    ", largo)):
@@ -310,7 +338,15 @@ def main() -> int:
             "No son una proyeccion de la compania."
         ),
         "modelo_operativo": resumen_modelo(
-            operativo, "adj_ebitda ~ brent + produccion + lifting_cost", datos_op
+            operativo,
+            "adj_ebitda ~ brent + produccion + lifting_cost + crudo_procesado",
+            datos_op,
+        ),
+        "modelo_ingresos": resumen_modelo(
+            ingresos, "revenues ~ brent + produccion + crudo_procesado", datos_ingresos
+        ),
+        "modelo_fx": resumen_modelo(
+            fx, "adj_ebitda ~ brent + produccion + lifting_cost + crudo_procesado + fx_var_real", datos_fx
         ),
         "modelo_mezcla": resumen_modelo(mezcla, "adj_ebitda ~ brent + shale_oil", datos_mezcla),
         "modelo_largo": resumen_modelo(largo, "adj_ebitda ~ brent", datos_largo),
@@ -320,6 +356,8 @@ def main() -> int:
             "brent_usd": round(float(ultimo.brent_usd), 2),
             "produccion_kboed": float(ultimo.produccion_kboed),
             "lifting_cost_usd_boe": float(ultimo.lifting_cost_usd_boe),
+            "crudo_procesado_kbbld": float(ultimo.crudo_procesado_kbbld),
+            "revenues_musd": float(ultimo.revenues_musd),
         },
         "descomposicion_ultimo_trimestre": descomponer_ultimo(operativo, panel),
         "grilla_escenarios": grilla_escenarios(operativo, ultimo),
@@ -342,6 +380,7 @@ def main() -> int:
         sources=[rel(SRC_FIN), rel(SRC_BRENT), rel(SRC_FX)],
         outputs=[rel(d) for d, _, _ in salidas],
         r2_operativo=payload["modelo_operativo"]["r2"],
+        r2_ingresos=payload["modelo_ingresos"]["r2"],
         r2_mezcla=payload["modelo_mezcla"]["r2"],
         r2_largo=payload["modelo_largo"]["r2"],
         observaciones_operativo=payload["modelo_operativo"]["observaciones"],

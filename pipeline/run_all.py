@@ -45,6 +45,7 @@ TRANSFORM_SCRIPTS: list[tuple[str, Path, list[str]]] = [
     ("transform/economics", TRANSFORM / "well_economics.py", []),
     ("transform/sensitivity", TRANSFORM / "ebitda_sensitivity.py", []),
     ("transform/market", TRANSFORM / "market_reaction.py", []),
+    ("transform/scenario", TRANSFORM / "scenario_engine.py", []),
 ]
 
 

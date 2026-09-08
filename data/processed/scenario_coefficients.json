@@ -1,0 +1,161 @@
+{
+  "generado_desde": "data/processed/ebitda_sensitivity.json",
+  "modelo_ebitda": "adj_ebitda ~ brent + produccion + lifting_cost + crudo_procesado",
+  "modelo_ingresos": "revenues ~ brent + produccion + crudo_procesado",
+  "observaciones": 15,
+  "periodo": [
+    "2022Q4",
+    "2026Q2"
+  ],
+  "r2_ebitda": 0.9116,
+  "r2_ingresos": 0.739,
+  "advertencia": "Coeficientes estimados sobre pocos trimestres: la banda del 95% es parte del resultado, no un adorno.",
+  "ebitda": {
+    "const": -7235.2023,
+    "brent_usd": 24.6631,
+    "produccion_kboed": 7.671,
+    "lifting_cost_usd_boe": -57.1854,
+    "crudo_procesado_kbbld": 10.6381,
+    "error_estandar": 164.9
+  },
+  "ingresos": {
+    "const": -9023.596,
+    "brent_usd": 30.7172,
+    "produccion_kboed": 11.9322,
+    "crudo_procesado_kbbld": 16.3847
+  },
+  "fx": {
+    "coeficiente": -295.8181,
+    "p_valor": 0.4908,
+    "significativo": false,
+    "nota": "Estimado en una especificacion alternativa con 11 trimestres. No se distingue de cero: mostrar el slider con la advertencia."
+  },
+  "caso_base": {
+    "trimestre": "2026Q2",
+    "adj_ebitda_musd": 2804.0,
+    "revenues_musd": 6574.0,
+    "brent_usd": 96.94,
+    "produccion_kboed": 544.4,
+    "lifting_cost_usd_boe": 8.4,
+    "crudo_procesado_kbbld": 350.8
+  },
+  "casos_de_prueba": [
+    {
+      "nombre": "base",
+      "escenario": {},
+      "esperado": {
+        "ebitda_proyectado_musd": 2583.2,
+        "ingresos_proyectados_musd": 6197.8,
+        "margen": 0.4168,
+        "delta_vs_real_musd": -220.8,
+        "delta_vs_real_pct": -0.0787,
+        "banda_95_musd": [
+          2260.0,
+          2906.4
+        ]
+      }
+    },
+    {
+      "nombre": "brent_60",
+      "escenario": {
+        "brent_usd": 60.0
+      },
+      "esperado": {
+        "ebitda_proyectado_musd": 1672.2,
+        "ingresos_proyectados_musd": 5063.1,
+        "margen": 0.3303,
+        "delta_vs_real_musd": -1131.8,
+        "delta_vs_real_pct": -0.4037,
+        "banda_95_musd": [
+          1349.0,
+          1995.4
+        ]
+      }
+    },
+    {
+      "nombre": "brent_120",
+      "escenario": {
+        "brent_usd": 120.0
+      },
+      "esperado": {
+        "ebitda_proyectado_musd": 3152.0,
+        "ingresos_proyectados_musd": 6906.1,
+        "margen": 0.4564,
+        "delta_vs_real_musd": 348.0,
+        "delta_vs_real_pct": 0.1241,
+        "banda_95_musd": [
+          2828.7,
+          3475.2
+        ]
+      }
+    },
+    {
+      "nombre": "costo_alto",
+      "escenario": {
+        "lifting_cost_usd_boe": 16.0
+      },
+      "esperado": {
+        "ebitda_proyectado_musd": 2148.6,
+        "ingresos_proyectados_musd": 6197.8,
+        "margen": 0.3467,
+        "delta_vs_real_musd": -655.4,
+        "delta_vs_real_pct": -0.2337,
+        "banda_95_musd": [
+          1825.4,
+          2471.8
+        ]
+      }
+    },
+    {
+      "nombre": "produccion_600",
+      "escenario": {
+        "produccion_kboed": 600.0
+      },
+      "esperado": {
+        "ebitda_proyectado_musd": 3009.7,
+        "ingresos_proyectados_musd": 6861.2,
+        "margen": 0.4387,
+        "delta_vs_real_musd": 205.7,
+        "delta_vs_real_pct": 0.0734,
+        "banda_95_musd": [
+          2686.5,
+          3332.9
+        ]
+      }
+    },
+    {
+      "nombre": "downstream_parado",
+      "escenario": {
+        "crudo_procesado_kbbld": 250.0
+      },
+      "esperado": {
+        "ebitda_proyectado_musd": 1510.9,
+        "ingresos_proyectados_musd": 4546.2,
+        "margen": 0.3323,
+        "delta_vs_real_musd": -1293.1,
+        "delta_vs_real_pct": -0.4612,
+        "banda_95_musd": [
+          1187.7,
+          1834.1
+        ]
+      }
+    },
+    {
+      "nombre": "atraso_cambiario",
+      "escenario": {
+        "fx_var_real": -0.2
+      },
+      "esperado": {
+        "ebitda_proyectado_musd": 2642.4,
+        "ingresos_proyectados_musd": 6197.8,
+        "margen": 0.4263,
+        "delta_vs_real_musd": -161.6,
+        "delta_vs_real_pct": -0.0576,
+        "banda_95_musd": [
+          2319.2,
+          2965.6
+        ]
+      }
+    }
+  ]
+}
