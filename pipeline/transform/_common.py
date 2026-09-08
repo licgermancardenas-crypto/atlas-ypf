@@ -65,14 +65,30 @@ def save_parquet(df, dest: Path, **kwargs) -> int:
     return dest.stat().st_size
 
 
+def _sin_nan(obj):
+    """NaN e infinitos a null.
+
+    JSON no los admite y JSON.parse del browser tampoco: dejarlos pasar como
+    `NaN` literal rompe el fetch del frontend en runtime, que es el peor lugar
+    para enterarse. Un null es explícito y el chart lo saltea.
+    """
+    if isinstance(obj, dict):
+        return {k: _sin_nan(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sin_nan(v) for v in obj]
+    if isinstance(obj, float) and (obj != obj or obj in (float("inf"), float("-inf"))):
+        return None
+    return obj
+
+
 def save_json(payload, dest: Path, indent: int | None = None) -> int:
     """Guarda un JSON para el frontend (compacto por default) y devuelve bytes."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     separators = None if indent else (",", ":")
     tmp = dest.with_suffix(dest.suffix + ".tmp")
     tmp.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=indent, separators=separators,
-                   allow_nan=False),
+        json.dumps(_sin_nan(payload), ensure_ascii=False, indent=indent,
+                   separators=separators, allow_nan=False),
         encoding="utf-8",
     )
     tmp.replace(dest)

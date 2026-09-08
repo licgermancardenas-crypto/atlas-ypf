@@ -36,6 +36,7 @@ INGEST_SCRIPTS = [
 TRANSFORM_SCRIPTS: list[tuple[str, Path]] = [
     ("transform/production", TRANSFORM / "production_wells.py"),
     ("transform/decline", TRANSFORM / "decline_curves.py"),
+    ("transform/economics", TRANSFORM / "well_economics.py"),
 ]
 
 

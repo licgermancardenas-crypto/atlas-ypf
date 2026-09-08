@@ -26,5 +26,30 @@
     "r2_mediano": 0.8279,
     "b_mediano": 1.251,
     "eur_bbl_mediano": 969994.5
+  },
+  "well_economics": {
+    "generated_at": "2026-09-08T21:57:01+00:00",
+    "source": "data/processed/decline_curves.parquet",
+    "outputs": [
+      "data/processed/well_economics.parquet",
+      "data/processed/well_economics.json"
+    ],
+    "supuestos": {
+      "capex_usd": 11000000.0,
+      "opex_usd_bbl": 6.0,
+      "diferencial_usd_bbl": 8.0,
+      "regalias": 0.12,
+      "iigg": 0.35,
+      "wacc_anual": 0.12,
+      "wacc_comparable": 0.1,
+      "brent_base": 90.7
+    },
+    "pozos": 2179,
+    "npv_musd_mediano": 8.67,
+    "irr_mediana": 0.6378,
+    "payback_meses_mediano": 14.0,
+    "breakeven_brent_mediano": 47.5,
+    "pozos_con_npv_positivo": 0.739,
+    "prima_riesgo_pais_musd_mediana": 0.99
   }
 }
