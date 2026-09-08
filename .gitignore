@@ -22,3 +22,6 @@ venv/
 # Sistema operativo
 .DS_Store
 Thumbs.db
+
+# Intermedios del pipeline: se regeneran corriendo pipeline/run_all.py
+data/processed/*.parquet

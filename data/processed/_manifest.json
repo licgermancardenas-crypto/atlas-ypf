@@ -1,0 +1,30 @@
+{
+  "production_wells": {
+    "generated_at": "2026-09-08T21:41:40+00:00",
+    "source": "data/raw/production/no_convencional.csv",
+    "outputs": [
+      "data/processed/production_wells.parquet",
+      "data/processed/wells.parquet",
+      "data/processed/production_summary.json"
+    ],
+    "rows_panel": 421046,
+    "wells": 5089,
+    "wells_vaca_muerta": 3382,
+    "periodo": [
+      "2006-01",
+      "2026-07"
+    ]
+  },
+  "decline_curves": {
+    "generated_at": "2026-09-08T21:50:31+00:00",
+    "source": "data/processed/production_wells.parquet",
+    "outputs": [
+      "data/processed/decline_curves.parquet",
+      "data/processed/decline_type_curves.json"
+    ],
+    "pozos_ajustados": 2182,
+    "r2_mediano": 0.8279,
+    "b_mediano": 1.251,
+    "eur_bbl_mediano": 969994.5
+  }
+}

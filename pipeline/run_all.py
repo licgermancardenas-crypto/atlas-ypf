@@ -6,11 +6,10 @@ termina con exit code distinto de cero, para que el job quede en rojo en vez de
 fallar en silencio.
 
 Uso:
-    python pipeline/run_all.py                 # ingesta core (datasets 1, 3, 4, 5)
-    python pipeline/run_all.py --force         # ignora la frescura del manifest
-    python pipeline/run_all.py --only market   # solo los scripts que matcheen
-
-Los transforms se suman en la Fase 2; por ahora la etapa está vacía a propósito.
+    python pipeline/run_all.py                    # ingesta + transforms
+    python pipeline/run_all.py --force            # ignora la frescura del manifest
+    python pipeline/run_all.py --only market      # solo los scripts que matcheen
+    python pipeline/run_all.py --skip-ingest      # solo transforms, sin tocar la red
 """
 
 from __future__ import annotations
@@ -22,6 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 INGEST = ROOT / "pipeline" / "ingest"
+TRANSFORM = ROOT / "pipeline" / "transform"
 
 # Orden deliberado: primero lo liviano, para fallar rápido si no hay red.
 INGEST_SCRIPTS = [
@@ -31,7 +31,12 @@ INGEST_SCRIPTS = [
     ("financials/ypf", INGEST / "financials_ypf.py"),
 ]
 
-TRANSFORM_SCRIPTS: list[tuple[str, Path]] = []  # se llena en la Fase 2
+# Los transforms corren despues de la ingesta y dependen de ella: production
+# normaliza el panel pozo-mes que consumen los transforms financieros.
+TRANSFORM_SCRIPTS: list[tuple[str, Path]] = [
+    ("transform/production", TRANSFORM / "production_wells.py"),
+    ("transform/decline", TRANSFORM / "decline_curves.py"),
+]
 
 
 def run(nombre: str, script: Path, extra: list[str]) -> int:
