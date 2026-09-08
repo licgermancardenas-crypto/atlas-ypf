@@ -64,5 +64,21 @@
     "desde": "2019Q4",
     "hasta": "2026Q2",
     "kpis": 21
+  },
+  "ebitda_sensitivity": {
+    "generated_at": "2026-09-08T22:28:31+00:00",
+    "sources": [
+      "data/processed/financials_ypf.parquet",
+      "data/raw/market/oil/brent.json",
+      "data/raw/macro/fx/ars_usd.json"
+    ],
+    "outputs": [
+      "data/processed/ebitda_quarterly.parquet",
+      "data/processed/ebitda_sensitivity.json"
+    ],
+    "r2_operativo": 0.8383,
+    "r2_mezcla": 0.8705,
+    "r2_largo": 0.4701,
+    "observaciones_operativo": 15
   }
 }

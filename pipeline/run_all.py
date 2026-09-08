@@ -27,6 +27,7 @@ TRANSFORM = ROOT / "pipeline" / "transform"
 INGEST_SCRIPTS = [
     ("market/stock", INGEST / "stock_prices.py"),
     ("market/oil", INGEST / "brent_wti.py"),
+    ("macro/fx", INGEST / "fx_ars_usd.py"),
     ("production", INGEST / "production_wells.py"),
     ("financials/ypf", INGEST / "financials_ypf.py"),
 ]
@@ -38,6 +39,7 @@ TRANSFORM_SCRIPTS: list[tuple[str, Path]] = [
     ("transform/production", TRANSFORM / "production_wells.py"),
     ("transform/decline", TRANSFORM / "decline_curves.py"),
     ("transform/economics", TRANSFORM / "well_economics.py"),
+    ("transform/sensitivity", TRANSFORM / "ebitda_sensitivity.py"),
 ]
 
 
