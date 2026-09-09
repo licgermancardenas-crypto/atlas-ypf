@@ -77,51 +77,6 @@ function Marco({ children, alto = 320 }: { children: React.ReactElement; alto?: 
 }
 
 // --------------------------------------------------------------------------- //
-// EBITDA contra Brent
-// --------------------------------------------------------------------------- //
-export function EbitdaBrent({ serie }: { serie: PuntoSerieEbitda[] }) {
-  const datos = serie
-    .filter((punto) => punto.adj_ebitda_musd !== null)
-    .map((punto) => ({ ...punto, etiqueta: fmt.trimestre(punto.trimestre) }));
-
-  return (
-    <Marco alto={340}>
-      <ComposedChart data={datos} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-        <CartesianGrid stroke={COLORES.grilla} strokeDasharray="2 4" vertical={false} />
-        <XAxis dataKey="etiqueta" {...ejeComun} interval={3} />
-        <YAxis yAxisId="ebitda" {...ejeComun} width={52} />
-        <YAxis yAxisId="brent" orientation="right" {...ejeComun} width={44} />
-        <Tooltip
-          {...tooltipComun}
-          formatter={(valor, nombre) =>
-            String(nombre) === 'Brent'
-              ? [`US$ ${fmt.decimal(Number(valor))}/bbl`, String(nombre)]
-              : [fmt.musd(Number(valor)), String(nombre)]
-          }
-        />
-        <Legend wrapperStyle={{ fontSize: '0.75rem', color: COLORES.texto }} />
-        <Bar
-          yAxisId="ebitda"
-          dataKey="adj_ebitda_musd"
-          name="EBITDA ajustado"
-          fill={COLORES.azulSolido}
-          radius={[2, 2, 0, 0]}
-        />
-        <Line
-          yAxisId="brent"
-          type="monotone"
-          dataKey="brent_usd"
-          name="Brent"
-          stroke={COLORES.oro}
-          strokeWidth={2}
-          dot={false}
-        />
-      </ComposedChart>
-    </Marco>
-  );
-}
-
-// --------------------------------------------------------------------------- //
 // Producción de shale contra costo de extracción
 // --------------------------------------------------------------------------- //
 export function ShaleYCostos({ serie }: { serie: PuntoSerieEbitda[] }) {

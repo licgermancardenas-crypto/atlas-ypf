@@ -68,15 +68,35 @@ export function Tarjeta({
   );
 }
 
+/** Chip de variación. Un número solo no dice si está bien o mal; el chip pone el
+ *  signo, el color y la referencia en el mismo golpe de vista. */
+export function Chip({ valor, referencia }: { valor: number; referencia?: string }) {
+  const positivo = valor >= 0;
+  return (
+    <span
+      className={`tabular inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.7rem] ${
+        positivo ? 'bg-alza/15 text-alza' : 'bg-baja/15 text-baja'
+      }`}
+    >
+      <span aria-hidden="true">{positivo ? '▲' : '▼'}</span>
+      {Math.abs(valor * 100).toFixed(0)}%{referencia ? <span className="opacity-70">{referencia}</span> : null}
+    </span>
+  );
+}
+
 export function Dato({
   etiqueta,
   valor,
   detalle,
+  delta,
+  deltaReferencia,
   tono = 'neutro',
 }: {
   etiqueta: string;
   valor: string;
   detalle?: string;
+  delta?: number | null;
+  deltaReferencia?: string;
   tono?: 'neutro' | 'alza' | 'baja' | 'crudo' | 'marca';
 }) {
   const tonos = {
@@ -92,7 +112,12 @@ export function Dato({
       <p className="font-mono text-[0.7rem] uppercase tracking-[0.12em] text-texto-tenue">
         {etiqueta}
       </p>
-      <p className={`tabular mt-2 text-2xl font-semibold ${tonos[tono]}`}>{valor}</p>
+      <div className="mt-2 flex flex-wrap items-baseline gap-2">
+        <p className={`tabular text-2xl font-semibold ${tonos[tono]}`}>{valor}</p>
+        {delta !== undefined && delta !== null ? (
+          <Chip valor={delta} referencia={deltaReferencia} />
+        ) : null}
+      </div>
       {detalle ? <p className="mt-1 text-xs leading-snug text-texto-suave">{detalle}</p> : null}
     </div>
   );

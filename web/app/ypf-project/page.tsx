@@ -3,14 +3,14 @@ import Link from 'next/link';
 import {
   AccionYRiesgoPais,
   CurvasTipo,
-  EbitdaBrent,
   ProduccionPorOperador,
   Puente,
   ReaccionBalances,
   ShaleYCostos,
 } from '@/components/charts';
 import { MapaCuenca } from '@/components/mapa/MapaCuenca';
-import { NavSecciones } from '@/components/NavSecciones';
+import { PanelFinanciero } from '@/components/PanelFinanciero';
+import { Shell } from '@/components/Shell';
 import { Simulador } from '@/components/Simulador';
 import { Dato, Franja, Nota, Seccion, Tabla, Tarjeta } from '@/components/ui';
 import { cargar } from '@/lib/server-data';
@@ -49,12 +49,12 @@ export default async function CasoYPF() {
     actual !== null && anterior !== null && anterior !== 0 ? actual / anterior - 1 : null;
 
   return (
-    <main className="pb-24">
-      <NavSecciones />
+    <Shell actualizado={financieros.generado.slice(0, 10)}>
+      <main className="pb-24">
 
       {/* ------------------------------------------------------------------ */}
       <header className="border-b border-borde">
-        <div className="mx-auto max-w-6xl px-6 py-16 sm:py-24">
+        <div className="mx-auto max-w-6xl px-6 py-14 sm:py-20">
           <Franja className="w-24" />
           <p className="mt-5 font-mono text-xs tracking-[0.2em] text-azul-claro">
             ATLAS-YPF · CASO DE ESTUDIO · {fmt.trimestre(ultimo.trimestre)}
@@ -108,21 +108,24 @@ export default async function CasoYPF() {
             <Dato
               etiqueta="Shale oil"
               valor={`${fmt.decimal(ultimo.shale_oil_kbbld)} Kbbl/d`}
-              detalle={`${fmt.porcentajeConSigno(
-                variacion(ultimo.shale_oil_kbbld, previoAnual.shale_oil_kbbld),
-                0,
-              )} interanual`}
+              delta={variacion(ultimo.shale_oil_kbbld, previoAnual.shale_oil_kbbld)}
+              deltaReferencia=" i.a."
+              detalle="producción neta que reporta la compañía"
               tono="alza"
             />
             <Dato
               etiqueta="Deuda neta / EBITDA"
               valor={`${fmt.decimal(ultimo.net_leverage_x)}x`}
+              delta={variacion(ultimo.net_leverage_x, previoAnual.net_leverage_x)}
+              deltaReferencia=" i.a."
               detalle={`deuda neta ${fmt.musd(ultimo.net_debt_musd)}`}
               tono="marca"
             />
             <Dato
               etiqueta="Lifting cost"
               valor={`US$ ${fmt.numero(ultimo.lifting_cost_usd_boe, 1)}/boe`}
+              delta={variacion(ultimo.lifting_cost_usd_boe, previoAnual.lifting_cost_usd_boe)}
+              deltaReferencia=" i.a."
               detalle="desde US$ 16 en 2024"
               tono="crudo"
             />
@@ -149,8 +152,8 @@ export default async function CasoYPF() {
           </>
         }
       >
-        <Tarjeta titulo="EBITDA ajustado trimestral contra el Brent promedio del trimestre">
-          <EbitdaBrent serie={sensibilidad.serie} />
+        <Tarjeta titulo="La serie trimestral, contra el Brent promedio del trimestre">
+          <PanelFinanciero serie={sensibilidad.serie} />
           <Nota>
             Cada trimestre se toma del release donde es el trimestre titular, no de las columnas
             comparativas de reportes posteriores: el 2T22 quedó en los US$ 4.855M que YPF informó
@@ -492,7 +495,8 @@ export default async function CasoYPF() {
           {produccion.cobertura.hasta} · generado por el pipeline el{' '}
           {financieros.generado.slice(0, 10)}.
         </p>
-      </Seccion>
-    </main>
+        </Seccion>
+      </main>
+    </Shell>
   );
 }
