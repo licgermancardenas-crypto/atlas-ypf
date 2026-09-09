@@ -15,6 +15,11 @@ Tres decisiones que definen el resultado:
 1. Todo se recorta a la cuenca Neuquina. Las capas nacionales traen 879
    yacimientos y 529 departamentos; el caso es sobre Vaca Muerta y cargar el
    resto es pagar peso por nada.
+1b. Las concesiones y los yacimientos salen con la producción de los pozos que
+   caen adentro ya agregada, que es lo que permite pintarlos como coroplético
+   sin que el navegador tenga que cruzar 4.893 puntos contra 676 polígonos. El
+   cruce es espacial y no por nombre: los nombres de área de la tabla de
+   producción y los del shapefile no coinciden siempre.
 2. Las geometrías se simplifican con una tolerancia distinta por capa, en grados.
    Una provincia se ve igual con 200 m de tolerancia y pesa una décima parte; una
    concesión de 20 km de lado no tolera lo mismo. La tolerancia de cada capa está
@@ -59,6 +64,8 @@ SRC_BASINS = RAW_GEO / "basins" / "exploracin-hidrocarburos-cuencas-sedimentaria
 SRC_CONCESSIONS = RAW_GEO / "concessions" / "produccin-hidrocarburos-concesiones-de-explotacin.zip"
 SRC_FIELDS = RAW_GEO / "fields" / "produccin-hidrocarburos-yacimientos.zip"
 SRC_PROVINCIAS = RAW_GEO / "boundaries" / "provincias.geojson"
+CONTEXTO = RAW_GEO / "context"
+ENERGIA = RAW_GEO / "energy"
 SRC_DEM = RAW_GEO / "dem" / "neuquina_dem.tif"
 SRC_WELLS = PROCESSED / "wells.parquet"
 SRC_DECLINE = PROCESSED / "decline_curves.parquet"
@@ -70,7 +77,19 @@ SIMPLIFICACION = {
     "concessions": 0.001,  # ~100 m: los bordes de área importan más
     "fields": 0.001,
     "provinces": 0.005,  # ~550 m: solo dan contexto de fondo
+    "roads": 0.0015,
+    "rivers": 0.002,
+    "pipelines": 0.001,
+    "rail": 0.002,
 }
+
+# Largo mínimo en grados para entrar al mapa (~1 km). El WFS del IGN devuelve la
+# hidrografía y los ductos partidos en miles de tramos diminutos: dibujarlos
+# todos cuesta megas y a escala de cuenca no se distingue ninguno.
+LARGO_MINIMO = 0.01
+
+# Del padrón de ductos solo entran los que mueven hidrocarburo.
+DUCTOS_DE_INTERES = {"OLEODUCTO", "GASODUCTO", "POLIDUCTO"}
 
 # Margen alrededor de la cuenca para no cortar lo que queda justo en el borde.
 MARGEN_GRADOS = 0.25
@@ -134,7 +153,7 @@ def escribir_geojson(gdf: gpd.GeoDataFrame, nombre: str, decimales: int = 5) -> 
     return size
 
 
-def capas_vectoriales() -> tuple[dict[str, int], gpd.GeoSeries]:
+def capas_vectoriales(pozos: gpd.GeoDataFrame) -> tuple[dict[str, int], object]:
     cuencas = leer_shapefile(SRC_BASINS)
     neuquina = cuencas[cuencas.CUENCA.str.contains("NEUQ", case=False, na=False)]
     if neuquina.empty:
@@ -172,6 +191,7 @@ def capas_vectoriales() -> tuple[dict[str, int], gpd.GeoSeries]:
             .str.replace(r"\s+", " ", regex=True)
             .str.strip()
         )
+    concesiones = _agregar_pozos(concesiones, pozos, "codigo")
     tamanos["concessions"] = escribir_geojson(concesiones, "concessions")
 
     yacimientos = leer_shapefile(SRC_FIELDS)
@@ -181,10 +201,19 @@ def capas_vectoriales() -> tuple[dict[str, int], gpd.GeoSeries]:
         {"AREAYACIMI": "yacimiento", "IDYA": "codigo", "EMPRESA_OP": "operador"},
         SIMPLIFICACION["fields"],
     )
+    yacimientos = _agregar_pozos(yacimientos, pozos, "codigo")
     tamanos["fields"] = escribir_geojson(yacimientos, "fields")
 
-    # Las provincias del IGN vienen con el detalle completo del límite: una sola
-    # feature supera el tope por objeto que GDAL trae por defecto para GeoJSON.
+    # Las provincias del IGN son 106 MB con el detalle completo del límite y
+    # tardan minutos en leerse, pero un límite provincial no cambia entre
+    # corridas: si la salida ya está, se reusa. Además una sola feature supera
+    # el tope por objeto que GDAL trae por defecto para GeoJSON.
+    destino_provincias = OUT / "provinces.geojson"
+    if destino_provincias.exists() and destino_provincias.stat().st_mtime > SRC_PROVINCIAS.stat().st_mtime:
+        tamanos["provinces"] = destino_provincias.stat().st_size
+        log(f"reusando {rel(destino_provincias)} ({human(tamanos['provinces'])})")
+        return tamanos, recorte
+
     os.environ.setdefault("OGR_GEOJSON_MAX_OBJ_SIZE", "0")
     provincias = gpd.read_file(SRC_PROVINCIAS).to_crs("EPSG:4326")
     provincias = provincias[provincias.intersects(recorte)]
@@ -200,9 +229,191 @@ def capas_vectoriales() -> tuple[dict[str, int], gpd.GeoSeries]:
 
 
 # --------------------------------------------------------------------------- #
+# Contexto: rutas, pueblos, ductos, ríos y vías
+# --------------------------------------------------------------------------- #
+def _leer_contexto(nombre: str) -> gpd.GeoDataFrame | None:
+    ruta = CONTEXTO / f"{nombre}.geojson"
+    if not ruta.exists():
+        log(f"  falta {rel(ruta)}, se saltea esa capa")
+        return None
+    os.environ.setdefault("OGR_GEOJSON_MAX_OBJ_SIZE", "0")
+    gdf = gpd.read_file(ruta)
+    return gdf.set_crs("EPSG:4326") if gdf.crs is None else gdf.to_crs("EPSG:4326")
+
+
+def _recortar(gdf: gpd.GeoDataFrame, recorte, tolerancia: float, largo_minimo: float = 0.0):
+    """Deja lo que cae dentro de la cuenca, tira las hilachas y simplifica."""
+    gdf = gdf[gdf.intersects(recorte)].copy()
+    if largo_minimo:
+        # El umbral está en grados a propósito: es un filtro de "esto no se ve a
+        # esta escala", no una medición. Reproyectar para hacerlo exacto sería
+        # precisión falsa, así que se silencia el aviso de geopandas.
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=".*geographic CRS.*")
+            gdf = gdf[gdf.geometry.length >= largo_minimo]
+    gdf["geometry"] = gdf.geometry.simplify(tolerancia, preserve_topology=True)
+    return gdf[~gdf.geometry.is_empty & gdf.geometry.notna()]
+
+
+def capas_contexto(recorte) -> dict[str, int]:
+    """Las capas que convierten la nube de pozos en un mapa que se puede leer."""
+    tamanos: dict[str, int] = {}
+
+    # Rutas: las nacionales y las provinciales van juntas con un atributo que las
+    # distingue, porque en el mapa son la misma cosa dibujada con distinto peso.
+    rutas = []
+    for nombre, jerarquia in (("rutas_nacionales", "nacional"), ("rutas_provinciales", "provincial")):
+        capa = _leer_contexto(nombre)
+        if capa is None:
+            continue
+        capa = _recortar(capa, recorte, SIMPLIFICACION["roads"])
+        columnas = {c: c for c in ("rtn", "typ") if c in capa.columns}
+        capa = capa[list(columnas) + ["geometry"]].rename(columns={"rtn": "ruta", "typ": "tipo"})
+        capa["jerarquia"] = jerarquia
+        rutas.append(capa)
+    if rutas:
+        tamanos["roads"] = escribir_geojson(
+            gpd.GeoDataFrame(pd.concat(rutas, ignore_index=True), crs="EPSG:4326"), "roads", decimales=4
+        )
+
+    localidades = _leer_contexto("localidades")
+    if localidades is not None:
+        localidades = localidades[localidades.intersects(recorte)].copy()
+        columnas = {c: n for c, n in (("fna", "nombre"), ("tipo_asent", "tipo"), ("nom_pcia", "provincia")) if c in localidades.columns}
+        localidades = localidades[list(columnas) + ["geometry"]].rename(columns=columnas)
+        # El IGN nombra "Localidad simple (LS)" o "Componente de localidad
+        # compuesta (LC)": al mapa le alcanza con el nombre limpio.
+        if "nombre" in localidades:
+            localidades["nombre"] = localidades.nombre.str.title()
+        tamanos["towns"] = escribir_geojson(localidades, "towns", decimales=4)
+
+    lineales = (
+        ("rios", "rivers", SIMPLIFICACION["rivers"]),
+        ("ferrocarril", "rail", SIMPLIFICACION["rail"]),
+    )
+    for origen, salida, tolerancia in lineales:
+        capa = _leer_contexto(origen)
+        if capa is None:
+            continue
+        capa = _recortar(capa, recorte, tolerancia, largo_minimo=LARGO_MINIMO)
+        columnas = {c: n for c, n in (("fna", "nombre"), ("gna", "tipo")) if c in capa.columns}
+        capa = capa[list(columnas) + ["geometry"]].rename(columns=columnas)
+        tamanos[salida] = escribir_geojson(capa, salida, decimales=4)
+
+    return tamanos
+
+
+# --------------------------------------------------------------------------- #
+# Logística: por dónde sale el crudo de la cuenca
+# --------------------------------------------------------------------------- #
+def _leer_energia(slug: str) -> gpd.GeoDataFrame | None:
+    zips = sorted((ENERGIA / slug).glob("*.zip"))
+    if not zips:
+        log(f"  falta data/raw/geo/energy/{slug}, se saltea esa capa")
+        return None
+    return leer_shapefile(zips[0])
+
+
+def capas_logistica(recorte) -> dict[str, int]:
+    """Refinerías, ductos, instalaciones y terminales dentro de la cuenca.
+
+    Es la capa que contesta la pregunta que sigue a "cuánto produce cada pozo":
+    por dónde sale eso. Un pozo sin evacuación no es producción, es un número.
+    """
+    tamanos: dict[str, int] = {}
+
+    puntuales = (
+        ("refinerias", "refineries", {"PLANTA": "nombre", "EMPRESA": "empresa", "PROVINCIA": "provincia"}),
+        ("terminales", "terminals", {"RAZON_SOCI": "empresa", "TIPO_NEGOC": "tipo", "LOCALIDAD": "localidad"}),
+        (
+            "instalaciones",
+            "facilities",
+            {"INSTALACIO": "nombre", "EMPRESA": "empresa", "TIPO": "tipo", "DESCRIPCIO": "descripcion"},
+        ),
+    )
+    for slug, salida, columnas in puntuales:
+        capa = _leer_energia(slug)
+        if capa is None:
+            continue
+        capa = capa[capa.geometry.notna() & ~capa.geometry.is_empty]
+        # Las refinerías y las terminales del país entero son pocas y sirven de
+        # destino aunque queden fuera del recuadro: solo se recortan las
+        # instalaciones, que son dos mil y saturan el mapa.
+        if slug == "instalaciones":
+            capa = capa[capa.intersects(recorte)]
+        disponibles = {v: n for v, n in columnas.items() if v in capa.columns}
+        capa = capa[list(disponibles) + ["geometry"]].rename(columns=disponibles)
+        tamanos[salida] = escribir_geojson(gpd.GeoDataFrame(capa, crs="EPSG:4326"), salida, decimales=4)
+
+    lineales = (
+        ("ductos", "pipelines", {"NOMBRE": "nombre", "EMPRESA": "empresa", "FLUIDO": "fluido", "TIPO": "tipo"}),  # noqa: E501
+        (
+            "gasoductos",
+            "gas_pipelines",
+            {"NOMBRE": "nombre", "EMPRESA_LI": "empresa", "TIPO_DE_TR": "tipo", "SUBTIPO_DE": "subtipo"},
+        ),
+    )
+    for slug, salida, columnas in lineales:
+        capa = _leer_energia(slug)
+        if capa is None:
+            continue
+        if "TIPO" in capa.columns:
+            # El padrón de la Res. 319/93 trae 34.000 tramos, y 6.300 son
+            # acueductos: agua de inyección que no cuenta la historia de cómo
+            # sale el crudo. Con el filtro de tipo y el de largo queda la traza
+            # troncal, que es lo que se lee a escala de cuenca.
+            capa = capa[capa.TIPO.isin(DUCTOS_DE_INTERES)]
+        capa = _recortar(capa, recorte, SIMPLIFICACION["pipelines"], largo_minimo=LARGO_MINIMO)
+        disponibles = {v: n for v, n in columnas.items() if v in capa.columns}
+        capa = capa[list(disponibles) + ["geometry"]].rename(columns=disponibles)
+        tamanos[salida] = escribir_geojson(gpd.GeoDataFrame(capa, crs="EPSG:4326"), salida, decimales=4)
+
+    return tamanos
+
+
+# --------------------------------------------------------------------------- #
+# Coroplético: los pozos agregados a cada polígono
+# --------------------------------------------------------------------------- #
+def _agregar_pozos(poligonos: gpd.GeoDataFrame, pozos: gpd.GeoDataFrame, clave: str) -> gpd.GeoDataFrame:
+    """Suma la producción de los pozos que caen dentro de cada polígono.
+
+    Se hace por geometría y no por el nombre del área: los nombres de yacimiento
+    de la tabla de producción y los del shapefile no coinciden siempre, y un join
+    espacial no depende de que dos fuentes escriban igual "LOMA CAMPANA".
+    """
+    dentro = gpd.sjoin(pozos, poligonos[[clave, "geometry"]], how="inner", predicate="within")
+
+    resumen = dentro.groupby(clave).agg(
+        pozos=("pozo_id", "count"),
+        boe_acum_mboe=("boe_acum_mboe", "sum"),
+        petroleo_acum_mbbl=("petroleo_acum_mbbl", "sum"),
+        npv_musd_mediano=("npv_musd", "median"),
+        eur_mbbl_mediana=("eur_mbbl", "median"),
+        vaca_muerta=("es_vaca_muerta", "sum"),
+    )
+    # Operador dominante: el que más produjo adentro, no el que más pozos tiene.
+    principal = (
+        dentro.groupby([clave, "operador"]).boe_acum_mboe.sum().reset_index()
+        .sort_values("boe_acum_mboe", ascending=False)
+        .drop_duplicates(clave)
+        .set_index(clave)
+        .operador.rename("operador_principal")
+    )
+
+    salida = poligonos.merge(resumen, on=clave, how="left").merge(principal, on=clave, how="left")
+    salida["pozos"] = salida.pozos.fillna(0).astype("int32")
+    salida["vaca_muerta"] = salida.vaca_muerta.fillna(0).astype("int32")
+    for columna in ("boe_acum_mboe", "petroleo_acum_mbbl", "npv_musd_mediano", "eur_mbbl_mediana"):
+        salida[columna] = salida[columna].round(1)
+    # Intensidad: lo que hace comparable un área chica con una enorme.
+    salida["boe_por_pozo_mboe"] = (salida.boe_acum_mboe / salida.pozos.replace(0, np.nan)).round(1)
+    return salida
+
+
+# --------------------------------------------------------------------------- #
 # Pozos
 # --------------------------------------------------------------------------- #
-def capa_pozos() -> tuple[int, int]:
+def construir_pozos() -> gpd.GeoDataFrame:
     """Pozos con producción acumulada y, si están, EUR y NPV del pozo.
 
     Es la capa que colorea el mapa por volumen, así que carga solo lo que se
@@ -243,13 +454,12 @@ def capa_pozos() -> tuple[int, int]:
     )
     salida["anio_inicio"] = pozos.primera_prod.dt.year.astype("Int16")
 
-    geo = gpd.GeoDataFrame(
+    salida["pozo_id"] = pozos.pozo_id.values
+    return gpd.GeoDataFrame(
         salida,
         geometry=gpd.points_from_xy(pozos.lon.round(5), pozos.lat.round(5)),
         crs="EPSG:4326",
     )
-    size = escribir_geojson(geo, "wells")
-    return len(geo), size
 
 
 # --------------------------------------------------------------------------- #
@@ -379,8 +589,11 @@ def main() -> int:
             log(f"{rel(salida_control)} esta al dia, se saltea (--force para rehacer)")
             return 0
 
-    tamanos, _ = capas_vectoriales()
-    pozos, tamanos["wells"] = capa_pozos()
+    pozos = construir_pozos()
+    tamanos, recorte = capas_vectoriales(pozos)
+    tamanos["wells"] = escribir_geojson(pozos.drop(columns=["pozo_id"]), "wells")
+    tamanos.update(capas_contexto(recorte))
+    tamanos.update(capas_logistica(recorte))
 
     raster = None
     if SRC_DEM.exists():
@@ -394,7 +607,7 @@ def main() -> int:
         "recorte": "cuenca Neuquina + 0,25 grados de margen",
         "simplificacion_grados": SIMPLIFICACION,
         "capas": {nombre: {"bytes": size} for nombre, size in tamanos.items()},
-        "pozos": pozos,
+        "pozos": len(pozos),
         "raster": raster,
     }
     save_json(resumen, OUT / "_resumen.json", indent=2)
@@ -408,7 +621,7 @@ def main() -> int:
         "geo_layers",
         sources=[rel(p) for p in fuentes],
         outputs=[rel(p) for p in sorted(OUT.glob("*")) if p.is_file()],
-        pozos=pozos,
+        pozos=len(pozos),
         bytes_totales=total,
     )
     return 0

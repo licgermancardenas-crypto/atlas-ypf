@@ -117,7 +117,7 @@
     "r2_ebitda": 0.9116
   },
   "geo_layers": {
-    "generated_at": "2026-09-09T00:00:35+00:00",
+    "generated_at": "2026-09-09T17:02:54+00:00",
     "sources": [
       "data/raw/geo/basins/exploracin-hidrocarburos-cuencas-sedimentarias.zip",
       "data/raw/geo/concessions/produccin-hidrocarburos-concesiones-de-explotacin.zip",
@@ -129,14 +129,23 @@
       "data/processed/geo/_resumen.json",
       "data/processed/geo/basin.geojson",
       "data/processed/geo/concessions.geojson",
+      "data/processed/geo/facilities.geojson",
       "data/processed/geo/fields.geojson",
+      "data/processed/geo/gas_pipelines.geojson",
       "data/processed/geo/hillshade.png",
+      "data/processed/geo/pipelines.geojson",
       "data/processed/geo/provinces.geojson",
+      "data/processed/geo/rail.geojson",
       "data/processed/geo/raster.json",
+      "data/processed/geo/refineries.geojson",
+      "data/processed/geo/rivers.geojson",
+      "data/processed/geo/roads.geojson",
+      "data/processed/geo/terminals.geojson",
       "data/processed/geo/terrain.png",
+      "data/processed/geo/towns.geojson",
       "data/processed/geo/wells.geojson"
     ],
     "pozos": 4893,
-    "bytes_totales": 4787137
+    "bytes_totales": 8286181
   }
 }

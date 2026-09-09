@@ -9,7 +9,7 @@ import {
   ReaccionBalances,
   ShaleYCostos,
 } from '@/components/charts';
-import { MapaPozos } from '@/components/MapaPozos';
+import { MapaCuenca } from '@/components/mapa/MapaCuenca';
 import { NavSecciones } from '@/components/NavSecciones';
 import { Simulador } from '@/components/Simulador';
 import { Dato, Franja, Nota, Seccion, Tabla, Tarjeta } from '@/components/ui';
@@ -324,7 +324,7 @@ export default async function CasoYPF() {
         </div>
 
         <div className="mt-6">
-          <MapaPozos />
+          <MapaCuenca />
         </div>
       </Seccion>
 

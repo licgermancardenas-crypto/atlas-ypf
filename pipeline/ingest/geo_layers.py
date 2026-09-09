@@ -1,4 +1,4 @@
-"""Datasets 9 y 10 — Capas vectoriales: concesiones, cuencas, yacimientos y límites.
+"""Datasets 9, 10 y contexto — Capas vectoriales del mapa.
 
 Fuentes:
 - datos.energia.gob.ar (Secretaría de Energía): shapefiles de concesiones de
@@ -7,6 +7,13 @@ Fuentes:
   El IGN no publica los shapefiles por URL directa —la descarga es por
   formulario— pero sí expone las mismas capas por WFS, que además permite pedir
   GeoJSON en EPSG:4326 y evitarse la conversión.
+- IGN, también por WFS y acotado al recuadro de la cuenca: rutas nacionales y
+  provinciales, localidades, ríos permanentes y ferrocarril. Es el contexto que
+  convierte una nube de puntos en un mapa que se puede leer.
+- datos.energia.gob.ar, infraestructura: refinerías, oleoductos y ductos de la
+  Res. 319/93, gasoductos de transporte de ENARGAS, instalaciones empadronadas
+  y terminales de despacho. Es la capa de logística: por dónde sale el crudo de
+  la cuenca, dónde se trata y dónde se despacha.
 
 Todo crudo a data/raw/geo/. El recorte a la cuenca Neuquina, la simplificación
 de geometrías y el armado de las capas para deck.gl son trabajo de
@@ -61,10 +68,68 @@ SHAPEFILES = {
     },
 }
 
+# Infraestructura de hidrocarburos, también del CKAN de la Secretaría. Es la
+# capa de logística del caso: por dónde sale el crudo de la cuenca, dónde se
+# refina y dónde se despacha. Los ductos genéricos del IGN no sirven para esto
+# —no distinguen un oleoducto de un caño de agua— y estas capas sí traen
+# operador, fluido y traza.
+INFRAESTRUCTURA = {
+    "refinerias": {
+        "nombre": "Refinerías de hidrocarburos",
+        "package": "a9eed347-78ab-45c0-a489-b227fe42ee1b",
+        "resource": "4399cb2d-c221-4b9a-9799-8fc008cefd77",
+        "archivo": "refinacin-hidrocarburos-refineras.zip",
+    },
+    "ductos": {
+        "nombre": "Ductos de hidrocarburos y agua (Res. 319/93)",
+        "package": "84681f81-dbbb-49eb-be30-e61778736ad9",
+        "resource": "17fcc6b7-9d9c-4005-a93a-1b2d3a7b1ce5",
+        "archivo": "instalaciones-hidrocarburos-ductos-res-319-93.zip",
+    },
+    "gasoductos": {
+        "nombre": "Gasoductos de transporte (ENARGAS)",
+        "package": "8758101a-1e0d-413f-8cc5-83e21ece6391",
+        "resource": "5af07e15-f356-40b9-a369-63dbf38a938a",
+        "archivo": "gasoductos-de-transporte-enargas-.zip",
+    },
+    "instalaciones": {
+        "nombre": "Instalaciones de hidrocarburos empadronadas (Res. 318)",
+        "package": "164e7197-3222-4d21-81df-9db30ccd3940",
+        "resource": "601bccb9-5e24-4ea1-9d90-e4d72da11d1f",
+        "archivo": "instalaciones-hidrocarburos-instalaciones-res-318.zip",
+    },
+    "terminales": {
+        "nombre": "Terminales de despacho de combustibles líquidos",
+        "package": "99ba34a0-08f2-48e3-8d37-4d92542f740e",
+        "resource": "d9e6759e-bcae-4321-9317-10ed7b6ceccb",
+        "archivo": (
+            "comercializacin-de-hidrocarburos-terminales-de-despacho-de-"
+            "combustibles-lquidos-segn-res-110204-.zip"
+        ),
+    },
+}
+
 WFS = "https://wms.ign.gob.ar/geoserver/ows"
 CAPAS_IGN = {
     "provincias": "ign:provincia",
     "departamentos": "ign:departamento",
+}
+
+# Extensión de la cuenca Neuquina redondeada al grado, la misma que usa
+# ingest/dem_neuquina.py. Estas capas se piden acotadas a ese recuadro: la red
+# vial de toda la Argentina son cientos de megas para dibujar seis grados
+# cuadrados de mapa.
+BBOX_NEUQUINA = "-72,-41,-66,-34"
+
+# Capas de contexto del mapa. Sin rutas ni pueblos, la cuenca es una mancha de
+# puntos flotando en el vacío: son las que dejan ubicar dónde está cada pozo.
+CAPAS_CONTEXTO = {
+    "rutas_nacionales": "ign:vial_nacional",
+    "rutas_provinciales": "ign:vial_provincial",
+    "localidades": "ign:localidad_bahra",
+    "ductos": "ign:lineas_de_estructura_asociada_ducto_subterraneo",
+    "rios": "ign:lineas_de_aguas_continentales_perenne",
+    "ferrocarril": "ign:lineas_de_transporte_ferroviario_AN010",
 }
 
 
@@ -101,9 +166,15 @@ def bajar_shapefile(slug: str, spec: dict, args) -> bool:
     return True
 
 
-def bajar_wfs(slug: str, capa: str, args) -> bool:
-    """Una capa del IGN por WFS, ya en GeoJSON y EPSG:4326."""
-    key = f"geo/boundaries/{slug}"
+def bajar_wfs(slug: str, capa: str, args, bbox: str | None = None, subdir: str = "boundaries") -> bool:
+    """Una capa del IGN por WFS, ya en GeoJSON y EPSG:4326.
+
+    Con `bbox` se pide solo el recuadro de la cuenca. Se usa la versión 1.0.0
+    del protocolo justamente para eso: desde la 1.1 el orden de los ejes de
+    EPSG:4326 pasa a ser lat/lon y el mismo recuadro devuelve el otro lado del
+    planeta sin avisar.
+    """
+    key = f"geo/{subdir}/{slug}"
     if is_fresh(key, args.force, args.max_age_days):
         log(f"{slug}: fresco en el manifest, se saltea (--force para rebajar)")
         return False
@@ -111,12 +182,14 @@ def bajar_wfs(slug: str, capa: str, args) -> bool:
     session = http_session({"Accept": "application/json"})
     params = {
         "service": "WFS",
-        "version": "2.0.0",
+        "version": "1.0.0" if bbox else "2.0.0",
         "request": "GetFeature",
-        "typeNames": capa,
+        "typeName" if bbox else "typeNames": capa,
         "outputFormat": "application/json",
         "srsName": "EPSG:4326",
     }
+    if bbox:
+        params["bbox"] = bbox
     response = session.get(WFS, params=params, timeout=600)
     response.raise_for_status()
     payload = response.json()
@@ -125,7 +198,7 @@ def bajar_wfs(slug: str, capa: str, args) -> bool:
     if not features:
         raise RuntimeError(f"el WFS del IGN devolvio {capa} sin features")
 
-    destino = DEST / "boundaries" / f"{slug}.geojson"
+    destino = DEST / subdir / f"{slug}.geojson"
     destino.parent.mkdir(parents=True, exist_ok=True)
     destino.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
     size = destino.stat().st_size
@@ -135,7 +208,8 @@ def bajar_wfs(slug: str, capa: str, args) -> bool:
         dataset_id=10,
         source="IGN (WFS wms.ign.gob.ar/geoserver)",
         capa=capa,
-        url=f"{WFS}?service=WFS&request=GetFeature&typeNames={capa}",
+        bbox=bbox,
+        url=f"{WFS}?service=WFS&request=GetFeature&typeName={capa}",
         path=rel(destino),
         rows=len(features),
         crs="EPSG:4326",
@@ -166,7 +240,24 @@ def main() -> int:
             log(f"{slug}: FALLO {exc}")
             fallidos.append(slug)
 
-    total = len(SHAPEFILES) + len(CAPAS_IGN)
+    for slug, spec in INFRAESTRUCTURA.items():
+        spec = {**spec, "subdir": f"energy/{slug}"}
+        try:
+            if bajar_shapefile(slug, spec, args):
+                bajados += 1
+        except Exception as exc:  # noqa: BLE001
+            log(f"{slug}: FALLO {exc}")
+            fallidos.append(slug)
+
+    for slug, capa in CAPAS_CONTEXTO.items():
+        try:
+            if bajar_wfs(slug, capa, args, bbox=BBOX_NEUQUINA, subdir="context"):
+                bajados += 1
+        except Exception as exc:  # noqa: BLE001
+            log(f"{slug}: FALLO {exc}")
+            fallidos.append(slug)
+
+    total = len(SHAPEFILES) + len(INFRAESTRUCTURA) + len(CAPAS_IGN) + len(CAPAS_CONTEXTO)
     log(f"listo: {bajados}/{total} capas bajadas")
     if fallidos:
         log(f"ATENCION: fallaron {', '.join(fallidos)}")

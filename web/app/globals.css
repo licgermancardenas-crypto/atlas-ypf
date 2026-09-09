@@ -3,37 +3,44 @@
 /* ---------------------------------------------------------------------------
    Paleta
 
-   El azul #0063BE es el primario de la identidad de YPF; el celeste #75AADB es
-   el de la bandera argentina, que la marca usa en la versión extendida del
-   logo. El oro viene de las franjas del logo anterior a 2008 y acá cumple una
-   segunda función: es el color del crudo en todos los gráficos, así que el
-   guiño a la marca y la semántica del dato coinciden.
+   Los colores están muestreados de material de la marca, no elegidos a ojo:
+   #0054EB es el 95% de los píxeles del logo, y el fondo #000D2D y el LED
+   #112AC5 salen de la foto de una estación de servicio de noche. Esa foto es la
+   referencia de toda la página: en una estación nocturna el negro no es negro
+   sino azul marino, y la luz no ilumina las cosas, sale del borde de las cosas.
 
-   Las marcas van en hex porque un azul de marca aproximado se nota; los
-   neutros van en oklch porque lo que importa de ellos es poder moverlos en
-   luminosidad sin que cambien de temperatura. Los neutros tienen tinte azul a
-   propósito: sobre un gris neutro, el azul de YPF flota.
+   El celeste #75AADB es el de la bandera, que la marca usa en la versión
+   extendida del logo. El oro viene de las franjas del logo anterior a 2008 y
+   acá cumple una segunda función: es el color de todo lo que se mide por barril
+   —el precio del crudo, el costo de extracción—, así que el guiño a la marca y
+   la semántica del dato coinciden.
 
-   Sobre fondo oscuro el #0063BE es demasiado profundo para texto y líneas
-   finas, así que hay dos azules: el de marca para rellenos sólidos y uno
-   aclarado para todo lo que tenga que leerse.
+   Sobre fondo oscuro el azul de marca es demasiado profundo para texto y líneas
+   finas, así que hay dos: el de marca para rellenos sólidos y uno aclarado para
+   todo lo que tenga que leerse.
 --------------------------------------------------------------------------- */
 @theme {
-  --color-azul: #0063be;
-  --color-azul-claro: #4d9fe8;
+  /* Muestreados del logo y de la foto de estación nocturna de YPF, no
+     aproximados: el azul es el 95% de los píxeles del logo, el fondo es el
+     cielo detrás de la marquesina y el azul LED es la luz de la marquesina
+     misma. */
+  --color-azul: #0054eb;
+  --color-azul-claro: #4d90ff;
+  --color-azul-led: #112ac5;
   --color-celeste: #75aadb;
   --color-oro: #f0a830;
   --color-alza: #3fb98a;
   --color-baja: #e2603f;
 
-  --color-fondo: oklch(0.17 0.022 255);
-  --color-superficie: oklch(0.22 0.026 255);
-  --color-superficie-alta: oklch(0.27 0.03 255);
-  --color-borde: oklch(0.33 0.032 255);
-  --color-texto: oklch(0.96 0.008 255);
-  --color-texto-suave: oklch(0.75 0.018 255);
-  --color-texto-tenue: oklch(0.6 0.022 255);
-  --color-neutro: oklch(0.62 0.03 255);
+  --color-fondo: #000d2d;
+  --color-superficie: #061437;
+  --color-superficie-alta: #0d1f4a;
+  --color-borde: #172c5c;
+  --color-borde-vivo: #24407f;
+  --color-texto: #eef3ff;
+  --color-texto-suave: #a8b8d8;
+  --color-texto-tenue: #6d80a8;
+  --color-neutro: #5f7099;
 
   /* Las tres familias las carga next/font en app/layout.tsx. Archivo para los
      titulares, IBM Plex Sans para leer, IBM Plex Mono para todo lo que sea un
@@ -96,6 +103,41 @@ h3 {
 }
 .franja > span:nth-child(3) {
   background: var(--color-oro);
+}
+
+/* ---------------------------------------------------------------------------
+   Marquesina
+
+   En la estación de servicio de noche la luz no ilumina el cartel: sale del
+   borde. Un panel activo se enciende por arriba con esa misma línea de LED, y
+   apagado no tiene ningún adorno. Es la diferencia entre una tarjeta con borde
+   de color y algo que parece encendido.
+--------------------------------------------------------------------------- */
+.marquesina {
+  position: relative;
+}
+.marquesina::before {
+  content: '';
+  position: absolute;
+  inset: -1px -1px auto -1px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-azul) 22%,
+    var(--color-azul-claro) 50%,
+    var(--color-azul) 78%,
+    transparent
+  );
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.marquesina:hover::before,
+.marquesina[data-activa='true']::before {
+  opacity: 1;
+}
+.marquesina[data-activa='true'] {
+  box-shadow: 0 -12px 32px -20px var(--color-azul);
 }
 
 /* ---------------------------------------------------------------------------
