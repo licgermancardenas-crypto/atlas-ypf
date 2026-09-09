@@ -164,5 +164,23 @@
     ],
     "desde": "2009-01",
     "hasta": "2026-07"
+  },
+  "reserves": {
+    "generated_at": "2026-09-09T22:44:10+00:00",
+    "source": "data/raw/reserves",
+    "outputs": [
+      "data/processed/reserves.json"
+    ],
+    "anios": [
+      2017,
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024
+    ],
+    "operadores": 85
   }
 }

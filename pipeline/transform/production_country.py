@@ -67,7 +67,9 @@ CANON = [
     ("TECPETROL", "Tecpetrol"),
     ("PAN AMERICAN", "Pan American Energy"),
     ("SHELL", "Shell"),
-    ("TOTAL", "TotalEnergies"),
+    # "TOTAL" a secas matchearia una fila de totales: se pide el nombre completo.
+    ("TOTAL AUSTRAL", "TotalEnergies"),
+    ("TOTALENERGIES", "TotalEnergies"),
     ("CHEVRON", "Chevron"),
     ("PLUSPETROL", "Pluspetrol"),
     ("CAPEX", "Capex"),

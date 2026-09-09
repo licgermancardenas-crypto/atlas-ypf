@@ -11,6 +11,7 @@ import {
 import { MapaCuenca } from '@/components/mapa/MapaCuenca';
 import { ExploradorProduccion, type ProduccionPais } from '@/components/ExploradorProduccion';
 import { Panel } from '@/components/Panel';
+import { PanelReservas, type Reservas } from '@/components/Reservas';
 import { RankingCrecimiento, type FilaRanking } from '@/components/RankingCrecimiento';
 import { PanelFinanciero } from '@/components/PanelFinanciero';
 import { Shell } from '@/components/Shell';
@@ -41,6 +42,7 @@ export default async function CasoYPF() {
   ]);
 
   const pais = await cargar<ProduccionPais>('country_production.json');
+  const reservas = await cargar<Reservas>('reserves.json');
 
   const ultimo = financieros.serie[financieros.serie.length - 1];
   const previoAnual = financieros.serie[financieros.serie.length - 5];
@@ -60,6 +62,7 @@ export default async function CasoYPF() {
   // El último mes con dato de petróleo del país y el mismo mes del año anterior:
   // es lo que permite decir si el shale crece sobre un total que crece o sobre
   // uno que se está cayendo.
+  const ypfReservas = reservas.ranking_ultimo.find((fila) => fila.operador === 'YPF');
   const mesesPais = pais.pais.filter((mes) => mes.oil_total !== null);
   const paisUltimo = mesesPais[mesesPais.length - 1];
   const paisAnterior = mesesPais[mesesPais.length - 13] ?? mesesPais[0];
@@ -548,6 +551,37 @@ export default async function CasoYPF() {
                 eur: `${fmt.entero(fila.eur_bbl_mediana / 1000)} Mbbl`,
               }))}
             />
+          </Panel>
+        </div>
+
+        <div className="mt-6">
+          <Panel
+            titulo="Reservas comprobadas y vida de reservas"
+            archivo="atlas-ypf-reservas"
+            columnas={[
+              { clave: 'operador', titulo: 'Operador' },
+              { clave: 'comprobadas_mboe', titulo: 'Comprobadas Mboe', alineacion: 'der' },
+              { clave: 'no_convencional_mboe', titulo: 'No convencional Mboe', alineacion: 'der' },
+              { clave: 'share_no_convencional', titulo: '% no conv.', alineacion: 'der',
+                formato: 'porcentaje0' as const },
+              { clave: 'produccion_mboe', titulo: 'Producción Mboe', alineacion: 'der' },
+              { clave: 'vida_reservas', titulo: 'Vida (años)', alineacion: 'der' },
+            ]}
+            datos={reservas.ranking_ultimo as unknown as Record<string, unknown>[]}
+            nota={
+              <>
+                Acá aparece el dato más incómodo del caso: con{' '}
+                {fmt.entero(ypfReservas?.comprobadas_mboe)} miles de boe comprobados, YPF es la
+                primera del país en stock, pero su vida de reservas es de{' '}
+                {fmt.numero(ypfReservas?.vida_reservas ?? 0, 1)} años, la más corta entre las
+                grandes: Pan American tiene 18,8 y Vista 14,7. Produce más rápido de lo que
+                repone. Además su reserva pasó de ser 36% no convencional en 2017 a{' '}
+                {fmt.porcentaje(ypfReservas?.share_no_convencional, 0)} hoy: la compañía es, a
+                esta altura, una apuesta a Vaca Muerta con un remanente convencional.
+              </>
+            }
+          >
+            <PanelReservas datos={reservas} />
           </Panel>
         </div>
       </Seccion>
