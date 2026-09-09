@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import DeckGL from '@deck.gl/react';
 import { BitmapLayer, GeoJsonLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers';
-import type { Layer, PickingInfo } from '@deck.gl/core';
+import { FlyToInterpolator, type Layer, type PickingInfo } from '@deck.gl/core';
 
 import { fmt } from '@/lib/data';
 import { useFiltros } from '../estado/filtros';
@@ -48,6 +48,51 @@ type PintadoPozos = 'volumen' | 'valor' | 'antiguedad';
 
 const VISTA_INICIAL = { longitude: -69.1, latitude: -38.3, zoom: 6.7, pitch: 45, bearing: -17 };
 
+/** Compara nombres de área entre fuentes distintas: el ranking sale del padrón
+ *  SESCO y los polígonos del shapefile de concesiones, y no siempre coinciden en
+ *  acentos, espacios o mayúsculas. */
+function mismoNombre(a: unknown, b: unknown): boolean {
+  const normalizar = (valor: unknown) =>
+    String(valor ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toUpperCase();
+  return normalizar(a) === normalizar(b) && normalizar(a) !== '';
+}
+
+/** Centro y extensión de una geometría, para encuadrarla sin librería de GIS. */
+function encuadre(coordenadas: unknown): { lon: number; lat: number; zoom: number } | null {
+  let minLon = Infinity;
+  let maxLon = -Infinity;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+
+  const recorrer = (nodo: unknown) => {
+    if (!Array.isArray(nodo)) return;
+    if (typeof nodo[0] === 'number' && typeof nodo[1] === 'number') {
+      const [lon, lat] = nodo as [number, number];
+      minLon = Math.min(minLon, lon);
+      maxLon = Math.max(maxLon, lon);
+      minLat = Math.min(minLat, lat);
+      maxLat = Math.max(maxLat, lat);
+      return;
+    }
+    for (const hijo of nodo) recorrer(hijo);
+  };
+  recorrer(coordenadas);
+  if (!Number.isFinite(minLon)) return null;
+
+  const ancho = Math.max(maxLon - minLon, maxLat - minLat, 0.02);
+  return {
+    lon: (minLon + maxLon) / 2,
+    lat: (minLat + maxLat) / 2,
+    // El 1,6 sale de encuadrar el área con margen en vez de pegada al borde.
+    zoom: Math.min(Math.max(Math.log2(360 / (ancho * 1.6)), 6), 12),
+  };
+}
+
 const PINTADOS: { id: PintadoPozos; etiqueta: string }[] = [
   { id: 'volumen', etiqueta: 'Acumulada' },
   { id: 'valor', etiqueta: 'NPV' },
@@ -80,6 +125,7 @@ export function MapaCuenca() {
   const [variable, setVariable] = useState<IdVariable>('boe_acum_mboe');
   const [pintado, setPintado] = useState<PintadoPozos>('volumen');
   const [señalado, setSeñalado] = useState<PickingInfo | null>(null);
+  const [vista, setVista] = useState<Record<string, unknown>>(VISTA_INICIAL);
   const { filtros } = useFiltros();
   const { operador, soloVacaMuerta, desde: desdeAnio } = filtros;
   const [error, setError] = useState<string | null>(null);
@@ -115,6 +161,35 @@ export function MapaCuenca() {
         );
     }
   }, [activas, datos, cargando]);
+
+  // Cuando el ranking señala un área, el mapa vuela hasta ella. Se busca primero
+  // entre las concesiones y después entre los yacimientos, que es el orden en el
+  // que el ranking las ofrece.
+  useEffect(() => {
+    if (!filtros.zona) return;
+    for (const archivo of ['concessions.geojson', 'fields.geojson']) {
+      const coleccion = datos[archivo];
+      if (!coleccion) continue;
+      const encontrada = coleccion.features.find(
+        (f) =>
+          mismoNombre(f.properties.nombre, filtros.zona) ||
+          mismoNombre(f.properties.yacimiento, filtros.zona),
+      );
+      if (!encontrada) continue;
+      const marco = encuadre(encontrada.geometry.coordinates);
+      if (!marco) continue;
+      setVista({
+        longitude: marco.lon,
+        latitude: marco.lat,
+        zoom: marco.zoom,
+        pitch: 45,
+        bearing: -17,
+        transitionDuration: 1200,
+        transitionInterpolator: new FlyToInterpolator(),
+      });
+      return;
+    }
+  }, [filtros.zona, datos]);
 
   const alternar = useCallback((id: IdCapa) => {
     setActivas((previo) => {
@@ -224,11 +299,27 @@ export function MapaCuenca() {
           filled: true,
           getFillColor: (f: ConPropiedades) =>
             [...pintarPoligono(f), 165] as [number, number, number, number],
-          getLineColor: [77, 144, 255, 120],
+          getLineColor: (f: ConPropiedades) =>
+            (mismoNombre(f.properties.nombre, filtros.zona) ||
+            mismoNombre(f.properties.yacimiento, filtros.zona)
+              ? [255, 255, 255, 255]
+              : [77, 144, 255, 120]) as [number, number, number, number],
+          // El área señalada desde el ranking se dibuja con borde blanco y más
+          // grueso: sobre un coroplético azul, el color solo no alcanza.
+          getLineWidth: (f: ConPropiedades) =>
+            mismoNombre(f.properties.nombre, filtros.zona) ||
+            mismoNombre(f.properties.yacimiento, filtros.zona)
+              ? 3
+              : 1,
+          lineWidthUnits: 'pixels',
           lineWidthMinPixels: 0.7,
           pickable: true,
           onHover: (info) => setSeñalado(info.object ? { ...info, layer: info.layer } : null),
-          updateTriggers: { getFillColor: [variable, quiebres] },
+          updateTriggers: {
+            getFillColor: [variable, quiebres],
+            getLineColor: [filtros.zona],
+            getLineWidth: [filtros.zona],
+          },
         }),
       );
     }
@@ -378,7 +469,7 @@ export function MapaCuenca() {
     }
 
     return lista;
-  }, [activas, datos, raster, pozos, pintado, pintarPoligono, variable, quiebres]);
+  }, [activas, datos, raster, pozos, pintado, pintarPoligono, variable, quiebres, filtros.zona]);
 
   // --- interfaz -------------------------------------------------------------
   const grupos = ['Base', 'Actividad', 'Logística', 'Territorio'] as const;
@@ -501,7 +592,8 @@ export function MapaCuenca() {
         {/* Mapa */}
         <div className="relative h-[620px] w-full">
           <DeckGL
-            initialViewState={VISTA_INICIAL}
+            viewState={vista}
+            onViewStateChange={({ viewState }) => setVista(viewState as Record<string, unknown>)}
             controller
             layers={capas}
             style={{ position: 'absolute', inset: '0' }}

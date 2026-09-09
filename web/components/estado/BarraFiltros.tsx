@@ -90,6 +90,18 @@ export function BarraFiltros({ operadores }: { operadores: string[] }) {
           </button>
         ) : null}
 
+        {filtros.zona ? (
+          <button
+            type="button"
+            onClick={() => aplicar({ zona: null })}
+            className="flex items-center gap-1.5 rounded-md bg-azul/20 px-2 py-1 text-xs text-azul-claro transition hover:bg-azul/30"
+          >
+            Área: {filtros.zona}
+            <span aria-hidden="true">×</span>
+            <span className="sr-only">quitar el área señalada</span>
+          </button>
+        ) : null}
+
         {activos ? (
           <button
             type="button"

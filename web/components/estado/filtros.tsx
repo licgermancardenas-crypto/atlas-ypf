@@ -31,6 +31,8 @@ export interface Filtros {
   soloVacaMuerta: boolean;
   /** Trimestre en foco por clic, formato 2026Q2. Null es "ninguno". */
   foco: string | null;
+  /** Área señalada desde el ranking: el mapa vuela hasta ahí. */
+  zona: string | null;
 }
 
 export const RANGO_ANIOS = { min: 2019, max: 2026 } as const;
@@ -41,6 +43,7 @@ const INICIAL: Filtros = {
   hasta: RANGO_ANIOS.max,
   soloVacaMuerta: false,
   foco: null,
+  zona: null,
 };
 
 interface Contexto {
@@ -61,6 +64,7 @@ const CLAVES: Record<keyof Filtros, string> = {
   hasta: 'hasta',
   soloVacaMuerta: 'vm',
   foco: 'foco',
+  zona: 'zona',
 };
 
 function leerDeUrl(): Partial<Filtros> {
@@ -82,6 +86,9 @@ function leerDeUrl(): Partial<Filtros> {
   const foco = params.get(CLAVES.foco);
   if (foco && /^\d{4}Q[1-4]$/.test(foco)) salida.foco = foco;
 
+  const zona = params.get(CLAVES.zona);
+  if (zona) salida.zona = zona;
+
   return salida;
 }
 
@@ -97,6 +104,7 @@ function escribirEnUrl(filtros: Filtros) {
   asignar(CLAVES.hasta, filtros.hasta === INICIAL.hasta ? null : String(filtros.hasta));
   asignar(CLAVES.soloVacaMuerta, filtros.soloVacaMuerta ? '1' : null);
   asignar(CLAVES.foco, filtros.foco);
+  asignar(CLAVES.zona, filtros.zona);
 
   const consulta = params.toString();
   const url = `${window.location.pathname}${consulta ? `?${consulta}` : ''}${window.location.hash}`;
@@ -138,7 +146,8 @@ export function ProveedorFiltros({ children }: { children: ReactNode }) {
       filtros.desde !== INICIAL.desde ||
       filtros.hasta !== INICIAL.hasta ||
       filtros.soloVacaMuerta ||
-      filtros.foco !== null;
+      filtros.foco !== null ||
+      filtros.zona !== null;
 
     const enRango = (trimestre: string) => {
       const anio = Number(trimestre.slice(0, 4));

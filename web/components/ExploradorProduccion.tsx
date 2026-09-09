@@ -25,6 +25,7 @@ import {
 
 import { fmt, type PuntoPais } from '@/lib/data';
 import { useFiltros } from './estado/filtros';
+import type { FilaRanking } from './RankingCrecimiento';
 
 export interface MiembroProduccion {
   nombre: string;
@@ -41,6 +42,7 @@ export interface MiembroProduccion {
 export interface DimensionProduccion {
   fechas: string[];
   miembros: MiembroProduccion[];
+  ranking: FilaRanking[];
 }
 
 export interface ProduccionPais {

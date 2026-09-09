@@ -154,6 +154,54 @@ def serie_dimension(fluido: str, dimension: str) -> pd.DataFrame | None:
     return df.groupby(["fecha", "miembro", "concepto"], observed=True).caudal.sum().reset_index()
 
 
+def armar_ranking(datos: pd.DataFrame, meses: int = 12) -> list[dict]:
+    """Quién creció y quién se cayó, sobre TODOS los miembros y no solo el top.
+
+    El ranking se calcula contra el mismo período del año anterior y no contra
+    el mes previo: la producción tiene estacionalidad de mantenimiento, y un
+    ranking mes contra mes ordena por quién paró la planta, no por quién crece.
+
+    Se devuelve el caudal medio de los últimos doce meses, no el del último mes:
+    un pozo nuevo que arrancó en el último mes distorsionaría todo el orden.
+    """
+    fechas = sorted(datos.fecha.unique())
+    if len(fechas) < meses * 2:
+        return []
+    ventana = set(fechas[-meses:])
+    anterior = set(fechas[-meses * 2 : -meses])
+
+    def promedio(seleccion: set) -> pd.Series:
+        return (
+            datos[datos.fecha.isin(seleccion)]
+            .groupby("miembro", observed=True)
+            .caudal.sum()
+            .div(meses)
+        )
+
+    actual, previo = promedio(ventana), promedio(anterior)
+    tabla = pd.DataFrame({"actual": actual, "previo": previo}).fillna(0)
+    tabla["delta"] = tabla.actual - tabla.previo
+    tabla["crecimiento"] = np.where(tabla.previo > 0, tabla.delta / tabla.previo, np.nan)
+    total = tabla.actual.sum()
+    tabla["participacion"] = tabla.actual / total if total else np.nan
+
+    # Se corta a los treinta que más movieron la aguja en valor absoluto: los que
+    # crecen y los que caen. Un ranking por crecimiento porcentual solo pondría
+    # arriba a los que arrancaron de cero el año pasado.
+    tabla = tabla.reindex(tabla.delta.abs().sort_values(ascending=False).index).head(30)
+    return [
+        {
+            "nombre": str(nombre),
+            "actual_bd": round(float(fila.actual), 1),
+            "previo_bd": round(float(fila.previo), 1),
+            "delta_bd": round(float(fila.delta), 1),
+            "crecimiento": None if pd.isna(fila.crecimiento) else round(float(fila.crecimiento), 4),
+            "participacion": None if pd.isna(fila.participacion) else round(float(fila.participacion), 4),
+        }
+        for nombre, fila in tabla.iterrows()
+    ]
+
+
 def armar_dimension(dimension: str) -> dict | None:
     partes = {fluido: serie_dimension(fluido, dimension) for fluido in ("oil", "gas")}
     if partes["oil"] is None:
@@ -206,6 +254,7 @@ def armar_dimension(dimension: str) -> dict | None:
     return {
         "fechas": [fecha.strftime("%Y-%m") for fecha in indice],
         "miembros": miembros,
+        "ranking": armar_ranking(oil),
     }
 
 
@@ -242,7 +291,10 @@ def main() -> int:
         armada = armar_dimension(dimension)
         if armada:
             dimensiones[dimension] = armada
-            log(f"  {len(armada['miembros'])} miembros, {len(armada['fechas'])} meses")
+            log(
+                f"  {len(armada['miembros'])} miembros, {len(armada['fechas'])} meses, "
+                f"{len(armada['ranking'])} en el ranking"
+            )
 
     pais_json = pais.reset_index()
     pais_json["fecha"] = pais_json.fecha.dt.strftime("%Y-%m")

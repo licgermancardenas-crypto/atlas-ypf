@@ -11,6 +11,7 @@ import {
 import { MapaCuenca } from '@/components/mapa/MapaCuenca';
 import { ExploradorProduccion, type ProduccionPais } from '@/components/ExploradorProduccion';
 import { Panel } from '@/components/Panel';
+import { RankingCrecimiento, type FilaRanking } from '@/components/RankingCrecimiento';
 import { PanelFinanciero } from '@/components/PanelFinanciero';
 import { Shell } from '@/components/Shell';
 import { Simulador } from '@/components/Simulador';
@@ -416,6 +417,29 @@ export default async function CasoYPF() {
             }
           >
             <ExploradorProduccion datos={pais} />
+          </Panel>
+        </div>
+
+        <div className="mt-6">
+          <Panel
+            titulo="Quién está ganando la carrera adentro de la cuenca"
+            archivo="atlas-ypf-ranking-crecimiento"
+            columnas={[
+              { clave: 'nombre', titulo: 'Área' },
+              { clave: 'actual_bd', titulo: 'Actual bbl/d', alineacion: 'der' },
+              { clave: 'previo_bd', titulo: 'Hace un año bbl/d', alineacion: 'der' },
+              { clave: 'delta_bd', titulo: 'Variación bbl/d', alineacion: 'der' },
+              { clave: 'crecimiento', titulo: 'Variación', alineacion: 'der',
+                formato: 'porcentaje0' as const },
+            ]}
+            datos={(pais.dimensiones.concesion?.ranking ?? []) as unknown as Record<string, unknown>[]}
+            nota="La tabla y el CSV traen el ranking por concesión; los selectores de arriba lo abren por yacimiento, empresa, cuenca o provincia."
+          >
+            <RankingCrecimiento
+              rankings={Object.fromEntries(
+                Object.entries(pais.dimensiones).map(([clave, bloque]) => [clave, bloque.ranking]),
+              )}
+            />
           </Panel>
         </div>
 
