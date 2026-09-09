@@ -67,6 +67,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Corre el pipeline completo")
     parser.add_argument("--force", action="store_true", help="se lo pasa a cada script de ingesta")
     parser.add_argument("--only", default="", help="corre solo las etapas cuyo nombre contenga esto")
+    parser.add_argument(
+        "--skip",
+        default="",
+        help="saltea las etapas cuyo nombre contenga alguno de estos textos (separados por coma)",
+    )
     parser.add_argument("--skip-ingest", action="store_true", help="saltea la ingesta")
     args = parser.parse_args()
 
@@ -74,6 +79,10 @@ def main() -> int:
     etapas = ([] if args.skip_ingest else INGEST_SCRIPTS) + TRANSFORM_SCRIPTS
     if args.only:
         etapas = [e for e in etapas if args.only in e[0]]
+    # --skip existe para el refresh semanal: las capas geoespaciales pesan cientos
+    # de megas y no cambian de una semana a la otra, así que el job las saltea.
+    for patron in filter(None, (p.strip() for p in args.skip.split(","))):
+        etapas = [e for e in etapas if patron not in e[0]]
 
     fallidas = [
         nombre for nombre, script, propios in etapas if run(nombre, script, propios, extra) != 0

@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import {
   AccionYRiesgoPais,
   CurvasTipo,
@@ -434,6 +436,21 @@ export default async function CasoYPF() {
               </li>
             </ul>
           </Tarjeta>
+        </div>
+
+        <div className="mt-8 rounded-xl border border-crudo-suave/40 bg-superficie p-6">
+          <h3 className="text-lg font-semibold text-texto">Memo ejecutivo</h3>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-texto-suave">
+            La conclusión del caso en una página, en formato de nota de equity research: qué pasó en
+            el trimestre, por qué el precio no lo acompañó, qué tendría que ser cierto para
+            revalorizar y qué riesgos tiene esa lectura.
+          </p>
+          <Link
+            href="/ypf-project/memo"
+            className="mt-4 inline-block rounded-lg border border-crudo px-4 py-2 text-sm text-crudo transition hover:bg-crudo hover:text-fondo"
+          >
+            Leer el memo ejecutivo →
+          </Link>
         </div>
 
         <p className="mt-8 text-sm text-texto-tenue">

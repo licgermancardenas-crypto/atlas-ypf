@@ -1,0 +1,20 @@
+# Dependencias del pipeline (ingesta + transforms financieros, operativos y de
+# mercado). Es lo que instala el workflow de refresh semanal.
+#
+# Las capas geoespaciales necesitan además requirements-geo.txt, que se instala
+# aparte porque son ruedas pesadas y el refresh semanal no las usa: el relieve y
+# las concesiones no cambian de una semana a la otra.
+#
+# Se fija la versión menor (~=) y no la exacta: un parche de seguridad de pandas
+# no debería requerir tocar el repo, pero un salto de minor sí merece revisarse.
+
+requests~=2.34
+pandas~=3.0
+pyarrow~=24.0
+numpy~=2.4
+scipy~=1.17
+statsmodels~=0.14
+
+# pandas.read_html necesita un parser: la tabla de highlights de los 6-K de YPF
+# viene con celdas partidas y colspans, y lxml es el que la resuelve bien.
+lxml~=6.1

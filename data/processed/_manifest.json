@@ -101,7 +101,7 @@
     "mejor": "2021Q1"
   },
   "scenario_engine": {
-    "generated_at": "2026-09-09T01:53:44+00:00",
+    "generated_at": "2026-09-09T02:32:01+00:00",
     "source": "data/processed/ebitda_sensitivity.json",
     "outputs": [
       "data/processed/scenario_coefficients.json",

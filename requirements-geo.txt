@@ -1,0 +1,15 @@
+# Dependencias de las capas geoespaciales (pipeline/ingest/geo_layers.py,
+# pipeline/ingest/dem_neuquina.py y pipeline/transform/geo_layers.py).
+#
+# Van aparte de requirements.txt porque son ruedas grandes y el refresh semanal
+# no las necesita: los límites del IGN, las concesiones y el relieve de la cuenca
+# no cambian de una semana a la otra. Se instalan para correr el pipeline
+# completo en local, o cuando el workflow se dispara a mano pidiendo geo.
+
+-r requirements.txt
+
+geopandas~=1.1
+shapely~=2.1
+pyproj~=3.7
+rasterio~=1.5
+pillow~=12.2

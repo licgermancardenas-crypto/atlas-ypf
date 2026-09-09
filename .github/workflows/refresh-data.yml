@@ -1,0 +1,132 @@
+# Refresco semanal de los datos del caso.
+#
+# Corre pipeline/run_all.py y, si algo cambió en data/processed/, lo commitea.
+# Si un script de ingesta falla, run_all.py devuelve un exit code distinto de
+# cero y el job queda en rojo: no hay `|| true` en ningún lado, porque un dato
+# que no se actualizó y nadie mira es peor que un job roto.
+#
+# Qué se commitea: solo data/processed/ y web/lib/scenarioEngine.ts, que es
+# generado por transform/scenario_engine.py a partir de los coeficientes del
+# modelo. Si el modelo cambia y el .ts no se actualiza, el simulador del
+# frontend queda mostrando los coeficientes de la semana pasada.
+#
+# Qué NO se commitea: data/raw/, que está en .gitignore. Vive en el caché de
+# Actions entre corridas, que además es lo que hace que la ingesta sea
+# incremental: los scripts saltean lo que tiene menos de 7 días según el
+# manifest, y los filings de la SEC ya bajados no se vuelven a pedir.
+
+name: refresh-data
+
+on:
+  schedule:
+    # Lunes 09:00 UTC (06:00 en Argentina): los datos de la semana ya cerraron.
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Ignorar la frescura del manifest y rebajar todo'
+        type: boolean
+        default: false
+      incluir_geo:
+        description: 'Incluir las capas geoespaciales (lento, rara vez cambia)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+# Dos refrescos simultáneos escribirían el mismo data/processed y se pisarían el
+# commit; el que llega segundo espera.
+concurrency:
+  group: refresh-data
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          if [ "${{ inputs.incluir_geo }}" = "true" ]; then
+            pip install -r requirements-geo.txt
+          else
+            pip install -r requirements.txt
+          fi
+
+      # El caché guarda los crudos entre corridas. La clave lleva el run_id para
+      # que cada corrida escriba una entrada nueva, y restore-keys hace que se
+      # restaure la última disponible: es el patrón de caché rodante, porque una
+      # clave fija nunca se actualizaría y el caché envejecería para siempre.
+      - name: Restaurar los datos crudos
+        uses: actions/cache@v4
+        with:
+          path: data/raw
+          key: raw-${{ github.run_id }}
+          restore-keys: raw-
+
+      - name: Correr el pipeline
+        env:
+          # La SEC exige un User-Agent identificable con contacto real.
+          ATLAS_YPF_UA: 'ATLAS-YPF refresh (${{ github.repository }})'
+        run: |
+          python pipeline/run_all.py \
+            ${{ inputs.force == true && '--force' || '' }} \
+            ${{ inputs.incluir_geo == true && '' || '--skip geo' }}
+
+      - name: Ver qué cambió
+        id: cambios
+        run: |
+          git add --intent-to-add data/processed web/lib/scenarioEngine.ts
+          if git diff --quiet -- data/processed web/lib/scenarioEngine.ts; then
+            echo "hay_cambios=false" >> "$GITHUB_OUTPUT"
+            echo "Sin cambios en los datos procesados."
+          else
+            echo "hay_cambios=true" >> "$GITHUB_OUTPUT"
+            git diff --stat -- data/processed web/lib/scenarioEngine.ts
+          fi
+
+      - name: Commitear los datos nuevos
+        if: steps.cambios.outputs.hay_cambios == 'true'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/processed web/lib/scenarioEngine.ts
+          git commit -m 'chore: refresh data [skip ci]'
+          git push
+
+      # El resumen queda visible en la pestaña del run sin tener que abrir los
+      # logs: es lo que se mira cuando llega el mail de que el job corrió.
+      - name: Resumen
+        if: always()
+        run: |
+          {
+            echo "## Refresh de datos"
+            echo ""
+            if [ "${{ steps.cambios.outputs.hay_cambios }}" = "true" ]; then
+              echo "Se commitearon datos nuevos."
+            else
+              echo "El pipeline corrió sin cambios en \`data/processed/\`."
+            fi
+            echo ""
+            echo '```'
+            python - <<'PY'
+          import json, pathlib
+          manifest = pathlib.Path('data/processed/_manifest.json')
+          if manifest.exists():
+              for clave, entrada in json.loads(manifest.read_text(encoding='utf-8')).items():
+                  print(f"{clave:22s} {entrada.get('generated_at', '')}")
+          else:
+              print('sin manifest de processed')
+          PY
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

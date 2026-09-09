@@ -18,6 +18,11 @@ const RAIZ = join(AQUI, '..', '..');
 const ORIGEN = join(RAIZ, 'data', 'processed');
 const DESTINO = join(AQUI, '..', 'public', 'data');
 
+// El memo ejecutivo se copia por el mismo camino: vive en docs/ porque es un
+// entregable del repo, pero la página lo renderiza y Next solo lee de public/.
+const MEMO_ORIGEN = join(RAIZ, 'docs', 'memo_ejecutivo.md');
+const MEMO_DESTINO = join(AQUI, '..', 'public', 'memo_ejecutivo.md');
+
 // Solo lo que el navegador puede leer: los .parquet son intermedios del pipeline.
 const EXTENSIONES = ['.json', '.geojson', '.png'];
 
@@ -71,3 +76,10 @@ const { copiados, bytes } = await copiar(ORIGEN, DESTINO);
 console.log(
   `[sync-data] ${copiados} archivos, ${(bytes / 1024 / 1024).toFixed(1)} MB -> web/public/data/`,
 );
+
+if (await existe(MEMO_ORIGEN)) {
+  await cp(MEMO_ORIGEN, MEMO_DESTINO);
+  console.log('[sync-data] docs/memo_ejecutivo.md -> web/public/');
+} else {
+  console.warn('[sync-data] falta docs/memo_ejecutivo.md: la ruta /ypf-project/memo va a fallar');
+}

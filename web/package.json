@@ -16,6 +16,7 @@
     "@deck.gl/core": "9.4.0",
     "@deck.gl/layers": "9.4.0",
     "@deck.gl/react": "9.4.0",
+    "marked": "^18.0.12",
     "next": "16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
