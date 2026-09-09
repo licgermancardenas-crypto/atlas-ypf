@@ -19,9 +19,14 @@ venv/
 .env.local
 .env.*.local
 
+# Vercel: el link local del proyecto y el token OIDC que baja `vercel link`
+.vercel/
+.env*.local
+
 # Sistema operativo
 .DS_Store
 Thumbs.db
 
 # Intermedios del pipeline: se regeneran corriendo pipeline/run_all.py
 data/processed/*.parquet
+
