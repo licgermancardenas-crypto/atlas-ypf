@@ -101,7 +101,7 @@
     "mejor": "2021Q1"
   },
   "scenario_engine": {
-    "generated_at": "2026-09-08T23:34:59+00:00",
+    "generated_at": "2026-09-09T00:01:25+00:00",
     "source": "data/processed/ebitda_sensitivity.json",
     "outputs": [
       "data/processed/scenario_coefficients.json",
@@ -115,5 +115,28 @@
     ],
     "casos": 7,
     "r2_ebitda": 0.9116
+  },
+  "geo_layers": {
+    "generated_at": "2026-09-09T00:00:35+00:00",
+    "sources": [
+      "data/raw/geo/basins/exploracin-hidrocarburos-cuencas-sedimentarias.zip",
+      "data/raw/geo/concessions/produccin-hidrocarburos-concesiones-de-explotacin.zip",
+      "data/raw/geo/fields/produccin-hidrocarburos-yacimientos.zip",
+      "data/raw/geo/boundaries/provincias.geojson",
+      "data/processed/wells.parquet"
+    ],
+    "outputs": [
+      "data/processed/geo/_resumen.json",
+      "data/processed/geo/basin.geojson",
+      "data/processed/geo/concessions.geojson",
+      "data/processed/geo/fields.geojson",
+      "data/processed/geo/hillshade.png",
+      "data/processed/geo/provinces.geojson",
+      "data/processed/geo/raster.json",
+      "data/processed/geo/terrain.png",
+      "data/processed/geo/wells.geojson"
+    ],
+    "pozos": 4893,
+    "bytes_totales": 4787137
   }
 }

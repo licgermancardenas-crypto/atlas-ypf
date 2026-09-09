@@ -34,6 +34,8 @@ INGEST_SCRIPTS = [
     ("macro/country-risk", INGEST / "country_risk.py", []),
     ("production", INGEST / "production_wells.py", []),
     ("financials/ypf", INGEST / "financials_ypf.py", []),
+    ("geo/vectores", INGEST / "geo_layers.py", []),
+    ("geo/dem", INGEST / "dem_neuquina.py", []),
 ]
 
 # Los transforms corren despues de la ingesta y dependen de ella: production
@@ -46,6 +48,7 @@ TRANSFORM_SCRIPTS: list[tuple[str, Path, list[str]]] = [
     ("transform/sensitivity", TRANSFORM / "ebitda_sensitivity.py", []),
     ("transform/market", TRANSFORM / "market_reaction.py", []),
     ("transform/scenario", TRANSFORM / "scenario_engine.py", []),
+    ("transform/geo", TRANSFORM / "geo_layers.py", []),
 ]
 
 

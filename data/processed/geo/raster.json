@@ -1,0 +1,28 @@
+{
+  "bounds": [
+    -72.0,
+    -41.0,
+    -66.0,
+    -34.0
+  ],
+  "ancho": 1800,
+  "alto": 2100,
+  "resolucion_grados": 0.003333,
+  "elevacion_min_m": 0,
+  "elevacion_max_m": 5203,
+  "hillshade": {
+    "archivo": "hillshade.png",
+    "ancho": 1400,
+    "alto": 1633,
+    "azimut": 315.0,
+    "altura_sol": 45.0
+  },
+  "terrain": {
+    "archivo": "terrain.png",
+    "ancho": 900,
+    "alto": 1050,
+    "codificacion": "mapbox terrain-rgb",
+    "formula": "altura_m = -10000 + (R * 65536 + G * 256 + B) * 0.1"
+  },
+  "fuente": "Copernicus DEM GLO-30 (ESA)"
+}
