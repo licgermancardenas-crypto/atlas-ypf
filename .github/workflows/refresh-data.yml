@@ -76,8 +76,11 @@ jobs:
 
       - name: Correr el pipeline
         env:
-          # La SEC exige un User-Agent identificable con contacto real.
-          ATLAS_YPF_UA: 'ATLAS-YPF refresh (${{ github.repository }})'
+          # La SEC exige un User-Agent con mail de contacto: sin eso www.sec.gov
+          # devuelve 403 en cada descarga de filings. Si el repo define la
+          # variable ATLAS_YPF_UA se usa esa; si no, vale el default de
+          # pipeline/ingest/_common.py, que ya trae un contacto válido.
+          ATLAS_YPF_UA: ${{ vars.ATLAS_YPF_UA }}
         run: |
           python pipeline/run_all.py \
             ${{ inputs.force == true && '--force' || '' }} \

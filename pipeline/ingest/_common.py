@@ -29,9 +29,14 @@ MANIFEST = RAW / "_manifest.json"
 MAX_AGE_DAYS = 7
 CHUNK = 1 << 20  # 1 MiB: la RAM de esta máquina es escasa, nunca cargar entero
 
-# La SEC exige un User-Agent identificable; el resto de las fuentes lo toleran.
-USER_AGENT = os.environ.get(
-    "ATLAS_YPF_UA", "ATLAS-YPF research (nestorrojascastaneda@gmail.com)"
+# La SEC exige un User-Agent identificable CON mail de contacto: www.sec.gov
+# responde 403 a cualquier cosa que no lo traiga (data.sec.gov es más laxo, así
+# que el síntoma es raro: la lista de filings baja y las descargas fallan).
+# Se usa `or` y no el default de get() a propósito: en CI la variable puede venir
+# definida pero vacía, y una cadena vacía como User-Agent es exactamente lo que
+# la SEC rechaza.
+USER_AGENT = (
+    os.environ.get("ATLAS_YPF_UA") or "ATLAS-YPF research (nestorrojascastaneda@gmail.com)"
 )
 
 
