@@ -8,7 +8,7 @@ import {
   ReaccionBalances,
   ShaleYCostos,
 } from '@/components/charts';
-import { MapaCuenca } from '@/components/mapa/MapaCuenca';
+import { MapaLazy } from '@/components/mapa/MapaLazy';
 import { ExploradorProduccion, type ProduccionPais } from '@/components/ExploradorProduccion';
 import { Panel } from '@/components/Panel';
 import { PanelReservas, type Reservas } from '@/components/Reservas';
@@ -435,14 +435,10 @@ export default async function CasoYPF() {
               { clave: 'crecimiento', titulo: 'Variación', alineacion: 'der',
                 formato: 'porcentaje0' as const },
             ]}
-            datos={(pais.dimensiones.concesion?.ranking ?? []) as unknown as Record<string, unknown>[]}
+            datos={(pais.rankings.concesion ?? []) as unknown as Record<string, unknown>[]}
             nota="La tabla y el CSV traen el ranking por concesión; los selectores de arriba lo abren por yacimiento, empresa, cuenca o provincia."
           >
-            <RankingCrecimiento
-              rankings={Object.fromEntries(
-                Object.entries(pais.dimensiones).map(([clave, bloque]) => [clave, bloque.ranking]),
-              )}
-            />
+            <RankingCrecimiento rankings={pais.rankings} />
           </Panel>
         </div>
 
@@ -461,7 +457,7 @@ export default async function CasoYPF() {
         </div>
 
         <div className="mt-6">
-          <MapaCuenca />
+          <MapaLazy />
         </div>
       </Seccion>
 

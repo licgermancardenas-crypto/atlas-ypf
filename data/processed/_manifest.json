@@ -149,10 +149,11 @@
     "bytes_totales": 8286181
   },
   "production_country": {
-    "generated_at": "2026-09-09T22:30:36+00:00",
+    "generated_at": "2026-09-09T23:32:36+00:00",
     "source": "data/raw/production/sesco",
     "outputs": [
-      "data/processed/country_production.json"
+      "data/processed/country_production.json",
+      "data/processed/country_dimensions.json"
     ],
     "meses": 211,
     "dimensiones": [

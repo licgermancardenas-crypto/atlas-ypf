@@ -40,6 +40,10 @@ from _common import (  # noqa: E402
 
 ORIGEN = RAW / "production" / "sesco"
 SALIDA = PROCESSED / "country_production.json"
+# Las series por dimensión salen en un archivo aparte: son el 95% del peso y la
+# página no las necesita para el primer render. Yendo en el mismo JSON viajaban
+# dentro del HTML, que es la peor forma de mandar 600 KB que quizá nadie mire.
+SALIDA_DIMENSIONES = PROCESSED / "country_dimensions.json"
 
 # Cada dimensión sale de un archivo y de una columna. Las de yacimiento y
 # concesión salen del mismo CSV: el de yacimiento trae también el área de
@@ -314,16 +318,30 @@ def main() -> int:
             "hasta": str(pais_json.fecha.iloc[-1]),
         },
         "pais": pais_json.replace({np.nan: None}).to_dict("records"),
-        "dimensiones": dimensiones,
+        # Solo los rankings, que son chicos y los usa el panel de crecimiento
+        # en el primer render. Las series mensuales van al archivo aparte.
+        "rankings": {
+            nombre: bloque["ranking"] for nombre, bloque in dimensiones.items()
+        },
+        "dimensiones_en": rel(SALIDA_DIMENSIONES),
     }
 
     bytes_salida = save_json(payload, SALIDA)
+    bytes_dimensiones = save_json(
+        {
+            "generado": payload["generado"],
+            "unidades": payload["unidades"],
+            "dimensiones": dimensiones,
+        },
+        SALIDA_DIMENSIONES,
+    )
     log(f"escrito {rel(SALIDA)} - {human(bytes_salida)}")
+    log(f"escrito {rel(SALIDA_DIMENSIONES)} - {human(bytes_dimensiones)}")
 
     record(
         "production_country",
         source=rel(ORIGEN),
-        outputs=[rel(SALIDA)],
+        outputs=[rel(SALIDA), rel(SALIDA_DIMENSIONES)],
         meses=len(pais_json),
         dimensiones=list(dimensiones),
         desde=payload["cobertura"]["desde"],

@@ -29,6 +29,9 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
+  // Sin esto Next resuelve la tarjeta al compartir contra localhost y el link
+  // llega sin imagen a cualquiera que no sea vos.
+  metadataBase: new URL('https://atlas-ypf.vercel.app'),
   title: 'ATLAS-YPF — Por qué el mercado castigó el balance récord',
   description:
     'Caso de estudio sobre YPF y Vaca Muerta: financieros, producción por pozo, ' +

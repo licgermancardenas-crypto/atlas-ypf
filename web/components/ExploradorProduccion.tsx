@@ -11,7 +11,7 @@
 // La vista de participación existe por la misma razón: en nivel, todo lo que
 // crece parece bueno. En porcentaje se ve quién le está ganando lugar a quién.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -25,6 +25,7 @@ import {
 
 import { fmt, type PuntoPais } from '@/lib/data';
 import { useFiltros } from './estado/filtros';
+import { Esqueleto } from './Panel';
 import type { FilaRanking } from './RankingCrecimiento';
 
 export interface MiembroProduccion {
@@ -50,7 +51,10 @@ export interface ProduccionPais {
   nota: string;
   cobertura: { desde: string; hasta: string };
   pais: PuntoPais[];
-  dimensiones: Record<string, DimensionProduccion>;
+  /** Rankings por dimensión: chicos, viajan con la página. */
+  rankings: Record<string, FilaRanking[]>;
+  /** Ruta del archivo con las series mensuales, que se baja aparte. */
+  dimensiones_en: string;
 }
 
 type IdDimension = 'cuenca' | 'provincia' | 'empresa' | 'concesion' | 'yacimiento';
@@ -99,10 +103,28 @@ export function ExploradorProduccion({ datos }: { datos: ProduccionPais }) {
   const [fluido, setFluido] = useState<IdFluido>('oil');
   const [concepto, setConcepto] = useState<IdConcepto>('total');
   const [participacion, setParticipacion] = useState(false);
+  const [dimensiones, setDimensiones] = useState<Record<string, DimensionProduccion> | null>(null);
   const { filtros } = useFiltros();
 
+  // Las series mensuales son 600 KB y no hacen falta para leer el titular de la
+  // sección: se bajan cuando el panel entra en pantalla, no con la página.
+  useEffect(() => {
+    let vigente = true;
+    fetch('/data/country_dimensions.json')
+      .then((r) => r.json())
+      .then((payload: { dimensiones: Record<string, DimensionProduccion> }) => {
+        if (vigente) setDimensiones(payload.dimensiones);
+      })
+      .catch(() => {
+        if (vigente) setDimensiones({});
+      });
+    return () => {
+      vigente = false;
+    };
+  }, []);
+
   const definicionConcepto = CONCEPTOS.find((c) => c.id === concepto)!;
-  const bloque = datos.dimensiones[dimension];
+  const bloque = dimensiones?.[dimension];
 
   const { filas, miembros } = useMemo(() => {
     if (!bloque) return { filas: [], miembros: [] as string[] };
@@ -137,6 +159,17 @@ export function ExploradorProduccion({ datos }: { datos: ProduccionPais }) {
 
     return { filas: armadas, miembros: nombres };
   }, [bloque, fluido, concepto, dimension, participacion, filtros.operador, filtros.desde, filtros.hasta]);
+
+  if (!dimensiones) {
+    return (
+      <div>
+        <p className="mb-3 font-mono text-[0.7rem] uppercase tracking-[0.14em] text-texto-tenue">
+          Bajando las series por dimensión…
+        </p>
+        <Esqueleto alto={360} />
+      </div>
+    );
+  }
 
   const ultimaFila = filas[filas.length - 1];
   const totalUltimo = miembros.reduce(

@@ -53,6 +53,9 @@ TRANSFORM_SCRIPTS: list[tuple[str, Path, list[str]]] = [
     ("transform/market", TRANSFORM / "market_reaction.py", []),
     ("transform/scenario", TRANSFORM / "scenario_engine.py", []),
     ("transform/geo", TRANSFORM / "geo_layers.py", []),
+    # Ultima etapa: si algo quedo imposible, el job termina en rojo y el commit
+    # automatico de datos no llega a ejecutarse.
+    ("checks", ROOT / "pipeline" / "checks.py", []),
 ]
 
 
