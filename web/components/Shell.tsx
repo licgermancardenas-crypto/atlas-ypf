@@ -12,6 +12,9 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 
+import { Comandos } from './Comandos';
+import { BarraFiltros } from './estado/BarraFiltros';
+import { ProveedorFiltros } from './estado/filtros';
 import { Franja } from './ui';
 
 const SECCIONES = [
@@ -68,7 +71,33 @@ function Marca() {
   );
 }
 
-export function Shell({ children, actualizado }: { children: ReactNode; actualizado: string }) {
+export function Shell({
+  children,
+  actualizado,
+  operadores,
+}: {
+  children: ReactNode;
+  actualizado: string;
+  operadores: string[];
+}) {
+  return (
+    <ProveedorFiltros>
+      <Armazon actualizado={actualizado} operadores={operadores}>
+        {children}
+      </Armazon>
+    </ProveedorFiltros>
+  );
+}
+
+function Armazon({
+  children,
+  actualizado,
+  operadores,
+}: {
+  children: ReactNode;
+  actualizado: string;
+  operadores: string[];
+}) {
   const activa = useSeccionActiva();
 
   return (
@@ -115,6 +144,7 @@ export function Shell({ children, actualizado }: { children: ReactNode; actualiz
           </nav>
 
           <div className="space-y-2 border-t border-borde pt-4">
+            <Comandos operadores={operadores} />
             <a
               href="/ypf-project/memo"
               className="block rounded-md bg-azul px-3 py-2 text-center text-xs font-medium text-white transition hover:bg-azul-claro"
@@ -162,7 +192,10 @@ export function Shell({ children, actualizado }: { children: ReactNode; actualiz
         </div>
       </div>
 
-      <div className="min-w-0">{children}</div>
+      <div className="min-w-0">
+        <BarraFiltros operadores={operadores} />
+        {children}
+      </div>
     </div>
   );
 }

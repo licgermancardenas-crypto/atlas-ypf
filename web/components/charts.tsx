@@ -29,6 +29,7 @@ import type {
   PuntoSemanal,
 } from '@/lib/data';
 import { fmt } from '@/lib/data';
+import { useFiltros } from './estado/filtros';
 
 // Los colores salen de las variables de globals.css y no de literales: SVG
 // acepta var() en fill y stroke, así que la paleta de la página y la de los
@@ -49,6 +50,12 @@ const COLORES = {
   grilla: 'var(--color-borde)',
   texto: 'var(--color-texto-suave)',
 };
+
+/** Las series de producción vienen por mes ("2026-07"), no por trimestre. */
+function enRangoAnio(fecha: string, desde: number, hasta: number): boolean {
+  const anio = Number(fecha.slice(0, 4));
+  return anio >= desde && anio <= hasta;
+}
 
 const ejeComun = {
   stroke: COLORES.texto,
@@ -128,11 +135,15 @@ export function ShaleYCostos({ serie }: { serie: PuntoSerieEbitda[] }) {
 // Event study: reacción anormal a cada balance
 // --------------------------------------------------------------------------- //
 export function ReaccionBalances({ eventos }: { eventos: EventoBalance[] }) {
-  const datos = eventos.map((evento) => ({
-    etiqueta: fmt.trimestre(evento.trimestre),
-    anormal: evento.retorno_anormal_dia * 100,
-    esUltimo: evento.trimestre === eventos[eventos.length - 1]?.trimestre,
-  }));
+  const { filtros, aplicar, enRango } = useFiltros();
+  const datos = eventos
+    .filter((evento) => enRango(evento.trimestre))
+    .map((evento) => ({
+      trimestre: evento.trimestre,
+      etiqueta: fmt.trimestre(evento.trimestre),
+      anormal: evento.retorno_anormal_dia * 100,
+      enFoco: filtros.foco === evento.trimestre,
+    }));
 
   return (
     <Marco alto={300}>
@@ -145,14 +156,23 @@ export function ReaccionBalances({ eventos }: { eventos: EventoBalance[] }) {
           formatter={(valor) => [`${fmt.numero(Number(valor))}%`, 'Retorno anormal']}
         />
         <ReferenceLine y={0} stroke={COLORES.texto} strokeWidth={1} />
-        <Bar dataKey="anormal" radius={[3, 3, 0, 0]}>
-          {datos.map((punto, indice) => (
+        <Bar
+          dataKey="anormal"
+          radius={[3, 3, 0, 0]}
+          onClick={(dato) => {
+            const fila = (dato as { payload?: { trimestre?: string }; trimestre?: string }) ?? {};
+            const trimestre = fila.payload?.trimestre ?? fila.trimestre ?? null;
+            aplicar({ foco: filtros.foco === trimestre ? null : trimestre });
+            }}
+        >
+          {datos.map((punto) => (
             <Cell
-              key={indice}
+              key={punto.trimestre}
               fill={punto.anormal >= 0 ? COLORES.alza : COLORES.baja}
-              fillOpacity={punto.esUltimo ? 1 : 0.65}
-              stroke={punto.esUltimo ? COLORES.azul : undefined}
-              strokeWidth={punto.esUltimo ? 2 : 0}
+              fillOpacity={!filtros.foco || punto.enFoco ? 0.9 : 0.3}
+              stroke={punto.enFoco ? COLORES.azul : undefined}
+              strokeWidth={punto.enFoco ? 2 : 0}
+              cursor="pointer"
             />
           ))}
         </Bar>
@@ -225,11 +245,18 @@ export function Puente({ descomposicion }: { descomposicion: Descomposicion }) {
 // Producción de Vaca Muerta por operador
 // --------------------------------------------------------------------------- //
 export function ProduccionPorOperador({ puntos }: { puntos: PuntoProduccion[] }) {
-  const operadores = Array.from(new Set(puntos.map((punto) => punto.operador!))).slice(0, 6);
+  const { filtros } = useFiltros();
+  // Con un operador elegido queda su línea sola: seis líneas para mirar una es
+  // ruido, y el eje se reescala a la magnitud del que importa.
+  const operadores =
+    filtros.operador === 'todos'
+      ? Array.from(new Set(puntos.map((punto) => punto.operador!))).slice(0, 6)
+      : [filtros.operador];
   const porFecha = new Map<string, Record<string, number | string>>();
 
   for (const punto of puntos) {
     if (!operadores.includes(punto.operador!)) continue;
+    if (!enRangoAnio(punto.fecha, filtros.desde, filtros.hasta)) continue;
     const fila = porFecha.get(punto.fecha) ?? { fecha: punto.fecha };
     fila[punto.operador!] = punto.boed / 1000; // Mboe/d: el eje no necesita seis dígitos
     porFecha.set(punto.fecha, fila);

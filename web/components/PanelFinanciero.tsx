@@ -12,6 +12,7 @@ import { useState } from 'react';
 import {
   Bar,
   CartesianGrid,
+  Cell,
   ComposedChart,
   Legend,
   Line,
@@ -23,6 +24,7 @@ import {
 } from 'recharts';
 
 import { fmt, type PuntoSerieEbitda } from '@/lib/data';
+import { useFiltros } from './estado/filtros';
 
 const COLORES = {
   azul: 'var(--color-azul)',
@@ -78,10 +80,12 @@ const METRICAS: Metrica[] = [
 export function PanelFinanciero({ serie }: { serie: PuntoSerieEbitda[] }) {
   const [metricaId, setMetricaId] = useState<IdMetrica>('adj_ebitda_musd');
   const [conBrent, setConBrent] = useState(true);
+  const { filtros, aplicar, enRango } = useFiltros();
 
   const metrica = METRICAS.find((m) => m.id === metricaId)!;
   const datos = serie
     .filter((punto) => punto[metricaId] !== null && punto[metricaId] !== undefined)
+    .filter((punto) => enRango(punto.trimestre))
     .map((punto) => ({
       ...punto,
       etiqueta: fmt.trimestre(punto.trimestre),
@@ -194,9 +198,25 @@ export function PanelFinanciero({ serie }: { serie: PuntoSerieEbitda[] }) {
             yAxisId="metrica"
             dataKey="valor"
             name={metrica.etiqueta}
-            fill={COLORES.azul}
             radius={[2, 2, 0, 0]}
-          />
+            onClick={(dato) => {
+              const fila = (dato as { payload?: { trimestre?: string }; trimestre?: string }) ?? {};
+              const trimestre = fila.payload?.trimestre ?? fila.trimestre ?? null;
+              aplicar({ foco: filtros.foco === trimestre ? null : trimestre });
+            }}
+          >
+            {/* Con un trimestre en foco el resto baja de intensidad en vez de
+                desaparecer: la comparación es el punto, y sin el resto de la
+                serie el trimestre en foco no significa nada. */}
+            {datos.map((punto) => (
+              <Cell
+                key={punto.trimestre}
+                fill={filtros.foco === punto.trimestre ? COLORES.azulClaro : COLORES.azul}
+                fillOpacity={!filtros.foco || filtros.foco === punto.trimestre ? 1 : 0.35}
+                cursor="pointer"
+              />
+            ))}
+          </Bar>
           {conBrent ? (
             <Line
               yAxisId="brent"
@@ -211,7 +231,9 @@ export function PanelFinanciero({ serie }: { serie: PuntoSerieEbitda[] }) {
         </ComposedChart>
       </ResponsiveContainer>
 
-      <p className="mt-2 text-xs text-texto-tenue">{metrica.ayuda}</p>
+      <p className="mt-2 text-xs text-texto-tenue">
+        {metrica.ayuda} Clic en una barra para poner ese trimestre en foco.
+      </p>
     </div>
   );
 }

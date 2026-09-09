@@ -15,6 +15,7 @@ import { BitmapLayer, GeoJsonLayer, ScatterplotLayer, TextLayer } from '@deck.gl
 import type { Layer, PickingInfo } from '@deck.gl/core';
 
 import { fmt } from '@/lib/data';
+import { useFiltros } from '../estado/filtros';
 import {
   CAPAS,
   CAPAS_INICIALES,
@@ -78,10 +79,9 @@ export function MapaCuenca() {
   const [raster, setRaster] = useState<Raster | null>(null);
   const [variable, setVariable] = useState<IdVariable>('boe_acum_mboe');
   const [pintado, setPintado] = useState<PintadoPozos>('volumen');
-  const [operador, setOperador] = useState<string>('todos');
-  const [soloVacaMuerta, setSoloVacaMuerta] = useState(false);
-  const [desdeAnio, setDesdeAnio] = useState(2006);
   const [señalado, setSeñalado] = useState<PickingInfo | null>(null);
+  const { filtros } = useFiltros();
+  const { operador, soloVacaMuerta, desde: desdeAnio } = filtros;
   const [error, setError] = useState<string | null>(null);
 
   // --- carga perezosa -------------------------------------------------------
@@ -128,15 +128,6 @@ export function MapaCuenca() {
   // --- pozos filtrados ------------------------------------------------------
   const pozosCrudos = datos['wells.geojson']?.features ?? [];
 
-  const operadores = useMemo(() => {
-    const cuenta = new Map<string, number>();
-    for (const pozo of pozosCrudos) {
-      const nombre = (pozo.properties.operador as string) ?? 'Sin dato';
-      cuenta.set(nombre, (cuenta.get(nombre) ?? 0) + 1);
-    }
-    return [...cuenta.entries()].sort((a, b) => b[1] - a[1]).slice(0, 14);
-  }, [pozosCrudos]);
-
   const pozos = useMemo(
     () =>
       pozosCrudos.filter((pozo) => {
@@ -144,10 +135,12 @@ export function MapaCuenca() {
         if (operador !== 'todos' && p.operador !== operador) return false;
         if (soloVacaMuerta && !p.es_vaca_muerta) return false;
         const anio = p.anio_inicio as number | null;
-        if (desdeAnio > 2006 && (anio === null || anio === undefined || anio < desdeAnio)) return false;
+        if (anio !== null && anio !== undefined && (anio < desdeAnio || anio > filtros.hasta)) {
+          return false;
+        }
         return true;
       }),
-    [pozosCrudos, operador, soloVacaMuerta, desdeAnio],
+    [pozosCrudos, operador, soloVacaMuerta, desdeAnio, filtros.hasta],
   );
 
   // --- coroplético ----------------------------------------------------------
@@ -447,49 +440,19 @@ export function MapaCuenca() {
               </div>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="rounded-md border border-borde bg-fondo/60 px-3 py-2.5">
               <p className="font-mono text-[0.7rem] uppercase tracking-[0.14em] text-texto-tenue">
                 Filtros
               </p>
-              <select
-                value={operador}
-                onChange={(e) => setOperador(e.target.value)}
-                className="w-full rounded-md border border-borde bg-fondo px-2.5 py-1.5 text-sm text-texto"
-              >
-                <option value="todos">Todos los operadores</option>
-                {operadores.map(([nombre, cuenta]) => (
-                  <option key={nombre} value={nombre}>
-                    {nombre} ({cuenta})
-                  </option>
-                ))}
-              </select>
-
-              <label className="flex items-center gap-2 text-xs text-texto-suave">
-                <input
-                  type="checkbox"
-                  checked={soloVacaMuerta}
-                  onChange={(e) => setSoloVacaMuerta(e.target.checked)}
-                  className="accent-[#0054eb]"
-                />
-                Solo Vaca Muerta
-              </label>
-
-              <div>
-                <div className="flex items-baseline justify-between text-xs text-texto-suave">
-                  <span>Desde</span>
-                  <span className="tabular text-azul-claro">{desdeAnio}</span>
-                </div>
-                <input
-                  type="range"
-                  min={2006}
-                  max={2026}
-                  step={1}
-                  value={desdeAnio}
-                  onChange={(e) => setDesdeAnio(Number(e.target.value))}
-                  className="mt-1 w-full accent-[#0054eb]"
-                  aria-label="Año de primera producción desde"
-                />
-              </div>
+              <p className="mt-1.5 text-xs leading-snug text-texto-suave">
+                Operador, período y Vaca Muerta se manejan desde la barra de arriba y valen
+                para toda la página.
+              </p>
+              <p className="tabular mt-2 text-xs text-azul-claro">
+                {operador === 'todos' ? 'Todos los operadores' : operador} · {desdeAnio}–
+                {filtros.hasta}
+                {soloVacaMuerta ? ' · solo Vaca Muerta' : ''}
+              </p>
             </div>
 
             {grupos.map((grupo) => (

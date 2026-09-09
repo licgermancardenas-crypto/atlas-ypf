@@ -9,6 +9,7 @@ import {
   ShaleYCostos,
 } from '@/components/charts';
 import { MapaCuenca } from '@/components/mapa/MapaCuenca';
+import { Panel } from '@/components/Panel';
 import { PanelFinanciero } from '@/components/PanelFinanciero';
 import { Shell } from '@/components/Shell';
 import { Simulador } from '@/components/Simulador';
@@ -45,11 +46,15 @@ export default async function CasoYPF() {
   const coef = (variable: string) =>
     coefEbitda.find((elemento) => elemento.variable === variable);
 
+  // Los operadores que ofrece el filtro global salen de la economía de pozo,
+  // que es la tabla que los tiene a todos con nombre comercial ya unificado.
+  const operadores = economia.por_operador.map((fila) => fila.operador!).filter(Boolean);
+
   const variacion = (actual: number | null, anterior: number | null) =>
     actual !== null && anterior !== null && anterior !== 0 ? actual / anterior - 1 : null;
 
   return (
-    <Shell actualizado={financieros.generado.slice(0, 10)}>
+    <Shell actualizado={financieros.generado.slice(0, 10)} operadores={operadores}>
       <main className="pb-24">
 
       {/* ------------------------------------------------------------------ */}
@@ -152,15 +157,32 @@ export default async function CasoYPF() {
           </>
         }
       >
-        <Tarjeta titulo="La serie trimestral, contra el Brent promedio del trimestre">
+        <Panel
+          titulo="La serie trimestral, contra el Brent promedio del trimestre"
+          soloPara="YPF"
+          archivo="atlas-ypf-serie-trimestral"
+          columnas={[
+            { clave: 'trimestre', titulo: 'Trimestre' },
+            { clave: 'revenues_musd', titulo: 'Ingresos US$ M', alineacion: 'der' },
+            { clave: 'adj_ebitda_musd', titulo: 'EBITDA aj. US$ M', alineacion: 'der' },
+            { clave: 'margen_ebitda', titulo: 'Margen', alineacion: 'der',
+              formato: 'porcentaje' as const },
+            { clave: 'produccion_kboed', titulo: 'Producción Kboe/d', alineacion: 'der' },
+            { clave: 'brent_usd', titulo: 'Brent US$/bbl', alineacion: 'der',
+              formato: 'decimal' as const },
+          ]}
+          datos={sensibilidad.serie as unknown as Record<string, unknown>[]}
+          nota={
+            <>
+              Cada trimestre se toma del release donde es el trimestre titular, no de las columnas
+              comparativas de reportes posteriores: el 2T22 quedó en los US$ 4.855M que YPF informó
+              ese día y no en los US$ 4.995M reexpresados un año después. Lo que se está explicando es
+              la reacción del mercado al dato de ese momento.
+            </>
+          }
+        >
           <PanelFinanciero serie={sensibilidad.serie} />
-          <Nota>
-            Cada trimestre se toma del release donde es el trimestre titular, no de las columnas
-            comparativas de reportes posteriores: el 2T22 quedó en los US$ 4.855M que YPF informó
-            ese día y no en los US$ 4.995M reexpresados un año después. Lo que se está explicando es
-            la reacción del mercado al dato de ese momento.
-          </Nota>
-        </Tarjeta>
+        </Panel>
       </Seccion>
 
       {/* ------------------------------------------------------------------ */}
@@ -277,14 +299,32 @@ export default async function CasoYPF() {
         </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
-          <Tarjeta titulo="Retorno anormal el día de cada balance">
+          <Panel
+            titulo="Retorno anormal el día de cada balance"
+            soloPara="YPF"
+            archivo="atlas-ypf-event-study"
+            columnas={[
+              { clave: 'trimestre', titulo: 'Trimestre' },
+              { clave: 'fecha_evento', titulo: 'Rueda' },
+              { clave: 'retorno_dia', titulo: 'Retorno', alineacion: 'der',
+                formato: 'signo2' as const },
+              { clave: 'retorno_anormal_dia', titulo: 'Anormal', alineacion: 'der',
+                formato: 'signo2' as const },
+              { clave: 't_estadistico', titulo: 't', alineacion: 'der' },
+              { clave: 'adj_ebitda_musd', titulo: 'EBITDA aj. US$ M', alineacion: 'der' },
+            ]}
+            datos={mercado.eventos as unknown as Record<string, unknown>[]}
+            nota={
+              <>
+                El día del evento no es la fecha de presentación que figura en EDGAR: un release
+                aceptado a las 18:20 queda fechado al día siguiente, y usar esa fecha mide la rueda
+                equivocada. Se usa la hora real de aceptación del filing. Clic en una barra para
+                poner ese trimestre en foco en toda la página.
+              </>
+            }
+          >
             <ReaccionBalances eventos={mercado.eventos} />
-            <Nota>
-              El día del evento no es la fecha de presentación que figura en EDGAR: un release
-              aceptado a las 18:20 queda fechado al día siguiente, y usar esa fecha mide la rueda
-              equivocada. Se usa la hora real de aceptación del filing.
-            </Nota>
-          </Tarjeta>
+          </Panel>
 
           <Tarjeta titulo="La acción contra sus comparables y el riesgo país (base 100 en 2021)">
             <AccionYRiesgoPais serie={mercado.serie_semanal} />
@@ -374,7 +414,27 @@ export default async function CasoYPF() {
         </div>
 
         <div className="mt-6">
-          <Tarjeta titulo="Economía del pozo tipo por operador">
+          <Panel
+            titulo="Economía del pozo tipo por operador"
+            archivo="atlas-ypf-economia-por-operador"
+            columnas={[
+              { clave: 'operador', titulo: 'Operador' },
+              { clave: 'pozos', titulo: 'Pozos', alineacion: 'der' },
+              { clave: 'npv_musd_mediano', titulo: 'NPV US$ M', alineacion: 'der' },
+              { clave: 'irr_mediana', titulo: 'TIR', alineacion: 'der',
+                formato: 'porcentaje0' as const },
+              { clave: 'breakeven_brent_mediano', titulo: 'Breakeven US$', alineacion: 'der' },
+              { clave: 'eur_bbl_mediana', titulo: 'EUR bbl', alineacion: 'der' },
+            ]}
+            datos={economia.por_operador as unknown as Record<string, unknown>[]}
+            nota={
+              <>
+                {economia.advertencia} Vista aparece con el doble de NPV mediano que YPF y un
+                breakeven diez dólares más bajo: opera menos pozos, pero más productivos y más
+                nuevos.
+              </>
+            }
+          >
             <Tabla
               columnas={[
                 { clave: 'operador', titulo: 'Operador' },
@@ -397,11 +457,7 @@ export default async function CasoYPF() {
                 eur: `${fmt.entero(fila.eur_bbl_mediana / 1000)} Mbbl`,
               }))}
             />
-            <Nota>
-              {economia.advertencia} Vista aparece con el doble de NPV mediano que YPF y un breakeven
-              diez dólares más bajo: opera menos pozos, pero más productivos y más nuevos.
-            </Nota>
-          </Tarjeta>
+          </Panel>
         </div>
       </Seccion>
 
