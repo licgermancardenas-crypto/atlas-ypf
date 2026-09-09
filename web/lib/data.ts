@@ -171,6 +171,19 @@ export interface Produccion {
 }
 
 // --------------------------------------------------------------------------- //
+// Producción nacional (SESCO + capítulo IV)
+// --------------------------------------------------------------------------- //
+export interface PuntoPais {
+  fecha: string;
+  oil_convencional: number | null;
+  oil_shale: number | null;
+  oil_tight: number | null;
+  oil_total: number | null;
+  gas_total: number | null;
+  boed_total: number | null;
+}
+
+// --------------------------------------------------------------------------- //
 // Economía de pozo y curvas de declive
 // --------------------------------------------------------------------------- //
 export interface AgregadoEconomico {

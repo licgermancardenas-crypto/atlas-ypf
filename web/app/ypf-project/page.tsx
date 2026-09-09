@@ -9,6 +9,7 @@ import {
   ShaleYCostos,
 } from '@/components/charts';
 import { MapaCuenca } from '@/components/mapa/MapaCuenca';
+import { ExploradorProduccion, type ProduccionPais } from '@/components/ExploradorProduccion';
 import { Panel } from '@/components/Panel';
 import { PanelFinanciero } from '@/components/PanelFinanciero';
 import { Shell } from '@/components/Shell';
@@ -38,6 +39,8 @@ export default async function CasoYPF() {
     cargar<CurvasDeclive>('decline_type_curves.json'),
   ]);
 
+  const pais = await cargar<ProduccionPais>('country_production.json');
+
   const ultimo = financieros.serie[financieros.serie.length - 1];
   const previoAnual = financieros.serie[financieros.serie.length - 5];
   const evento = mercado.eventos[mercado.eventos.length - 1];
@@ -52,6 +55,17 @@ export default async function CasoYPF() {
 
   const variacion = (actual: number | null, anterior: number | null) =>
     actual !== null && anterior !== null && anterior !== 0 ? actual / anterior - 1 : null;
+
+  // El último mes con dato de petróleo del país y el mismo mes del año anterior:
+  // es lo que permite decir si el shale crece sobre un total que crece o sobre
+  // uno que se está cayendo.
+  const mesesPais = pais.pais.filter((mes) => mes.oil_total !== null);
+  const paisUltimo = mesesPais[mesesPais.length - 1];
+  const paisAnterior = mesesPais[mesesPais.length - 13] ?? mesesPais[0];
+  const shareShale =
+    paisUltimo.oil_shale !== null && paisUltimo.oil_total
+      ? paisUltimo.oil_shale / paisUltimo.oil_total
+      : null;
 
   return (
     <Shell actualizado={financieros.generado.slice(0, 10)} operadores={operadores}>
@@ -352,7 +366,60 @@ export default async function CasoYPF() {
           </>
         }
       >
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Dato
+            etiqueta={`Petróleo del país · ${paisUltimo.fecha}`}
+            valor={`${fmt.entero(paisUltimo.oil_total)} bbl/d`}
+            delta={variacion(paisUltimo.oil_total, paisAnterior.oil_total)}
+            deltaReferencia=" i.a."
+            detalle="convencional + shale + tight, producción bruta operada"
+            tono="marca"
+          />
+          <Dato
+            etiqueta="Shale sobre el total"
+            valor={fmt.porcentaje(shareShale, 0)}
+            detalle={`${fmt.entero(paisUltimo.oil_shale)} bbl/d de shale`}
+            tono="alza"
+          />
+          <Dato
+            etiqueta="Convencional del país"
+            valor={`${fmt.entero(paisUltimo.oil_convencional)} bbl/d`}
+            delta={variacion(paisUltimo.oil_convencional, paisAnterior.oil_convencional)}
+            deltaReferencia=" i.a."
+            detalle="los campos viejos, en declino"
+            tono="baja"
+          />
+        </div>
+
+        <div className="mt-6">
+          <Panel
+            titulo="Producción nacional por cuenca, provincia, empresa, concesión o yacimiento"
+            archivo="atlas-ypf-produccion-pais"
+            columnas={[
+              { clave: 'fecha', titulo: 'Mes' },
+              { clave: 'oil_convencional', titulo: 'Convencional bbl/d', alineacion: 'der' },
+              { clave: 'oil_shale', titulo: 'Shale bbl/d', alineacion: 'der' },
+              { clave: 'oil_tight', titulo: 'Tight bbl/d', alineacion: 'der' },
+              { clave: 'oil_total', titulo: 'Total bbl/d', alineacion: 'der' },
+              { clave: 'gas_total', titulo: 'Gas boe/d', alineacion: 'der' },
+            ]}
+            datos={pais.pais as unknown as Record<string, unknown>[]}
+            nota={
+              <>
+                Acá se ve la pregunta que no contestaba el titular: el shale del país pasó de{' '}
+                {fmt.entero(paisAnterior.oil_shale)} a {fmt.entero(paisUltimo.oil_shale)} bbl/d en
+                un año, pero el convencional cayó de {fmt.entero(paisAnterior.oil_convencional)} a{' '}
+                {fmt.entero(paisUltimo.oil_convencional)}. Vaca Muerta no está creciendo sobre un
+                país estancado: está creciendo mientras la producción vieja se retira. La tabla
+                trae la serie del país; el CSV, los {mesesPais.length} meses completos.
+              </>
+            }
+          >
+            <ExploradorProduccion datos={pais} />
+          </Panel>
+        </div>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
           <Tarjeta titulo="Producción de Vaca Muerta por operador">
             <ProduccionPorOperador puntos={produccion.vaca_muerta_por_operador} />
           </Tarjeta>

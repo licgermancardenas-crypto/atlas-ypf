@@ -33,6 +33,7 @@ INGEST_SCRIPTS = [
     ("macro/fx", INGEST / "fx_ars_usd.py", []),
     ("macro/country-risk", INGEST / "country_risk.py", []),
     ("production", INGEST / "production_wells.py", []),
+    ("production/sesco", INGEST / "production_country.py", []),
     ("financials/ypf", INGEST / "financials_ypf.py", []),
     ("geo/vectores", INGEST / "geo_layers.py", []),
     ("geo/dem", INGEST / "dem_neuquina.py", []),
@@ -43,6 +44,7 @@ INGEST_SCRIPTS = [
 TRANSFORM_SCRIPTS: list[tuple[str, Path, list[str]]] = [
     ("transform/financials", TRANSFORM / "financials_ypf.py", []),
     ("transform/production", TRANSFORM / "production_wells.py", []),
+    ("transform/pais", TRANSFORM / "production_country.py", []),
     ("transform/decline", TRANSFORM / "decline_curves.py", []),
     ("transform/economics", TRANSFORM / "well_economics.py", []),
     ("transform/sensitivity", TRANSFORM / "ebitda_sensitivity.py", []),
