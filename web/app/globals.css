@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+/* Paleta del caso: fondo de pizarra y un acento ámbar de crudo. Los tokens
+   viven acá y solo acá; para meter la página en otro portfolio se reemplazan
+   estos valores y no hay que tocar ningún componente. */
+@theme {
+  --color-fondo: oklch(0.17 0.012 250);
+  --color-superficie: oklch(0.22 0.014 250);
+  --color-superficie-alta: oklch(0.27 0.016 250);
+  --color-borde: oklch(0.33 0.018 250);
+  --color-texto: oklch(0.95 0.005 250);
+  --color-texto-suave: oklch(0.72 0.012 250);
+  --color-texto-tenue: oklch(0.58 0.014 250);
+
+  --color-crudo: oklch(0.76 0.15 62);
+  --color-crudo-suave: oklch(0.62 0.13 62);
+  --color-shale: oklch(0.72 0.13 195);
+  --color-alza: oklch(0.74 0.15 155);
+  --color-baja: oklch(0.66 0.18 20);
+  --color-neutro: oklch(0.62 0.02 250);
+
+  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+}
+
+html {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-fondo);
+  color: var(--color-texto);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Los números de una tabla financiera tienen que alinearse en columna: sin esto
+   el ojo no puede comparar magnitudes de un vistazo. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

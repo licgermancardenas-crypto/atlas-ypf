@@ -239,7 +239,8 @@ export function proyectar(
   const valores: Record<string, number> = {{}};
   for (const driver of DRIVERS) {{
     const propuesto = escenario[driver];
-    valores[driver] = propuesto === undefined ? (base as Record<string, number>)[driver] : propuesto;
+    valores[driver] =
+      propuesto === undefined ? (base as unknown as Record<string, number>)[driver] : propuesto;
   }}
   const fxVarReal = escenario.fx_var_real ?? 0;
 
@@ -274,7 +275,7 @@ export function verificarCasos(): string[] {{
   for (const caso of CASOS_DE_PRUEBA) {{
     const obtenido = proyectar(caso.escenario as Escenario);
     for (const [clave, esperado] of Object.entries(caso.esperado)) {{
-      const valor = (obtenido as Record<string, unknown>)[clave];
+      const valor = (obtenido as unknown as Record<string, unknown>)[clave];
       if (JSON.stringify(valor) !== JSON.stringify(esperado)) {{
         fallas.push(`${{caso.nombre}}.${{clave}}: ${{JSON.stringify(valor)}} != ${{JSON.stringify(esperado)}}`);
       }}

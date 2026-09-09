@@ -1,0 +1,8 @@
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+
+# Datos sincronizados desde data/processed por scripts/sync-data.mjs
+public/data/
