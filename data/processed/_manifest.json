@@ -1,6 +1,6 @@
 {
   "production_wells": {
-    "generated_at": "2026-09-08T21:41:40+00:00",
+    "generated_at": "2026-09-09T03:02:21+00:00",
     "source": "data/raw/production/no_convencional.csv",
     "outputs": [
       "data/processed/production_wells.parquet",
@@ -16,7 +16,7 @@
     ]
   },
   "decline_curves": {
-    "generated_at": "2026-09-08T21:50:31+00:00",
+    "generated_at": "2026-09-09T03:02:33+00:00",
     "source": "data/processed/production_wells.parquet",
     "outputs": [
       "data/processed/decline_curves.parquet",
@@ -28,7 +28,7 @@
     "eur_bbl_mediano": 969994.5
   },
   "well_economics": {
-    "generated_at": "2026-09-08T21:57:01+00:00",
+    "generated_at": "2026-09-09T03:02:39+00:00",
     "source": "data/processed/decline_curves.parquet",
     "outputs": [
       "data/processed/well_economics.parquet",
@@ -42,18 +42,18 @@
       "iigg": 0.35,
       "wacc_anual": 0.12,
       "wacc_comparable": 0.1,
-      "brent_base": 90.7
+      "brent_base": 90.52
     },
     "pozos": 2179,
-    "npv_musd_mediano": 8.67,
-    "irr_mediana": 0.6378,
+    "npv_musd_mediano": 8.63,
+    "irr_mediana": 0.6335,
     "payback_meses_mediano": 14.0,
     "breakeven_brent_mediano": 47.5,
-    "pozos_con_npv_positivo": 0.739,
+    "pozos_con_npv_positivo": 0.737,
     "prima_riesgo_pais_musd_mediana": 0.99
   },
   "financials_ypf": {
-    "generated_at": "2026-09-08T22:24:06+00:00",
+    "generated_at": "2026-09-09T03:02:17+00:00",
     "source": "data/raw/financials/ypf/filings",
     "outputs": [
       "data/processed/financials_ypf.parquet",
@@ -66,7 +66,7 @@
     "kpis": 21
   },
   "ebitda_sensitivity": {
-    "generated_at": "2026-09-08T23:32:08+00:00",
+    "generated_at": "2026-09-09T03:02:41+00:00",
     "sources": [
       "data/processed/financials_ypf.parquet",
       "data/raw/market/oil/brent.json",
@@ -83,7 +83,7 @@
     "observaciones_operativo": 15
   },
   "market_reaction": {
-    "generated_at": "2026-09-08T23:17:02+00:00",
+    "generated_at": "2026-09-09T03:02:42+00:00",
     "sources": [
       "data/processed/financials_ypf_long.parquet",
       "data/raw/market/stock/YPF.json",
@@ -101,7 +101,7 @@
     "mejor": "2021Q1"
   },
   "scenario_engine": {
-    "generated_at": "2026-09-09T02:40:15+00:00",
+    "generated_at": "2026-09-09T03:02:42+00:00",
     "source": "data/processed/ebitda_sensitivity.json",
     "outputs": [
       "data/processed/scenario_coefficients.json",
