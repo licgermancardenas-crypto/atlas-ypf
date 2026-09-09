@@ -4,6 +4,18 @@
 
 import type { ReactNode } from 'react';
 
+/** Las franjas del logo de YPF anterior a 2008, que acá separan las secciones.
+ *  Los `span` vacíos son las bandas: el color lo pone .franja en globals.css. */
+export function Franja({ className = '' }: { className?: string }) {
+  return (
+    <div className={`franja ${className}`} aria-hidden="true">
+      <span />
+      <span />
+      <span />
+    </div>
+  );
+}
+
 export function Seccion({
   id,
   numero,
@@ -18,11 +30,14 @@ export function Seccion({
   children: ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-16 border-t border-borde py-14">
+    <section id={id} className="scroll-mt-20 border-t border-borde py-16">
       <div className="mx-auto max-w-6xl px-6">
-        <p className="font-mono text-xs tracking-[0.2em] text-crudo">{numero}</p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{titulo}</h2>
-        {bajada ? <div className="mt-3 max-w-3xl text-texto-suave">{bajada}</div> : null}
+        <Franja />
+        <p className="mt-4 font-mono text-xs tracking-[0.2em] text-azul-claro">
+          {numero} <span className="text-texto-tenue">/ 07</span>
+        </p>
+        <h2 className="mt-2 text-2xl font-semibold sm:text-3xl">{titulo}</h2>
+        {bajada ? <div className="mt-3 max-w-3xl leading-relaxed text-texto-suave">{bajada}</div> : null}
         <div className="mt-8">{children}</div>
       </div>
     </section>
@@ -42,10 +57,10 @@ export function Tarjeta({
 }) {
   return (
     <div
-      className={`rounded-xl border border-borde bg-superficie p-5 ${className}`}
+      className={`rounded-lg border border-borde bg-superficie p-5 ${className}`}
     >
       {titulo ? (
-        <h3 className="text-sm font-medium tracking-wide text-texto-suave">{titulo}</h3>
+        <h3 className="text-sm font-medium text-texto-suave">{titulo}</h3>
       ) : null}
       <div className={titulo ? 'mt-4' : ''}>{children}</div>
       {nota ? <p className="mt-4 text-xs leading-relaxed text-texto-tenue">{nota}</p> : null}
@@ -62,20 +77,23 @@ export function Dato({
   etiqueta: string;
   valor: string;
   detalle?: string;
-  tono?: 'neutro' | 'alza' | 'baja' | 'crudo';
+  tono?: 'neutro' | 'alza' | 'baja' | 'crudo' | 'marca';
 }) {
   const tonos = {
     neutro: 'text-texto',
     alza: 'text-alza',
     baja: 'text-baja',
-    crudo: 'text-crudo',
+    crudo: 'text-oro',
+    marca: 'text-azul-claro',
   } as const;
 
   return (
-    <div className="rounded-xl border border-borde bg-superficie p-4">
-      <p className="text-xs uppercase tracking-wider text-texto-tenue">{etiqueta}</p>
+    <div className="rounded-lg border border-borde bg-superficie p-4 transition-colors hover:border-azul/60">
+      <p className="font-mono text-[0.7rem] uppercase tracking-[0.12em] text-texto-tenue">
+        {etiqueta}
+      </p>
       <p className={`tabular mt-2 text-2xl font-semibold ${tonos[tono]}`}>{valor}</p>
-      {detalle ? <p className="mt-1 text-xs text-texto-suave">{detalle}</p> : null}
+      {detalle ? <p className="mt-1 text-xs leading-snug text-texto-suave">{detalle}</p> : null}
     </div>
   );
 }
@@ -84,7 +102,7 @@ export function Dato({
  *  de página que nadie lee. */
 export function Nota({ children }: { children: ReactNode }) {
   return (
-    <p className="mt-4 border-l-2 border-crudo-suave/50 pl-3 text-xs leading-relaxed text-texto-tenue">
+    <p className="mt-4 border-l-2 border-azul pl-3 text-xs leading-relaxed text-texto-tenue">
       {children}
     </p>
   );

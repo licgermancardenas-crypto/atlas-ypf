@@ -10,8 +10,9 @@ import {
   ShaleYCostos,
 } from '@/components/charts';
 import { MapaPozos } from '@/components/MapaPozos';
+import { NavSecciones } from '@/components/NavSecciones';
 import { Simulador } from '@/components/Simulador';
-import { Dato, Nota, Seccion, Tabla, Tarjeta } from '@/components/ui';
+import { Dato, Franja, Nota, Seccion, Tabla, Tarjeta } from '@/components/ui';
 import { cargar } from '@/lib/server-data';
 import {
   fmt,
@@ -49,35 +50,61 @@ export default async function CasoYPF() {
 
   return (
     <main className="pb-24">
+      <NavSecciones />
+
       {/* ------------------------------------------------------------------ */}
       <header className="border-b border-borde">
         <div className="mx-auto max-w-6xl px-6 py-16 sm:py-24">
-          <p className="font-mono text-xs tracking-[0.2em] text-crudo">
-            ATLAS-YPF · CASO DE ESTUDIO
+          <Franja className="w-24" />
+          <p className="mt-5 font-mono text-xs tracking-[0.2em] text-azul-claro">
+            ATLAS-YPF · CASO DE ESTUDIO · {fmt.trimestre(ultimo.trimestre)}
           </p>
-          <h1 className="mt-4 max-w-3xl text-3xl font-semibold leading-tight tracking-tight sm:text-5xl">
-            YPF publicó el mejor trimestre de su historia y la acción cayó{' '}
-            <span className="text-baja">{fmt.porcentaje(Math.abs(evento.retorno_dia))}</span> el
-            mismo día.
+          <h1 className="mt-5 max-w-3xl text-3xl font-bold leading-[1.1] sm:text-5xl">
+            YPF publicó el mejor trimestre de su historia.
+            <br />
+            <span className="text-texto-suave">El mercado lo vendió.</span>
           </h1>
-          <p className="mt-6 max-w-2xl text-lg leading-relaxed text-texto-suave">
-            EBITDA ajustado de {fmt.musd(ultimo.adj_ebitda_musd)},{' '}
-            {fmt.porcentajeConSigno(variacion(ultimo.adj_ebitda_musd, previoAnual.adj_ebitda_musd), 0)}{' '}
-            interanual, deuda neta en el mínimo de la serie y el shale creciendo 47%. El mercado lo
-            leyó y vendió. Este caso reconstruye por qué, cruzando el balance con la producción pozo
-            por pozo, el precio del crudo y el riesgo país.
+
+          {/* La confrontación: los dos números que son la tesis del caso. El
+              resto de la página existe para explicar por qué conviven. */}
+          <div className="mt-10 flex flex-col gap-6 sm:flex-row sm:items-stretch sm:gap-0">
+            <div className="sm:pr-10">
+              <p className="font-mono text-[0.7rem] uppercase tracking-[0.14em] text-texto-tenue">
+                EBITDA ajustado, interanual
+              </p>
+              <p className="tabular mt-1 text-5xl font-semibold text-azul-claro sm:text-6xl">
+                {fmt.porcentajeConSigno(
+                  variacion(ultimo.adj_ebitda_musd, previoAnual.adj_ebitda_musd),
+                  0,
+                )}
+              </p>
+              <p className="mt-1 text-sm text-texto-suave">
+                {fmt.musd(ultimo.adj_ebitda_musd)} en el trimestre
+              </p>
+            </div>
+
+            <div className="hidden w-px bg-borde sm:block" aria-hidden="true" />
+
+            <div className="sm:pl-10">
+              <p className="font-mono text-[0.7rem] uppercase tracking-[0.14em] text-texto-tenue">
+                La acción, ese mismo día
+              </p>
+              <p className="tabular mt-1 text-5xl font-semibold text-baja sm:text-6xl">
+                {fmt.porcentajeConSigno(evento.retorno_dia)}
+              </p>
+              <p className="mt-1 text-sm text-texto-suave">
+                {fmt.porcentajeConSigno(evento.retorno_anormal_dia)} descontando sector y Brent
+              </p>
+            </div>
+          </div>
+
+          <p className="mt-10 max-w-2xl leading-relaxed text-texto-suave">
+            Deuda neta en el mínimo de la serie, el shale creciendo 47% y el costo de extracción en
+            un tercio menos que hace dos años. Este caso reconstruye por qué el precio no acompañó,
+            cruzando el balance con la producción pozo por pozo, el crudo y el riesgo país.
           </p>
 
-          <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Dato
-              etiqueta={`EBITDA aj. ${fmt.trimestre(ultimo.trimestre)}`}
-              valor={fmt.musd(ultimo.adj_ebitda_musd)}
-              detalle={`${fmt.porcentajeConSigno(
-                variacion(ultimo.adj_ebitda_musd, previoAnual.adj_ebitda_musd),
-                0,
-              )} interanual`}
-              tono="crudo"
-            />
+          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Dato
               etiqueta="Shale oil"
               valor={`${fmt.decimal(ultimo.shale_oil_kbbld)} Kbbl/d`}
@@ -91,12 +118,19 @@ export default async function CasoYPF() {
               etiqueta="Deuda neta / EBITDA"
               valor={`${fmt.decimal(ultimo.net_leverage_x)}x`}
               detalle={`deuda neta ${fmt.musd(ultimo.net_debt_musd)}`}
+              tono="marca"
             />
             <Dato
-              etiqueta="Reacción de la acción"
-              valor={fmt.porcentajeConSigno(evento.retorno_dia)}
-              detalle={`${fmt.porcentajeConSigno(evento.retorno_anormal_dia)} descontando sector y Brent`}
-              tono="baja"
+              etiqueta="Lifting cost"
+              valor={`US$ ${fmt.numero(ultimo.lifting_cost_usd_boe, 1)}/boe`}
+              detalle="desde US$ 16 en 2024"
+              tono="crudo"
+            />
+            <Dato
+              etiqueta="Sin explicar en el trimestre"
+              valor={fmt.musd(puente.residual_musd)}
+              detalle="del salto de EBITDA contra el trimestre anterior"
+              tono="crudo"
             />
           </div>
         </div>
@@ -438,7 +472,7 @@ export default async function CasoYPF() {
           </Tarjeta>
         </div>
 
-        <div className="mt-8 rounded-xl border border-crudo-suave/40 bg-superficie p-6">
+        <div className="mt-8 rounded-lg border border-azul/50 bg-superficie p-6">
           <h3 className="text-lg font-semibold text-texto">Memo ejecutivo</h3>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-texto-suave">
             La conclusión del caso en una página, en formato de nota de equity research: qué pasó en
@@ -447,7 +481,7 @@ export default async function CasoYPF() {
           </p>
           <Link
             href="/ypf-project/memo"
-            className="mt-4 inline-block rounded-lg border border-crudo px-4 py-2 text-sm text-crudo transition hover:bg-crudo hover:text-fondo"
+            className="mt-4 inline-block rounded-md bg-azul px-4 py-2 text-sm font-medium text-white transition hover:bg-azul-claro"
           >
             Leer el memo ejecutivo →
           </Link>

@@ -93,7 +93,7 @@ export function Simulador() {
             type="button"
             onClick={() => setEscenario({})}
             disabled={sinTocar}
-            className="rounded-md border border-borde px-2.5 py-1 text-xs text-texto-suave transition hover:border-crudo hover:text-crudo disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-md border border-borde px-2.5 py-1 text-xs text-texto-suave transition hover:border-azul-claro hover:text-azul-claro disabled:cursor-not-allowed disabled:opacity-40"
           >
             Volver al {fmt.trimestre(BASE.trimestre)}
           </button>
@@ -109,7 +109,7 @@ export function Simulador() {
                   <label htmlFor={control.clave} className="text-sm text-texto">
                     {control.etiqueta}
                   </label>
-                  <span className="tabular text-sm font-medium text-crudo">
+                  <span className="tabular text-sm font-medium text-oro">
                     {control.formato(valor)}
                   </span>
                 </div>
@@ -126,7 +126,7 @@ export function Simulador() {
                       [control.clave]: Number(evento.target.value),
                     }))
                   }
-                  className="mt-2 w-full accent-[oklch(0.76_0.15_62)]"
+                  className="mt-2 w-full accent-[#0063be]"
                 />
                 <p className="mt-1 text-xs text-texto-tenue">
                   {control.ayuda} Real en {fmt.trimestre(BASE.trimestre)}:{' '}
@@ -137,7 +137,7 @@ export function Simulador() {
           })}
         </div>
 
-        <p className="mt-6 border-l-2 border-crudo-suave/50 pl-3 text-xs leading-relaxed text-texto-tenue">
+        <p className="mt-6 border-l-2 border-azul pl-3 text-xs leading-relaxed text-texto-tenue">
           El tipo de cambio se probó como quinto driver y no resultó significativo (p{' '}
           {fmt.numero(COEFICIENTES.fx.p_valor)}), así que no tiene slider: con estos datos su efecto
           no se distingue de cero. {COEFICIENTES.fx.nota}
@@ -147,7 +147,7 @@ export function Simulador() {
       <div className="space-y-4">
         <div className="rounded-xl border border-borde bg-superficie-alta p-5">
           <p className="text-xs uppercase tracking-wider text-texto-tenue">EBITDA proyectado</p>
-          <p className="tabular mt-2 text-3xl font-semibold text-crudo">
+          <p className="tabular mt-2 text-3xl font-semibold text-azul-claro">
             {fmt.musd(resultado.ebitda_proyectado_musd)}
           </p>
           <p className="tabular mt-1 text-sm text-texto-suave">

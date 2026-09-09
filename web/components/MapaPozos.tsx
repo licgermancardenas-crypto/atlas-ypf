@@ -189,8 +189,8 @@ export function MapaPozos() {
     return (
       <div className="rounded-xl border border-borde bg-superficie p-6 text-sm text-texto-suave">
         No se pudieron cargar las capas del mapa ({error}). Correr{' '}
-        <code className="text-crudo">python pipeline/run_all.py</code> y{' '}
-        <code className="text-crudo">npm run sync-data</code>.
+        <code className="text-azul-claro">python pipeline/run_all.py</code> y{' '}
+        <code className="text-azul-claro">npm run sync-data</code>.
       </div>
     );
   }
@@ -206,7 +206,7 @@ export function MapaPozos() {
               onClick={() => setColoreo(modo)}
               className={`rounded-md px-3 py-1 text-xs transition ${
                 coloreo === modo
-                  ? 'bg-superficie-alta text-crudo'
+                  ? 'bg-superficie-alta text-azul-claro'
                   : 'text-texto-suave hover:text-texto'
               }`}
             >
@@ -220,7 +220,7 @@ export function MapaPozos() {
             type="checkbox"
             checked={soloVacaMuerta}
             onChange={(evento) => setSoloVacaMuerta(evento.target.checked)}
-            className="accent-[oklch(0.76_0.15_62)]"
+            className="accent-[#0063be]"
           />
           Solo Vaca Muerta
         </label>

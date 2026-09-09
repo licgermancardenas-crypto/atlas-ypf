@@ -30,15 +30,24 @@ import type {
 } from '@/lib/data';
 import { fmt } from '@/lib/data';
 
+// Los colores salen de las variables de globals.css y no de literales: SVG
+// acepta var() en fill y stroke, así que la paleta de la página y la de los
+// gráficos son la misma definición. Antes eran dos listas que había que acordarse
+// de mantener iguales.
+//
+// La convención: el azul de YPF es la compañía, el celeste el resto del sector,
+// y el oro es todo lo que se mide por barril —el precio del crudo, el costo de
+// extracción—, que es de donde viene el oro de las franjas del logo viejo.
 const COLORES = {
-  crudo: 'oklch(0.76 0.15 62)',
-  crudoSuave: 'oklch(0.62 0.13 62)',
-  shale: 'oklch(0.72 0.13 195)',
-  alza: 'oklch(0.74 0.15 155)',
-  baja: 'oklch(0.66 0.18 20)',
-  neutro: 'oklch(0.62 0.02 250)',
-  grilla: 'oklch(0.33 0.018 250)',
-  texto: 'oklch(0.72 0.012 250)',
+  azul: 'var(--color-azul-claro)',
+  azulSolido: 'var(--color-azul)',
+  celeste: 'var(--color-celeste)',
+  oro: 'var(--color-oro)',
+  alza: 'var(--color-alza)',
+  baja: 'var(--color-baja)',
+  neutro: 'var(--color-neutro)',
+  grilla: 'var(--color-borde)',
+  texto: 'var(--color-texto-suave)',
 };
 
 const ejeComun = {
@@ -50,12 +59,13 @@ const ejeComun = {
 
 const tooltipComun = {
   contentStyle: {
-    background: 'oklch(0.22 0.014 250)',
-    border: '1px solid oklch(0.33 0.018 250)',
+    background: 'var(--color-superficie-alta)',
+    border: '1px solid var(--color-borde)',
     borderRadius: '0.5rem',
     fontSize: '0.8rem',
+    fontFamily: 'var(--font-mono)',
   },
-  labelStyle: { color: 'oklch(0.95 0.005 250)', marginBottom: '0.25rem' },
+  labelStyle: { color: 'var(--color-texto)', marginBottom: '0.25rem' },
 };
 
 function Marco({ children, alto = 320 }: { children: React.ReactElement; alto?: number }) {
@@ -94,15 +104,15 @@ export function EbitdaBrent({ serie }: { serie: PuntoSerieEbitda[] }) {
           yAxisId="ebitda"
           dataKey="adj_ebitda_musd"
           name="EBITDA ajustado"
-          fill={COLORES.crudoSuave}
-          radius={[3, 3, 0, 0]}
+          fill={COLORES.azulSolido}
+          radius={[2, 2, 0, 0]}
         />
         <Line
           yAxisId="brent"
           type="monotone"
           dataKey="brent_usd"
           name="Brent"
-          stroke={COLORES.shale}
+          stroke={COLORES.oro}
           strokeWidth={2}
           dot={false}
         />
@@ -140,8 +150,8 @@ export function ShaleYCostos({ serie }: { serie: PuntoSerieEbitda[] }) {
           type="monotone"
           dataKey="shale_oil_kbbld"
           name="Shale oil"
-          stroke={COLORES.shale}
-          fill={COLORES.shale}
+          stroke={COLORES.azul}
+          fill={COLORES.azul}
           fillOpacity={0.15}
           strokeWidth={2}
         />
@@ -150,7 +160,7 @@ export function ShaleYCostos({ serie }: { serie: PuntoSerieEbitda[] }) {
           type="monotone"
           dataKey="lifting_cost_usd_boe"
           name="Lifting cost"
-          stroke={COLORES.crudo}
+          stroke={COLORES.oro}
           strokeWidth={2}
           dot={false}
         />
@@ -186,7 +196,7 @@ export function ReaccionBalances({ eventos }: { eventos: EventoBalance[] }) {
               key={indice}
               fill={punto.anormal >= 0 ? COLORES.alza : COLORES.baja}
               fillOpacity={punto.esUltimo ? 1 : 0.65}
-              stroke={punto.esUltimo ? COLORES.crudo : undefined}
+              stroke={punto.esUltimo ? COLORES.azul : undefined}
               strokeWidth={punto.esUltimo ? 2 : 0}
             />
           ))}
@@ -224,7 +234,13 @@ export function Puente({ descomposicion }: { descomposicion: Descomposicion }) {
   });
 
   const color = (tipo: string, valor: number) =>
-    tipo === 'total' ? COLORES.neutro : tipo === 'residual' ? COLORES.crudo : valor >= 0 ? COLORES.alza : COLORES.baja;
+    tipo === 'total'
+      ? COLORES.neutro
+      : tipo === 'residual'
+        ? COLORES.oro
+        : valor >= 0
+          ? COLORES.alza
+          : COLORES.baja;
 
   return (
     <Marco alto={300}>
@@ -268,11 +284,11 @@ export function ProduccionPorOperador({ puntos }: { puntos: PuntoProduccion[] })
     String(a.fecha).localeCompare(String(b.fecha)),
   );
   const paleta = [
-    COLORES.crudo,
-    COLORES.shale,
+    COLORES.azul,
+    COLORES.celeste,
+    COLORES.oro,
     COLORES.alza,
     COLORES.baja,
-    COLORES.crudoSuave,
     COLORES.neutro,
   ];
 
@@ -317,7 +333,7 @@ export function CurvasTipo({ curvas }: { curvas: CurvasDeclive['curva_tipo_por_v
   }
 
   const datos = Array.from(porMes.values()).sort((a, b) => a.mes_prod - b.mes_prod);
-  const paleta = [COLORES.neutro, COLORES.crudoSuave, COLORES.shale, COLORES.alza, COLORES.crudo];
+  const paleta = [COLORES.neutro, COLORES.celeste, COLORES.azul, COLORES.alza, COLORES.oro];
 
   return (
     <Marco alto={320}>
@@ -390,7 +406,7 @@ export function AccionYRiesgoPais({ serie }: { serie: PuntoSemanal[] }) {
           type="monotone"
           dataKey="ypf"
           name="YPF"
-          stroke={COLORES.crudo}
+          stroke={COLORES.azul}
           strokeWidth={2.5}
           dot={false}
         />
@@ -399,7 +415,7 @@ export function AccionYRiesgoPais({ serie }: { serie: PuntoSemanal[] }) {
           type="monotone"
           dataKey="vist"
           name="Vista"
-          stroke={COLORES.shale}
+          stroke={COLORES.celeste}
           strokeWidth={1.5}
           dot={false}
         />
@@ -408,7 +424,7 @@ export function AccionYRiesgoPais({ serie }: { serie: PuntoSemanal[] }) {
           type="monotone"
           dataKey="brent"
           name="Brent"
-          stroke={COLORES.neutro}
+          stroke={COLORES.oro}
           strokeWidth={1.5}
           strokeDasharray="4 3"
           dot={false}

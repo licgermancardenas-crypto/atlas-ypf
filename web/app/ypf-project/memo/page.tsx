@@ -24,7 +24,7 @@ export default async function Memo() {
     <main className="mx-auto max-w-3xl px-6 py-14">
       <Link
         href="/ypf-project"
-        className="font-mono text-xs tracking-[0.2em] text-crudo transition hover:opacity-80"
+        className="font-mono text-xs tracking-[0.2em] text-azul-claro transition hover:opacity-80"
       >
         ← VOLVER AL CASO
       </Link>

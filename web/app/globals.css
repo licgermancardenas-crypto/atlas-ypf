@@ -1,26 +1,46 @@
 @import "tailwindcss";
 
-/* Paleta del caso: fondo de pizarra y un acento ámbar de crudo. Los tokens
-   viven acá y solo acá; para meter la página en otro portfolio se reemplazan
-   estos valores y no hay que tocar ningún componente. */
+/* ---------------------------------------------------------------------------
+   Paleta
+
+   El azul #0063BE es el primario de la identidad de YPF; el celeste #75AADB es
+   el de la bandera argentina, que la marca usa en la versión extendida del
+   logo. El oro viene de las franjas del logo anterior a 2008 y acá cumple una
+   segunda función: es el color del crudo en todos los gráficos, así que el
+   guiño a la marca y la semántica del dato coinciden.
+
+   Las marcas van en hex porque un azul de marca aproximado se nota; los
+   neutros van en oklch porque lo que importa de ellos es poder moverlos en
+   luminosidad sin que cambien de temperatura. Los neutros tienen tinte azul a
+   propósito: sobre un gris neutro, el azul de YPF flota.
+
+   Sobre fondo oscuro el #0063BE es demasiado profundo para texto y líneas
+   finas, así que hay dos azules: el de marca para rellenos sólidos y uno
+   aclarado para todo lo que tenga que leerse.
+--------------------------------------------------------------------------- */
 @theme {
-  --color-fondo: oklch(0.17 0.012 250);
-  --color-superficie: oklch(0.22 0.014 250);
-  --color-superficie-alta: oklch(0.27 0.016 250);
-  --color-borde: oklch(0.33 0.018 250);
-  --color-texto: oklch(0.95 0.005 250);
-  --color-texto-suave: oklch(0.72 0.012 250);
-  --color-texto-tenue: oklch(0.58 0.014 250);
+  --color-azul: #0063be;
+  --color-azul-claro: #4d9fe8;
+  --color-celeste: #75aadb;
+  --color-oro: #f0a830;
+  --color-alza: #3fb98a;
+  --color-baja: #e2603f;
 
-  --color-crudo: oklch(0.76 0.15 62);
-  --color-crudo-suave: oklch(0.62 0.13 62);
-  --color-shale: oklch(0.72 0.13 195);
-  --color-alza: oklch(0.74 0.15 155);
-  --color-baja: oklch(0.66 0.18 20);
-  --color-neutro: oklch(0.62 0.02 250);
+  --color-fondo: oklch(0.17 0.022 255);
+  --color-superficie: oklch(0.22 0.026 255);
+  --color-superficie-alta: oklch(0.27 0.03 255);
+  --color-borde: oklch(0.33 0.032 255);
+  --color-texto: oklch(0.96 0.008 255);
+  --color-texto-suave: oklch(0.75 0.018 255);
+  --color-texto-tenue: oklch(0.6 0.022 255);
+  --color-neutro: oklch(0.62 0.03 255);
 
-  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+  /* Las tres familias las carga next/font en app/layout.tsx. Archivo para los
+     titulares, IBM Plex Sans para leer, IBM Plex Mono para todo lo que sea un
+     número o una etiqueta de dato. */
+  --font-display: var(--fuente-display), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--fuente-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--fuente-mono), ui-monospace, "Cascadia Mono", monospace;
 }
 
 html {
@@ -31,31 +51,97 @@ html {
 body {
   background-color: var(--color-fondo);
   color: var(--color-texto);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
 }
 
 /* Los números de una tabla financiera tienen que alinearse en columna: sin esto
    el ojo no puede comparar magnitudes de un vistazo. */
 .tabular {
   font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
 }
 
-/* Estilos del memo. Va con una hoja aparte y no con clases en el markup porque
-   el HTML lo genera marked a partir de docs/memo_ejecutivo.md: no hay dónde
-   colgar una clase por elemento. */
+/* ---------------------------------------------------------------------------
+   La franja
+
+   El logo de YPF anterior a 2008 eran franjas horizontales azules y amarillas.
+   Acá esa franja separa las secciones, y de paso se lee como un corte
+   estratigráfico, que es de lo que trata el caso: capas de roca a tres mil
+   metros. Es el único elemento decorativo de la página; todo lo demás tiene que
+   ganarse el lugar mostrando un dato.
+--------------------------------------------------------------------------- */
+.franja {
+  display: flex;
+  height: 3px;
+  width: 4.5rem;
+  overflow: hidden;
+  border-radius: 1px;
+}
+.franja > span {
+  flex: 1;
+}
+.franja > span:nth-child(1) {
+  background: var(--color-azul);
+}
+.franja > span:nth-child(2) {
+  background: var(--color-celeste);
+}
+.franja > span:nth-child(3) {
+  background: var(--color-oro);
+}
+
+/* ---------------------------------------------------------------------------
+   Piso de calidad: foco visible y movimiento respetuoso
+--------------------------------------------------------------------------- */
+:focus-visible {
+  outline: 2px solid var(--color-azul-claro);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Memo ejecutivo
+
+   Va con hoja aparte y no con clases en el markup porque el HTML lo genera
+   marked a partir de docs/memo_ejecutivo.md: no hay dónde colgar una clase por
+   elemento.
+--------------------------------------------------------------------------- */
 .memo {
   line-height: 1.7;
   color: var(--color-texto-suave);
 }
 .memo h1 {
-  font-size: 1.875rem;
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
   color: var(--color-texto);
 }
 .memo h2 {
   margin-top: 2.5rem;
+  font-family: var(--font-display);
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--color-texto);
@@ -81,13 +167,13 @@ body {
   font-weight: 600;
 }
 .memo a {
-  color: var(--color-crudo);
+  color: var(--color-azul-claro);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 .memo blockquote {
   margin-top: 1.25rem;
-  border-left: 2px solid var(--color-crudo-suave);
+  border-left: 2px solid var(--color-azul);
   padding-left: 1rem;
   font-size: 0.875rem;
   color: var(--color-texto-tenue);
@@ -99,7 +185,7 @@ body {
 .memo code {
   font-family: var(--font-mono);
   font-size: 0.875em;
-  color: var(--color-crudo);
+  color: var(--color-oro);
 }
 .memo em {
   color: var(--color-texto-tenue);
@@ -112,6 +198,7 @@ body {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.875rem;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 .memo thead tr {
