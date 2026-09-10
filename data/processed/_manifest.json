@@ -186,7 +186,7 @@
     "operadores": 85
   },
   "catalogo": {
-    "generated_at": "2026-09-10T20:35:06+00:00",
+    "generated_at": "2026-09-10T20:41:51+00:00",
     "sources": [
       "data/raw/_manifest.json",
       "data/processed/_manifest.json"
@@ -195,7 +195,7 @@
       "data/processed/catalogo.json"
     ],
     "datasets_crudos": 50,
-    "salidas_procesadas": 16
+    "salidas_procesadas": 17
   },
   "entity_graph": {
     "generated_at": "2026-09-10T05:09:47+00:00",
@@ -240,9 +240,9 @@
     "note": "2016Q4–2026Q2 en USD; el 4T sale del anual menos nueve meses"
   },
   "export/excel": {
-    "generated_at": "2026-09-10T20:34:27+00:00",
+    "generated_at": "2026-09-10T20:41:50+00:00",
     "rows": 5174,
-    "bytes": 325004,
+    "bytes": 338442,
     "outputs": [
       "docs/YPF_estados_financieros (nuevo).xlsx"
     ],
@@ -270,5 +270,16 @@
     ],
     "source": "data/raw/financials/peers",
     "note": "comparables anuales en dólares desde el XBRL de los 20-F"
+  },
+  "transform/deuda": {
+    "generated_at": "2026-09-10T20:39:44+00:00",
+    "rows": 24,
+    "bytes": 8442,
+    "outputs": [
+      "data/processed/debt_ypf.parquet",
+      "data/processed/debt_ypf.json"
+    ],
+    "source": "data/raw/financials/ypf/filings",
+    "note": "nota de préstamos de 2026-08-17"
   }
 }

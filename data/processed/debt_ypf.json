@@ -1,0 +1,26 @@
+{
+  "generado": "2026-09-10T20:39:44Z",
+  "moneda": "USD",
+  "unidad": "millones",
+  "presentacion": "0001193125-26-354159",
+  "presentado": "2026-08-17",
+  "instrumentos": 24,
+  "total_musd": 8950.0,
+  "corriente_musd": 1284.0,
+  "escalera_por_anio": {
+    "2026": 253.0,
+    "2027": 1338.0,
+    "2028": 616.0,
+    "2029": 1403.0,
+    "2030": 285.0,
+    "2031": 1901.0,
+    "2032": 366.0,
+    "2033": 570.0,
+    "2034": 1687.0,
+    "2047": 531.0
+  },
+  "emisores": [
+    "YPF"
+  ],
+  "nota": "El año es el del vencimiento del capital del instrumento. Los bonos que amortizan en cuotas figuran enteros contra su último vencimiento, así que la escalera es un techo por año, no un calendario de pagos."
+}

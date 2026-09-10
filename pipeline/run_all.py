@@ -55,6 +55,7 @@ TRANSFORM_SCRIPTS: list[tuple[str, Path, list[str]]] = [
     # tabla: es lo que abre el consolidado en los tres negocios que lo forman.
     ("transform/segmentos", TRANSFORM / "segments_ypf.py", []),
     ("transform/peers", TRANSFORM / "peers.py", []),
+    ("transform/deuda", TRANSFORM / "debt_ypf.py", []),
     ("transform/production", TRANSFORM / "production_wells.py", []),
     ("transform/pais", TRANSFORM / "production_country.py", []),
     ("transform/reservas", TRANSFORM / "reserves.py", []),

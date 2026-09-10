@@ -471,11 +471,13 @@ def escribir_portada(libro, fmt, meta: dict, datos: pd.DataFrame, trimestres: li
         ("Resultados", "Estado de resultados integrales, trimestral y anual."),
         ("Balance", "Estado de situación patrimonial."),
         ("Flujo de efectivo", "Estado de flujo de efectivo."),
+        ("Resumen", "Seis números y cinco gráficos: el trimestre y la serie, sin abrir ninguna otra hoja."),
         ("Segmentos", "Ingresos, resultado operativo, capex y activos por negocio, con el margen de cada uno."),
         ("Operativo", "Producción, precios de realización y las métricas por barril que salen de cruzarlos con los estados."),
         ("Análisis", "Márgenes, retornos, estructura de capital, liquidez, capital de trabajo y caja. Todo con fórmulas."),
         ("Valuación", "Cuatro métodos —descontado, múltiplo, reservas y valor libro— sobre supuestos editables."),
         ("Comparables", "YPF contra Vista y Pampa: márgenes, apalancamiento y múltiplos, del XBRL de sus 20-F."),
+        ("Deuda", "La escalera de vencimientos y el detalle instrumento por instrumento."),
         ("Chequeos", "Identidades contables y cruce contra el earnings release de la compañía."),
         ("Datos", "Tabla larga: cada número con su derivación y la presentación de la que salió."),
     ]:
@@ -507,7 +509,8 @@ def escribir_portada(libro, fmt, meta: dict, datos: pd.DataFrame, trimestres: li
 # --------------------------------------------------------------------------- #
 # Análisis
 # --------------------------------------------------------------------------- #
-def escribir_analisis(libro, fmt, mapas: dict, trimestres: list[str], anios: list[str]) -> dict:
+def escribir_analisis(libro, fmt, mapas: dict, trimestres: list[str], anios: list[str],
+                      highlights: pd.DataFrame | None = None) -> dict:
     hoja = libro.add_worksheet("Análisis")
     hoja.hide_gridlines(2)
     hoja.set_column(0, 0, ANCHO_ETIQUETA)
@@ -597,6 +600,7 @@ def escribir_analisis(libro, fmt, mapas: dict, trimestres: list[str], anios: lis
     fila += 1
     fila = escribir_formula(fila, "Margen bruto", division(R("gross profit"), ingresos), fmt["porcentaje"])
     fila = escribir_formula(fila, "Margen operativo", division(resultado_operativo, ingresos), fmt["porcentaje"])
+    fila_margen_ebitda = fila
     fila = escribir_formula(fila, "Margen EBITDA", division(ebitda, ingresos), fmt["porcentaje"])
     fila = escribir_formula(fila, "Margen neto", division(resultado_neto, ingresos), fmt["porcentaje"])
     fila = escribir_formula(
@@ -808,6 +812,7 @@ def escribir_analisis(libro, fmt, mapas: dict, trimestres: list[str], anios: lis
             return f"=IFERROR({arriba}/{celda_local(fila_ltm_ebitda)(columna)},\"\")"
         return armar
 
+    fila_deuda_ebitda = fila
     fila = escribir_formula(
         fila,
         "Deuda neta / EBITDA UDM",
@@ -909,6 +914,57 @@ def escribir_analisis(libro, fmt, mapas: dict, trimestres: list[str], anios: lis
     ]:
         fila = escribir_formula(fila, etiqueta, division(R(clave), ingresos), fmt["porcentaje"])
 
+    # --- puente al EBITDA que publica la compañía --------------------------
+    if highlights is not None and not highlights.empty and "adj_ebitda_musd" in highlights.columns:
+        fila += 1
+        hoja.write(fila, 0, "Puente al EBITDA ajustado de la compañía", fmt["seccion"])
+        hoja.write(
+            fila, max(columnas.values()) + 2,
+            "El EBITDA ajustado del earnings release no es el de los estados: excluye partidas que la "
+            "compañía considera no recurrentes. Este bloque muestra de qué está hecha la diferencia en "
+            "vez de dejarla como una discrepancia sin explicar.",
+            fmt["nota"],
+        )
+        fila += 1
+        fila = escribir_formula(fila, "Resultado operativo", lambda c, p: f"={resultado_operativo(c)}" if resultado_operativo(c) else None, fmt["dato"])
+        fila = escribir_formula(fila, "Depreciaciones y amortizaciones", lambda c, p: f"={depreciaciones(c)}" if depreciaciones(c) else None, fmt["dato"])
+        fila_ebitda_puente = fila
+        fila = escribir_formula(fila, "EBITDA de los estados", lambda c, p: f"={ebitda(c)}" if ebitda(c) else None, fmt["dato_total"])
+
+        fila_ajustado = fila
+        hoja.write(fila, 0, "EBITDA ajustado publicado", fmt["etiqueta"])
+        indexado = highlights.set_index("trimestre")
+        for periodo, columna in columnas.items():
+            if periodo not in indexado.index:
+                continue
+            valor = indexado.at[periodo, "adj_ebitda_musd"]
+            if pd.isna(valor):
+                continue
+            hoja.write_number(fila, columna, float(valor) * ESCALA, fmt["dato"])
+        fila += 1
+
+        hoja.write(fila, 0, "Diferencia (ajustes de la compañía)", fmt["etiqueta_total"])
+        for periodo, columna in columnas.items():
+            letra = xlsxwriter.utility.xl_col_to_name(columna)
+            hoja.write_formula(
+                fila, columna,
+                f"=IF(COUNT({letra}{fila_ajustado + 1})=0,\"\",{letra}{fila_ajustado + 1}-{letra}{fila_ebitda_puente + 1})",
+                fmt["dato_total"], "",
+            )
+        fila += 1
+
+        # Las dos partidas que suelen explicar el grueso del ajuste.
+        for etiqueta, clave in [
+            ("Memo: deterioro y reversión de bienes de uso", "impairment reversal of ppe and inventories write down"),
+            ("Memo: resultado de participaciones en asociadas", "income from equity interests in associates and joint ventures"),
+        ]:
+            if clave in mapas["resultados"]:
+                fila = escribir_formula(
+                    fila, etiqueta,
+                    (lambda cl: (lambda c, p: (f"={R(cl)(c)}" if R(cl)(c) else None)))(clave),
+                    fmt["dato"],
+                )
+
     hoja.freeze_panes(fila_encabezado + 1, 1)
     return {
         "hoja": "Análisis",
@@ -926,6 +982,8 @@ def escribir_analisis(libro, fmt, mapas: dict, trimestres: list[str], anios: lis
         "ltm_impuesto": fila_ltm_impuesto,
         "ltm_capex": fila_ltm_capex,
         "ltm_costo_fin": fila_ltm_costo_fin,
+        "margen_ebitda": fila_margen_ebitda,
+        "deuda_ebitda": fila_deuda_ebitda,
     }
 
 
@@ -1287,7 +1345,7 @@ def datos_de_mercado(trimestres: list[str]) -> dict:
 
 
 def escribir_valuacion(libro, fmt, mapas: dict, analisis: dict, mercado: dict,
-                       trimestres: list[str], anios: list[str]) -> None:
+                       trimestres: list[str], anios: list[str]) -> dict:
     """Cuatro maneras de ponerle precio a la misma compañía.
 
     Ninguna de las cuatro es la respuesta: la respuesta es el rango que arman
@@ -1660,6 +1718,12 @@ def escribir_valuacion(libro, fmt, mapas: dict, analisis: dict, mercado: dict,
     )
     hoja.set_row(fila, 60)
     hoja.freeze_panes(3, 1)
+    return {
+        "encabezado": encabezado_hist,
+        "precio": f_precio_hist,
+        "ev_ebitda": f_ev_ebitda_hist,
+        "pb": f_pb_hist,
+    }
 
 
 
@@ -1753,6 +1817,12 @@ def escribir_segmentos(libro, fmt, segmentos: pd.DataFrame, trimestres: list[str
         # El control que importa: las partes tienen que dar el todo.
         if "Total" in matriz_bloque.index:
             hoja.write(fila, 0, "Suma de segmentos − total", fmt["nota"])
+            hoja.write(
+                fila, max(columnas.values()) + 2,
+                "Da cero cuando la apertura está completa. Donde un segmento no se publicó —el 4T22, "
+                "que es cuando la compañía cambió la apertura— la diferencia es ese hueco.",
+                fmt["nota"],
+            )
             for periodo, columna in columnas.items():
                 partes = [
                     filas_por_bloque[(concepto, s)]
@@ -1765,12 +1835,9 @@ def escribir_segmentos(libro, fmt, segmentos: pd.DataFrame, trimestres: list[str
                 celdas = [f"{letra}{f + 1}" for f in partes]
                 suma = "+".join(celdas)
                 total = f"{letra}{filas_por_bloque[(concepto, 'Total')] + 1}"
-                # Con un solo segmento sin publicar, la resta deja de medir un
-                # descuadre y pasa a medir el hueco: ahí no se muestra nada.
-                completo = f"COUNT({','.join(celdas)})={len(celdas)}"
                 hoja.write_formula(
                     fila, columna,
-                    f"=IF(AND(COUNT({total})=1,{completo}),({suma})-{total},\"\")",
+                    f"=IF(COUNT({total})=1,SUM({','.join(celdas)})-{total},\"\")",
                     fmt["dato"], "",
                 )
             fila += 1
@@ -1814,7 +1881,7 @@ DIAS_POR_TRIMESTRE = {1: 90.25, 2: 91, 3: 92, 4: 92}
 
 
 def escribir_operativo(libro, fmt, highlights: pd.DataFrame, mapas: dict, analisis: dict,
-                       filas_segmento: dict, trimestres: list[str], anios: list[str]) -> None:
+                       filas_segmento: dict, trimestres: list[str], anios: list[str]) -> dict:
     """Los barriles al lado de los dólares.
 
     Una petrolera no se compara por margen sino por lo que le saca a cada barril
@@ -1862,7 +1929,7 @@ def escribir_operativo(libro, fmt, highlights: pd.DataFrame, mapas: dict, analis
 
     if "produccion_kboed" not in filas_kpi:
         hoja.freeze_panes(fila_encabezado + 1, 1)
-        return
+        return {}
 
     fila += 1
     hoja.write(fila, 0, "Producción del período", fmt["seccion"])
@@ -1914,8 +1981,10 @@ def escribir_operativo(libro, fmt, highlights: pd.DataFrame, mapas: dict, analis
             return lambda columna: None
         return lambda columna: f"'Segmentos'!{xlsxwriter.utility.xl_col_to_name(columna)}{fila_segmento + 1}"
 
-    por_boe("EBITDA por boe", ref_analisis("ebitda"), fmt["decimal"],
-            "EBITDA consolidado sobre producción: incluye el aporte de refino, que no produce barriles.")
+    fila_ebitda_boe = por_boe(
+        "EBITDA por boe", ref_analisis("ebitda"), fmt["decimal"],
+        "EBITDA consolidado sobre producción: incluye el aporte de refino, que no produce barriles.",
+    )
     por_boe("Ingresos de Upstream por boe", ref_segmento("ingresos_totales", "Upstream"), fmt["decimal"],
             "Incluye las ventas intersegmento, que es como el crudo llega a la refinería propia.")
     por_boe("Resultado operativo de Upstream por boe", ref_segmento("resultado_operativo", "Upstream"), fmt["decimal"])
@@ -1932,6 +2001,11 @@ def escribir_operativo(libro, fmt, highlights: pd.DataFrame, mapas: dict, analis
         )
 
     hoja.freeze_panes(fila_encabezado + 1, 1)
+    return {
+        "produccion": filas_kpi["produccion_kboed"],
+        "ebitda_boe": fila_ebitda_boe,
+        "boe_periodo": fila_boe,
+    }
 
 
 
@@ -2277,6 +2351,371 @@ def escribir_comparables(libro, fmt, mapas: dict, analisis: dict, mercado: dict,
     hoja.freeze_panes(fila_encabezado + 1, 1)
 
 
+
+
+# --------------------------------------------------------------------------- #
+# Resumen: la hoja que se mira primero
+# --------------------------------------------------------------------------- #
+def escribir_resumen(libro, hoja, fmt, mapas: dict, analisis: dict, valuacion: dict,
+                     operativo: dict, segmentos: dict, trimestres: list[str]) -> None:
+    """Seis números y cinco gráficos: el caso entero en una pantalla.
+
+    Todo lo de esta hoja son referencias a las otras. No hay ningún dato
+    escrito acá: si un número cambia en los estados, cambia acá, y si no
+    cuadra, cuadra en los dos lados o en ninguno.
+    """
+    hoja.hide_gridlines(2)
+    hoja.set_column(0, 0, 2)
+    for columna in range(1, 13):
+        hoja.set_column(columna, columna, 15)
+    hoja.set_tab_color(AZUL_OSCURO)
+
+    columnas = mapas["columnas"]
+    ultimo = trimestres[-1]
+    columna_ultimo = columnas[ultimo]
+    letra_ultimo = xlsxwriter.utility.xl_col_to_name(columna_ultimo)
+    anterior = trimestres[-5] if len(trimestres) >= 5 else trimestres[0]
+    letra_anterior = xlsxwriter.utility.xl_col_to_name(columnas[anterior])
+
+    hoja.write(1, 1, "YPF de un vistazo", fmt["titulo"])
+    hoja.write(2, 1, f"Al cierre de {ultimo}, contra el mismo trimestre del año anterior. Todo referenciado a las hojas de estados.", fmt["subtitulo"])
+
+    tarjeta = libro.add_format({
+        "font_name": "Calibri", "font_size": 18, "bold": True, "font_color": AZUL_OSCURO,
+        "align": "left", "num_format": '#,##0,,"M";(#,##0,,"M");"–"',
+    })
+    tarjeta_ratio = libro.add_format({
+        "font_name": "Calibri", "font_size": 18, "bold": True, "font_color": AZUL_OSCURO,
+        "align": "left", "num_format": '0.0%;(0.0%);"–"',
+    })
+    tarjeta_multiplo = libro.add_format({
+        "font_name": "Calibri", "font_size": 18, "bold": True, "font_color": AZUL_OSCURO,
+        "align": "left", "num_format": '0.00"x";(0.00"x");"–"',
+    })
+    etiqueta_tarjeta = libro.add_format({
+        "font_name": "Calibri", "font_size": 9, "font_color": GRIS,
+    })
+    variacion = libro.add_format({
+        "font_name": "Calibri", "font_size": 9, "font_color": GRIS, "num_format": '+0.0%;-0.0%;"–"',
+    })
+
+    def referencia(hoja_nombre: str, fila: int, columna: int) -> str:
+        return f"'{hoja_nombre}'!{xlsxwriter.utility.xl_col_to_name(columna)}{fila + 1}"
+
+    tarjetas = [
+        ("Ingresos del trimestre", referencia(HOJAS["resultados"], mapas["resultados"]["revenues"], columna_ultimo),
+         referencia(HOJAS["resultados"], mapas["resultados"]["revenues"], columnas[anterior]), tarjeta),
+        ("EBITDA del trimestre", referencia("Análisis", analisis["ebitda"], columna_ultimo),
+         referencia("Análisis", analisis["ebitda"], columnas[anterior]), tarjeta),
+        ("Resultado neto", referencia(HOJAS["resultados"], mapas["resultados"]["net profit"], columna_ultimo),
+         referencia(HOJAS["resultados"], mapas["resultados"]["net profit"], columnas[anterior]), tarjeta),
+        ("Flujo de caja libre", referencia("Análisis", analisis["fcf"], columna_ultimo),
+         referencia("Análisis", analisis["fcf"], columnas[anterior]), tarjeta),
+        ("Deuda neta / EBITDA UDM", None, None, tarjeta_multiplo),
+        ("Margen EBITDA", None, None, tarjeta_ratio),
+    ]
+
+    fila = 4
+    for i, (etiqueta, celda, celda_previa, formato) in enumerate(tarjetas):
+        columna = 1 + (i % 3) * 3
+        base = fila + (i // 3) * 4
+        hoja.write(base, columna, etiqueta, etiqueta_tarjeta)
+        if celda:
+            hoja.write_formula(base + 1, columna, f"={celda}", formato, "")
+            hoja.write_formula(
+                base + 2, columna,
+                f"=IFERROR({celda}/{celda_previa}-1,\"\")",
+                variacion, "",
+            )
+            hoja.write(base + 2, columna + 1, "contra un año antes", etiqueta_tarjeta)
+
+    # Las dos tarjetas que salen de la hoja de análisis por nombre de fila.
+    fila_deuda_ebitda = analisis.get("deuda_ebitda")
+    if fila_deuda_ebitda is not None:
+        hoja.write_formula(
+            fila + 5, 4, f"={referencia('Análisis', fila_deuda_ebitda, columna_ultimo)}", tarjeta_multiplo, ""
+        )
+    fila_margen = analisis.get("margen_ebitda")
+    if fila_margen is not None:
+        hoja.write_formula(
+            fila + 5, 7, f"={referencia('Análisis', fila_margen, columna_ultimo)}", tarjeta_ratio, ""
+        )
+
+    # --- gráficos ----------------------------------------------------------
+    # Las series son rangos de las otras hojas: el gráfico no guarda datos, los
+    # mira. Cambiar un trimestre en Resultados mueve la barra.
+    primera_columna = columnas[trimestres[0]]
+    ultima_columna = columnas[trimestres[-1]]
+    hoja_analisis = "Análisis"
+
+    def rango(hoja_nombre: str, fila_serie: int) -> list:
+        return [hoja_nombre, fila_serie, primera_columna, fila_serie, ultima_columna]
+
+    def categorias(hoja_nombre: str) -> list:
+        return [hoja_nombre, 3, primera_columna, 3, ultima_columna]
+
+    def estilo(grafico, titulo: str) -> None:
+        grafico.set_title({"name": titulo, "name_font": {"name": "Calibri", "size": 11, "color": AZUL_OSCURO}})
+        grafico.set_legend({"position": "bottom", "font": {"name": "Calibri", "size": 8}})
+        grafico.set_size({"width": 460, "height": 260})
+        grafico.set_chartarea({"border": {"none": True}})
+        grafico.set_x_axis({"num_font": {"name": "Calibri", "size": 8, "rotation": -45}})
+        grafico.set_y_axis({"num_font": {"name": "Calibri", "size": 8}, "major_gridlines": {"visible": True}})
+
+    fila_graficos = 13
+
+    ebitda_margen = libro.add_chart({"type": "column"})
+    ebitda_margen.add_series({
+        "name": "EBITDA",
+        "categories": categorias(hoja_analisis),
+        "values": rango(hoja_analisis, analisis["ebitda"]),
+        "fill": {"color": AZUL},
+    })
+    if fila_margen is not None:
+        linea_margen = libro.add_chart({"type": "line"})
+        linea_margen.add_series({
+            "name": "Margen EBITDA",
+            "categories": categorias(hoja_analisis),
+            "values": rango(hoja_analisis, fila_margen),
+            "line": {"color": "#f0a830", "width": 1.75},
+            "y2_axis": True,
+        })
+        ebitda_margen.combine(linea_margen)
+        linea_margen.set_y2_axis({"num_font": {"name": "Calibri", "size": 8}, "num_format": "0%"})
+    estilo(ebitda_margen, "EBITDA trimestral y margen")
+    hoja.insert_chart(fila_graficos, 1, ebitda_margen)
+
+    caja = libro.add_chart({"type": "column"})
+    caja.add_series({
+        "name": "Flujo de caja libre",
+        "categories": categorias(hoja_analisis),
+        "values": rango(hoja_analisis, analisis["fcf"]),
+        "fill": {"color": "#3fb98a"},
+        "invert_if_negative": True,
+    })
+    estilo(caja, "Flujo de caja libre por trimestre")
+    hoja.insert_chart(fila_graficos, 9, caja)
+
+    if fila_deuda_ebitda is not None:
+        apalancamiento = libro.add_chart({"type": "line"})
+        apalancamiento.add_series({
+            "name": "Deuda neta / EBITDA UDM",
+            "categories": categorias(hoja_analisis),
+            "values": rango(hoja_analisis, fila_deuda_ebitda),
+            "line": {"color": "#c0442a", "width": 1.75},
+        })
+        estilo(apalancamiento, "Apalancamiento")
+        hoja.insert_chart(fila_graficos + 14, 1, apalancamiento)
+
+    if valuacion.get("ev_ebitda"):
+        multiplo = libro.add_chart({"type": "line"})
+        multiplo.add_series({
+            "name": "EV / EBITDA UDM",
+            "categories": ["Valuación", valuacion["encabezado"], primera_columna, valuacion["encabezado"], ultima_columna],
+            "values": ["Valuación", valuacion["ev_ebitda"], primera_columna, valuacion["ev_ebitda"], ultima_columna],
+            "line": {"color": AZUL_OSCURO, "width": 1.75},
+        })
+        estilo(multiplo, "Múltiplo al que cotizó, trimestre a trimestre")
+        hoja.insert_chart(fila_graficos + 14, 9, multiplo)
+
+    if segmentos:
+        ingresos_segmento = libro.add_chart({"type": "column", "subtype": "stacked"})
+        colores = {"Upstream": AZUL, "Midstream y Downstream": "#f0a830", "Downstream": "#f0a830",
+                   "GNL y gas integrado": "#3fb98a", "Nuevas energías": "#75aadb",
+                   "Gas y energía": "#3fb98a"}
+        for segmento, color in colores.items():
+            fila_segmento = segmentos.get(("ingresos_totales", segmento))
+            if fila_segmento is None:
+                continue
+            ingresos_segmento.add_series({
+                "name": segmento,
+                "categories": categorias("Segmentos"),
+                "values": ["Segmentos", fila_segmento, primera_columna, fila_segmento, ultima_columna],
+                "fill": {"color": color},
+            })
+        estilo(ingresos_segmento, "Ingresos por segmento")
+        hoja.insert_chart(fila_graficos + 28, 1, ingresos_segmento)
+
+    if operativo.get("produccion") and operativo.get("ebitda_boe"):
+        produccion = libro.add_chart({"type": "column"})
+        produccion.add_series({
+            "name": "Producción (kboe/d)",
+            "categories": categorias("Operativo"),
+            "values": ["Operativo", operativo["produccion"], primera_columna, operativo["produccion"], ultima_columna],
+            "fill": {"color": "#5f7099"},
+        })
+        linea_boe = libro.add_chart({"type": "line"})
+        linea_boe.add_series({
+            "name": "EBITDA por boe (USD)",
+            "categories": categorias("Operativo"),
+            "values": ["Operativo", operativo["ebitda_boe"], primera_columna, operativo["ebitda_boe"], ultima_columna],
+            "line": {"color": "#f0a830", "width": 1.75},
+            "y2_axis": True,
+        })
+        produccion.combine(linea_boe)
+        linea_boe.set_y2_axis({"num_font": {"name": "Calibri", "size": 8}})
+        estilo(produccion, "Producción y lo que deja cada barril")
+        hoja.insert_chart(fila_graficos + 28, 9, produccion)
+
+    hoja.write(
+        fila_graficos + 42, 1,
+        "Los gráficos leen las hojas de estados: no hay datos copiados acá. La serie de trimestres "
+        "arranca en 2020 y los anteriores a 2023 están traducidos desde pesos (ver Portada).",
+        fmt["nota"],
+    )
+
+
+
+
+# --------------------------------------------------------------------------- #
+# Deuda
+# --------------------------------------------------------------------------- #
+DEUDA_ENTRADA = PROCESSED / "debt_ypf.parquet"
+DEUDA_META = PROCESSED / "debt_ypf.json"
+
+
+def datos_de_deuda() -> tuple[pd.DataFrame, dict]:
+    if not DEUDA_ENTRADA.exists():
+        return pd.DataFrame(), {}
+    tabla = pd.read_parquet(DEUDA_ENTRADA)
+    meta = json.loads(DEUDA_META.read_text(encoding="utf-8")) if DEUDA_META.exists() else {}
+    return tabla, meta
+
+
+def escribir_deuda(libro, fmt, deuda: pd.DataFrame, meta: dict, mapas: dict,
+                   trimestres: list[str]) -> None:
+    """Cuándo vence, no cuánto: para un emisor argentino esa es la pregunta.
+
+    Un apalancamiento de una vez EBITDA dice poco si adentro hay un vencimiento
+    grande el año que viene y el mercado de crédito está cerrado. Esta hoja abre
+    la nota de préstamos instrumento por instrumento y arma la escalera.
+    """
+    if deuda.empty:
+        return
+
+    hoja = libro.add_worksheet("Deuda")
+    hoja.hide_gridlines(2)
+    hoja.set_column(0, 0, 26)
+    hoja.set_column(1, 1, 16)
+    hoja.set_column(2, 2, 20)
+    hoja.set_column(3, 6, 16)
+    hoja.set_tab_color("#c0442a")
+
+    hoja.write(0, 0, "Perfil de deuda", fmt["titulo"])
+    hoja.write(
+        1, 0,
+        f"Nota de préstamos de la presentación {meta.get('presentacion', '')} "
+        f"({meta.get('presentado', '')}), en dólares.",
+        fmt["subtitulo"],
+    )
+
+    # --- escalera de vencimientos ------------------------------------------
+    escalera = deuda.groupby("vencimiento")["total_musd"].sum().sort_index()
+    fila = 3
+    hoja.write(fila, 0, "Vencimientos por año", fmt["seccion"])
+    fila += 1
+    encabezado_escalera = fila
+    hoja.write(fila, 0, "Año", fmt["encabezado_izq"])
+    hoja.write(fila, 1, "Vence", fmt["encabezado"])
+    hoja.write(fila, 2, "Instrumentos", fmt["encabezado"])
+    fila += 1
+    primera_escalera = fila
+    for anio, monto in escalera.items():
+        cuantos = int((deuda["vencimiento"] == anio).sum())
+        hoja.write_number(fila, 0, int(anio), fmt["dato"])
+        hoja.write_number(fila, 1, float(monto) * ESCALA, fmt["dato"])
+        hoja.write_number(fila, 2, cuantos, fmt["dato"])
+        fila += 1
+    ultima_escalera = fila - 1
+
+    hoja.write(fila, 0, "Total", fmt["etiqueta_total"])
+    hoja.write_formula(
+        fila, 1, f"=SUM(B{primera_escalera + 1}:B{ultima_escalera + 1})", fmt["dato_total"], ""
+    )
+    fila_total = fila
+    fila += 1
+
+    # El control: lo que suma la nota no puede pasar a los préstamos del balance.
+    fila_balance = mapas["balance"].get("loans | total non current liabilities")
+    fila_balance_corriente = mapas["balance"].get("loans | total current liabilities")
+    if fila_balance is not None and fila_balance_corriente is not None:
+        letra = xlsxwriter.utility.xl_col_to_name(mapas["columnas"][trimestres[-1]])
+        hoja.write(fila, 0, "Préstamos del balance", fmt["etiqueta"])
+        hoja.write_formula(
+            fila, 1,
+            f"='{HOJAS['balance']}'!{letra}{fila_balance + 1}+'{HOJAS['balance']}'!{letra}{fila_balance_corriente + 1}",
+            fmt["dato"], "",
+        )
+        fila += 1
+        hoja.write(fila, 0, "Diferencia", fmt["etiqueta"])
+        hoja.write_formula(fila, 1, f"=B{fila} - B{fila_total + 1}", fmt["dato"], "")
+        hoja.write(
+            fila, 3,
+            "La nota abre las obligaciones negociables y los préstamos bancarios con vencimiento "
+            "declarado; la diferencia contra el balance son los saldos que la nota no abre por "
+            "instrumento (adelantos, financiaciones de comercio exterior).",
+            fmt["nota"],
+        )
+        fila += 1
+
+    grafico = libro.add_chart({"type": "column"})
+    grafico.add_series({
+        "name": "Vencimientos por año",
+        "categories": ["Deuda", primera_escalera, 0, ultima_escalera, 0],
+        "values": ["Deuda", primera_escalera, 1, ultima_escalera, 1],
+        "fill": {"color": "#c0442a"},
+    })
+    grafico.set_title({"name": "Escalera de vencimientos", "name_font": {"name": "Calibri", "size": 11}})
+    grafico.set_legend({"none": True})
+    grafico.set_size({"width": 520, "height": 260})
+    grafico.set_x_axis({"num_font": {"name": "Calibri", "size": 8}})
+    grafico.set_y_axis({"num_font": {"name": "Calibri", "size": 8}})
+    hoja.insert_chart(3, 4, grafico)
+
+    # --- instrumento por instrumento ---------------------------------------
+    fila += 2
+    hoja.write(fila, 0, "Instrumento por instrumento", fmt["seccion"])
+    fila += 1
+    columnas = [
+        ("Clase", "clase", 22),
+        ("Emitido", "mes_emision", 18),
+        ("Año", "anio_emision", 10),
+        ("Moneda", "moneda", 10),
+        ("Valor nominal", "valor_nominal", 16),
+        ("Tasa", "tasa", 18),
+        ("Vence", "vencimiento", 10),
+        ("No corriente", "no_corriente_musd", 16),
+        ("Corriente", "corriente_musd", 14),
+        ("Total", "total_musd", 16),
+    ]
+    for i, (titulo, _, ancho) in enumerate(columnas):
+        hoja.write(fila, i, titulo, fmt["encabezado"] if i else fmt["encabezado_izq"])
+        hoja.set_column(i, i, ancho)
+    fila += 1
+
+    for registro in deuda.sort_values(["vencimiento", "total_musd"], ascending=[True, False]).itertuples():
+        for i, (_, campo, _) in enumerate(columnas):
+            valor = getattr(registro, campo)
+            if campo in ("no_corriente_musd", "corriente_musd", "total_musd", "valor_nominal"):
+                if pd.isna(valor):
+                    continue
+                hoja.write_number(fila, i, float(valor) * ESCALA, fmt["dato"])
+            elif campo == "vencimiento":
+                hoja.write_number(fila, i, int(valor), fmt["dato"])
+            else:
+                hoja.write(fila, i, "" if pd.isna(valor) else str(valor), fmt["etiqueta"])
+        fila += 1
+
+    fila += 1
+    hoja.write(
+        fila, 0,
+        meta.get("nota", ""),
+        fmt["nota"],
+    )
+    hoja.set_row(fila, 28)
+    hoja.freeze_panes(encabezado_escalera + 1, 0)
+
+
 # --------------------------------------------------------------------------- #
 def main() -> int:
     parser = base_parser(__doc__.splitlines()[0])
@@ -2308,6 +2747,9 @@ def main() -> int:
     fmt = formatos(libro)
 
     escribir_portada(libro, fmt, meta, datos, trimestres, anios)
+    # La hoja de resumen se crea acá para que quede segunda en el libro, pero
+    # se llena al final: sus gráficos apuntan a filas que todavía no existen.
+    hoja_resumen = libro.add_worksheet("Resumen")
 
     mapas: dict = {}
     for estado, titulo, subtitulo in [
@@ -2319,20 +2761,28 @@ def main() -> int:
         mapas[estado] = filas
         mapas["columnas"] = columnas
 
-    filas_analisis = escribir_analisis(libro, fmt, mapas, trimestres, anios)
+    filas_analisis = escribir_analisis(libro, fmt, mapas, trimestres, anios, highlights)
     filas_segmento: dict = {}
     if not segmentos.empty:
         filas_segmento = escribir_segmentos(
             libro, fmt, segmentos, trimestres, anios, mapas["columnas"]
         )
-    escribir_operativo(libro, fmt, highlights, mapas, filas_analisis, filas_segmento, trimestres, anios)
+    filas_operativo = escribir_operativo(
+        libro, fmt, highlights, mapas, filas_analisis, filas_segmento, trimestres, anios
+    )
     mercado = datos_de_mercado(trimestres)
-    escribir_valuacion(libro, fmt, mapas, filas_analisis, mercado, trimestres, anios)
+    filas_valuacion = escribir_valuacion(libro, fmt, mapas, filas_analisis, mercado, trimestres, anios)
     escribir_comparables(
         libro, fmt, mapas, filas_analisis, mercado, datos_de_comparables(), trimestres, anios
     )
+    deuda, meta_deuda = datos_de_deuda()
+    escribir_deuda(libro, fmt, deuda, meta_deuda, mapas, trimestres)
     escribir_chequeos(libro, fmt, mapas, datos, highlights, trimestres, anios)
     escribir_datos(libro, fmt, datos)
+    escribir_resumen(
+        libro, hoja_resumen, fmt, mapas, filas_analisis, filas_valuacion,
+        filas_operativo, filas_segmento, trimestres,
+    )
 
     libro.close()
     try:
