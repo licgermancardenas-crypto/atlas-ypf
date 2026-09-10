@@ -73,7 +73,7 @@ export default async function CasoYPF() {
       : null;
 
   return (
-    <Shell actualizado={financieros.generado.slice(0, 10)} operadores={operadores}>
+    <Shell actualizado={financieros.generado.slice(0, 10)} operadores={operadores} modulo="caso">
       <main className="pb-24">
 
       {/* ------------------------------------------------------------------ */}

@@ -30,3 +30,6 @@ Thumbs.db
 # Intermedios del pipeline: se regeneran corriendo pipeline/run_all.py
 data/processed/*.parquet
 
+
+# artefacto de tsc, se regenera en cada build
+web/tsconfig.tsbuildinfo

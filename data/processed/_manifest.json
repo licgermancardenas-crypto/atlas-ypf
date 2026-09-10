@@ -183,5 +183,17 @@
       2024
     ],
     "operadores": 85
+  },
+  "catalogo": {
+    "generated_at": "2026-09-10T00:58:37+00:00",
+    "sources": [
+      "data/raw/_manifest.json",
+      "data/processed/_manifest.json"
+    ],
+    "outputs": [
+      "data/processed/catalogo.json"
+    ],
+    "datasets_crudos": 49,
+    "salidas_procesadas": 11
   }
 }

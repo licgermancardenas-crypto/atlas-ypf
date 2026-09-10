@@ -43,6 +43,10 @@ interface Props {
   datos?: Record<string, unknown>[];
   /** Nombre del archivo CSV, sin extensión. */
   archivo?: string;
+  /** Cómo se llama la vista principal. Casi siempre es un gráfico, pero en el
+   *  módulo de datos el visual es una tabla con enlaces y decir "Gráfico" ahí
+   *  sería mentirle al botón. */
+  etiquetaVista?: string;
   /** Cuando el filtro deja al panel sin nada que decir, se explica por qué. */
   inhabilitado?: string | null;
   /** Nombre del único operador del que este panel tiene datos. Si el filtro
@@ -81,6 +85,7 @@ export function Panel({
   columnas,
   datos,
   archivo = 'atlas-ypf',
+  etiquetaVista = 'Gráfico',
   inhabilitado = null,
   soloPara,
   className = '',
@@ -121,7 +126,7 @@ export function Panel({
                       : 'text-texto-tenue hover:text-texto-suave'
                   }`}
                 >
-                  {modo === 'grafico' ? 'Gráfico' : 'Tabla'}
+                  {modo === 'grafico' ? etiquetaVista : 'Tabla'}
                 </button>
               ))}
             </div>

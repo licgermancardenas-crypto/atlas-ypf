@@ -52,6 +52,7 @@ def cerca(a: float, b: float, tolerancia: float = TOLERANCIA) -> bool:
 # Chequeos
 # --------------------------------------------------------------------------- #
 def chequear_pais(problemas: list[str]) -> None:
+    """Convencional mas shale mas tight tiene que dar el total de cada mes."""
     datos = leer("country_production.json")
     if not datos:
         return
@@ -106,6 +107,7 @@ def chequear_rankings(problemas: list[str]) -> None:
 
 
 def chequear_reservas(problemas: list[str]) -> None:
+    """El desglose por cuenca y el desglose por fluido tienen que dar lo mismo."""
     datos = leer("reserves.json")
     if not datos:
         return
@@ -172,6 +174,7 @@ def chequear_cruce_shale(problemas: list[str]) -> None:
 
 
 def chequear_financieros(problemas: list[str]) -> None:
+    """Ningun trimestre puede traer margenes ni deuda fuera de rango posible."""
     datos = leer("financials_ypf.json")
     if not datos:
         return
@@ -190,6 +193,7 @@ def chequear_financieros(problemas: list[str]) -> None:
 
 
 def chequear_modelo(problemas: list[str]) -> None:
+    """Los coeficientes del simulador tienen que conservar signo y ajuste."""
     datos = leer("scenario_coefficients.json")
     if not datos:
         return
@@ -205,6 +209,7 @@ def chequear_modelo(problemas: list[str]) -> None:
 
 
 def chequear_geo(problemas: list[str]) -> None:
+    """Todas las coordenadas de pozo tienen que caer dentro de la Argentina."""
     ruta = PROCESSED / "geo" / "wells.geojson"
     if not ruta.exists():
         return

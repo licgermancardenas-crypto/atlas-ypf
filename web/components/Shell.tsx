@@ -17,6 +17,34 @@ import { BarraFiltros } from './estado/BarraFiltros';
 import { ProveedorFiltros } from './estado/filtros';
 import { Franja } from './ui';
 
+export type Modulo = 'caso' | 'finanzas' | 'operativo' | 'datos';
+
+// Los cuatro módulos. El caso es la narrativa —se lee de arriba abajo y
+// defiende una tesis—; los otros tres son de consulta y se entra a buscar algo
+// puntual. Separarlos evita el error de mezclar los dos modos en una sola
+// página larguísima donde ni se lee ni se consulta bien.
+const MODULOS: { id: Modulo; ruta: string; etiqueta: string; resumen: string }[] = [
+  { id: 'caso', ruta: '/ypf-project', etiqueta: 'El caso', resumen: 'La tesis, en siete tramos' },
+  {
+    id: 'finanzas',
+    ruta: '/ypf-project/finanzas',
+    etiqueta: 'Finanzas',
+    resumen: 'Serie trimestral y sensibilidad',
+  },
+  {
+    id: 'operativo',
+    ruta: '/ypf-project/operativo',
+    etiqueta: 'Operativo',
+    resumen: 'Producción, áreas y reservas',
+  },
+  {
+    id: 'datos',
+    ruta: '/ypf-project/datos',
+    etiqueta: 'Datos',
+    resumen: 'Fuentes, pipeline y chequeos',
+  },
+];
+
 const SECCIONES = [
   { id: 'balance', numero: '01', titulo: 'El balance', resumen: 'Los números del trimestre' },
   { id: 'origen', numero: '02', titulo: 'De dónde salió', resumen: 'Precio, volumen y costo' },
@@ -75,14 +103,16 @@ export function Shell({
   children,
   actualizado,
   operadores,
+  modulo = 'caso',
 }: {
   children: ReactNode;
   actualizado: string;
   operadores: string[];
+  modulo?: Modulo;
 }) {
   return (
     <ProveedorFiltros>
-      <Armazon actualizado={actualizado} operadores={operadores}>
+      <Armazon actualizado={actualizado} operadores={operadores} modulo={modulo}>
         {children}
       </Armazon>
     </ProveedorFiltros>
@@ -93,12 +123,17 @@ function Armazon({
   children,
   actualizado,
   operadores,
+  modulo,
 }: {
   children: ReactNode;
   actualizado: string;
   operadores: string[];
+  modulo: Modulo;
 }) {
   const activa = useSeccionActiva();
+  // En el módulo de datos no hay nada que filtrar: la barra sería un control
+  // encendido que no hace nada, que es peor que no tenerla.
+  const conFiltros = modulo !== 'datos';
 
   return (
     <div className="lg:grid lg:grid-cols-[15.5rem_1fr]">
@@ -108,7 +143,36 @@ function Armazon({
           <Marca />
           <Franja className="mt-5 w-full" />
 
-          <nav aria-label="Secciones del caso" className="mt-6 flex-1 space-y-0.5">
+          <nav aria-label="Módulos" className="mt-6 space-y-0.5">
+            {MODULOS.map((item) => {
+              const esActivo = modulo === item.id;
+              return (
+                <a
+                  key={item.id}
+                  href={item.ruta}
+                  aria-current={esActivo ? 'page' : undefined}
+                  className={`marquesina block rounded-md px-3 py-2 transition-colors ${
+                    esActivo ? 'bg-superficie-alta' : 'hover:bg-superficie'
+                  }`}
+                  data-activa={esActivo}
+                >
+                  <span className={`text-sm ${esActivo ? 'text-texto' : 'text-texto-suave'}`}>
+                    {item.etiqueta}
+                  </span>
+                  <span className="mt-0.5 block text-[0.7rem] leading-snug text-texto-tenue">
+                    {item.resumen}
+                  </span>
+                </a>
+              );
+            })}
+          </nav>
+
+          <nav
+            aria-label="Secciones del caso"
+            className={`mt-5 flex-1 space-y-0.5 border-t border-borde pt-4 ${
+              modulo === 'caso' ? '' : 'hidden'
+            }`}
+          >
             {SECCIONES.map((seccion) => {
               const esActiva = activa === seccion.id;
               return (
@@ -172,7 +236,28 @@ function Armazon({
               Memo
             </a>
           </div>
-          <div className="flex gap-1 overflow-x-auto px-5 pb-2.5">
+          <div className="flex gap-1 overflow-x-auto border-b border-borde/60 px-5 pb-2">
+            {MODULOS.map((item) => (
+              <a
+                key={item.id}
+                href={item.ruta}
+                aria-current={modulo === item.id ? 'page' : undefined}
+                className={`shrink-0 rounded-md px-2.5 py-1 text-xs transition-colors ${
+                  modulo === item.id
+                    ? 'bg-superficie-alta text-texto'
+                    : 'text-texto-tenue hover:text-texto-suave'
+                }`}
+              >
+                {item.etiqueta}
+              </a>
+            ))}
+          </div>
+
+          <div
+            className={`flex gap-1 overflow-x-auto px-5 pb-2.5 pt-2 ${
+              modulo === 'caso' ? '' : 'hidden'
+            }`}
+          >
             {SECCIONES.map((seccion) => (
               <a
                 key={seccion.id}
@@ -193,7 +278,7 @@ function Armazon({
       </div>
 
       <div className="min-w-0">
-        <BarraFiltros operadores={operadores} />
+        {conFiltros ? <BarraFiltros operadores={operadores} /> : null}
         {children}
       </div>
     </div>
