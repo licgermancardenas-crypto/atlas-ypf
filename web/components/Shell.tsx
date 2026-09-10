@@ -17,7 +17,7 @@ import { BarraFiltros } from './estado/BarraFiltros';
 import { ProveedorFiltros } from './estado/filtros';
 import { Franja } from './ui';
 
-export type Modulo = 'caso' | 'finanzas' | 'operativo' | 'datos';
+export type Modulo = 'caso' | 'finanzas' | 'operativo' | 'red' | 'datos';
 
 // Los cuatro módulos. El caso es la narrativa —se lee de arriba abajo y
 // defiende una tesis—; los otros tres son de consulta y se entra a buscar algo
@@ -36,6 +36,12 @@ const MODULOS: { id: Modulo; ruta: string; etiqueta: string; resumen: string }[]
     ruta: '/ypf-project/operativo',
     etiqueta: 'Operativo',
     resumen: 'Producción, áreas y reservas',
+  },
+  {
+    id: 'red',
+    ruta: '/ypf-project/red',
+    etiqueta: 'Relaciones',
+    resumen: 'Quién opera qué y con quién',
   },
   {
     id: 'datos',
