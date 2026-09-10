@@ -40,6 +40,7 @@ import zipfile
 from pathlib import Path
 
 import geopandas as gpd
+from shapely.ops import linemerge
 import numpy as np
 import pandas as pd
 import rasterio
@@ -255,6 +256,48 @@ def _recortar(gdf: gpd.GeoDataFrame, recorte, tolerancia: float, largo_minimo: f
     return gdf[~gdf.geometry.is_empty & gdf.geometry.notna()]
 
 
+def _disolver(gdf: gpd.GeoDataFrame, por: list[str]) -> gpd.GeoDataFrame:
+    """Une en una sola geometria los tramos que comparten atributos.
+
+    El padron del IGN publica un rio o un ducto partido en miles de tramos, y
+    cada tramo viaja al navegador con su propio envoltorio de GeoJSON: el
+    `{"type":"Feature","properties":{...},"geometry":{...}}` pesa mas que las
+    coordenadas que envuelve. Uniendolos por nombre no se pierde nada -los
+    tramos de un mismo rio no tienen atributos propios- y el navegador pasa de
+    instanciar diez mil objetos a instanciar unas pocas decenas.
+
+    Se usa `linemerge` y no el `dissolve` de geopandas a proposito. `dissolve`
+    hace una union topologica: partite cada linea en cada cruce con otra e
+    inserta un vertice nuevo ahi. Sobre los ductos eso agrandaba el archivo de
+    1,9 MB a 5,2 MB, justo lo contrario de lo que se buscaba. `linemerge`
+    encadena los tramos que comparten extremo y deja los vertices como estaban.
+    """
+    columnas = [c for c in por if c in gdf.columns]
+    if not columnas or gdf.empty:
+        return gdf
+
+    filas = []
+    for claves, grupo in gdf.groupby(columnas, dropna=False, sort=False):
+        if not isinstance(claves, tuple):
+            claves = (claves,)
+        tramos = []
+        for geometria in grupo.geometry:
+            if geometria is None or geometria.is_empty:
+                continue
+            if geometria.geom_type == "MultiLineString":
+                tramos.extend(geometria.geoms)
+            else:
+                tramos.append(geometria)
+        if not tramos:
+            continue
+        unida = linemerge(tramos) if len(tramos) > 1 else tramos[0]
+        filas.append({**dict(zip(columnas, claves)), "geometry": unida})
+
+    if not filas:
+        return gdf
+    return gpd.GeoDataFrame(filas, crs=gdf.crs)
+
+
 def capas_contexto(recorte) -> dict[str, int]:
     """Las capas que convierten la nube de pozos en un mapa que se puede leer."""
     tamanos: dict[str, int] = {}
@@ -272,8 +315,12 @@ def capas_contexto(recorte) -> dict[str, int]:
         capa["jerarquia"] = jerarquia
         rutas.append(capa)
     if rutas:
+        trazas = _disolver(
+            gpd.GeoDataFrame(pd.concat(rutas, ignore_index=True), crs="EPSG:4326"),
+            ["ruta", "tipo", "jerarquia"],
+        )
         tamanos["roads"] = escribir_geojson(
-            gpd.GeoDataFrame(pd.concat(rutas, ignore_index=True), crs="EPSG:4326"), "roads", decimales=4
+            gpd.GeoDataFrame(trazas, crs="EPSG:4326"), "roads", decimales=4
         )
 
     localidades = _leer_contexto("localidades")
@@ -298,6 +345,7 @@ def capas_contexto(recorte) -> dict[str, int]:
         capa = _recortar(capa, recorte, tolerancia, largo_minimo=LARGO_MINIMO)
         columnas = {c: n for c, n in (("fna", "nombre"), ("gna", "tipo")) if c in capa.columns}
         capa = capa[list(columnas) + ["geometry"]].rename(columns=columnas)
+        capa = _disolver(capa, ["nombre", "tipo"])
         tamanos[salida] = escribir_geojson(capa, salida, decimales=4)
 
     return tamanos
@@ -366,6 +414,7 @@ def capas_logistica(recorte) -> dict[str, int]:
         capa = _recortar(capa, recorte, SIMPLIFICACION["pipelines"], largo_minimo=LARGO_MINIMO)
         disponibles = {v: n for v, n in columnas.items() if v in capa.columns}
         capa = capa[list(disponibles) + ["geometry"]].rename(columns=disponibles)
+        capa = _disolver(gpd.GeoDataFrame(capa, crs="EPSG:4326"), ["nombre", "empresa", "tipo"])
         tamanos[salida] = escribir_geojson(gpd.GeoDataFrame(capa, crs="EPSG:4326"), salida, decimales=4)
 
     return tamanos
@@ -460,6 +509,65 @@ def construir_pozos() -> gpd.GeoDataFrame:
         geometry=gpd.points_from_xy(pozos.lon.round(5), pozos.lat.round(5)),
         crs="EPSG:4326",
     )
+
+
+def construir_clusters(pozos: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Los pozos agrupados por yacimiento, para la vista alejada del mapa.
+
+    Con la cuenca entera en pantalla, cinco mil puntos son una mancha: no se
+    distingue uno de otro y para dibujarlos hay que bajar dos megas de detalle
+    que a esa escala nadie puede leer. El agrupado por yacimiento dice lo mismo
+    mejor -cuantos pozos y cuanto salio de cada area- en cuarenta veces menos
+    peso, y el detalle pozo por pozo se pide recien cuando el zoom lo justifica.
+
+    El agrupado es por yacimiento y no por una grilla arbitraria porque el
+    yacimiento es la unidad con la que se habla del negocio: "Loma Campana" es
+    una respuesta, "la celda 47" no.
+    """
+    if pozos.empty:
+        return pozos
+
+    tabla = pd.DataFrame(
+        {
+            "yacimiento": pozos.yacimiento.fillna("Sin yacimiento"),
+            "operador": pozos.operador,
+            "boe_acum_mboe": pozos.boe_acum_mboe,
+            "npv_musd": pozos.get("npv_musd"),
+            "es_vaca_muerta": pozos.es_vaca_muerta,
+            "lon": pozos.geometry.x,
+            "lat": pozos.geometry.y,
+        }
+    )
+
+    grupos = tabla.groupby("yacimiento", dropna=False)
+    resumen = pd.DataFrame(
+        {
+            "pozos": grupos.size(),
+            "boe_acum_mboe": grupos.boe_acum_mboe.sum().round(1),
+            "npv_musd_mediano": grupos.npv_musd.median().round(2),
+            "vaca_muerta": grupos.es_vaca_muerta.sum().astype(int),
+            # El centro se pondera por produccion: la burbuja queda donde esta
+            # el volumen y no en el medio geometrico de un area que puede ser
+            # mitad roca seca.
+            "lon": grupos.apply(lambda g: _centro(g, "lon"), include_groups=False),
+            "lat": grupos.apply(lambda g: _centro(g, "lat"), include_groups=False),
+        }
+    ).reset_index()
+    resumen["operador_principal"] = grupos.operador.agg(
+        lambda s: s.mode().iloc[0] if not s.mode().empty else None
+    ).values
+    resumen["boe_por_pozo_mboe"] = (resumen.boe_acum_mboe / resumen.pozos).round(1)
+
+    return gpd.GeoDataFrame(
+        resumen.drop(columns=["lon", "lat"]),
+        geometry=gpd.points_from_xy(resumen.lon.round(5), resumen.lat.round(5)),
+        crs="EPSG:4326",
+    )
+
+
+def _centro(grupo: pd.DataFrame, eje: str) -> float:
+    peso = grupo.boe_acum_mboe.clip(lower=0).fillna(0)
+    return float((grupo[eje] * peso).sum() / peso.sum()) if peso.sum() > 0 else float(grupo[eje].mean())
 
 
 # --------------------------------------------------------------------------- #
@@ -592,6 +700,7 @@ def main() -> int:
     pozos = construir_pozos()
     tamanos, recorte = capas_vectoriales(pozos)
     tamanos["wells"] = escribir_geojson(pozos.drop(columns=["pozo_id"]), "wells")
+    tamanos["well_clusters"] = escribir_geojson(construir_clusters(pozos), "well_clusters")
     tamanos.update(capas_contexto(recorte))
     tamanos.update(capas_logistica(recorte))
 

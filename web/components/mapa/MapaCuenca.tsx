@@ -15,10 +15,13 @@ import { BitmapLayer, GeoJsonLayer, ScatterplotLayer, TextLayer } from '@deck.gl
 import { FlyToInterpolator, type Layer, type PickingInfo } from '@deck.gl/core';
 
 import { fmt } from '@/lib/data';
-import { useFiltros } from '../estado/filtros';
+import { RANGO_ANIOS, useFiltros } from '../estado/filtros';
 import {
+  ARCHIVO_CLUSTERS,
+  ARCHIVO_POZOS,
   CAPAS,
   CAPAS_INICIALES,
+  ZOOM_DETALLE_POZOS,
   PALETA,
   VARIABLES,
   colorEscala,
@@ -138,29 +141,47 @@ export function MapaCuenca() {
       .catch((causa) => setError((causa as Error).message));
   }, []);
 
+  // Con la cuenca entera en pantalla y sin filtros, los pozos se muestran
+  // agrupados por yacimiento y el archivo de detalle no se baja. Se baja al
+  // acercar, o apenas hay un filtro activo: filtrar es preguntar por pozos
+  // concretos, y a esa pregunta el agrupado no puede contestar.
+  const zoom = (vista.zoom as number) ?? 6.7;
+  const hayFiltroDePozos =
+    operador !== 'todos' ||
+    soloVacaMuerta ||
+    desdeAnio !== RANGO_ANIOS.min ||
+    filtros.hasta !== RANGO_ANIOS.max;
+  const detallePozos = zoom >= ZOOM_DETALLE_POZOS || hayFiltroDePozos;
+
+  const archivosNecesarios = useMemo(() => {
+    const lista = CAPAS.filter((capa) => capa.archivo && activas.has(capa.id)).map(
+      (capa) => capa.archivo!,
+    );
+    if (activas.has('pozos')) lista.push(detallePozos ? ARCHIVO_POZOS : ARCHIVO_CLUSTERS);
+    return lista;
+  }, [activas, detallePozos]);
+
   useEffect(() => {
-    const pendientes = CAPAS.filter(
-      (capa) => capa.archivo && activas.has(capa.id) && !datos[capa.archivo] && !cargando.has(capa.archivo),
+    const pendientes = archivosNecesarios.filter(
+      (archivo) => !datos[archivo] && !cargando.has(archivo),
     );
     if (!pendientes.length) return;
 
-    setCargando((previo) => new Set([...previo, ...pendientes.map((c) => c.archivo!)]));
-    for (const capa of pendientes) {
-      fetch(`/data/geo/${capa.archivo}`)
+    setCargando((previo) => new Set([...previo, ...pendientes]));
+    for (const archivo of pendientes) {
+      fetch(`/data/geo/${archivo}`)
         .then((r) => r.json())
-        .then((coleccion: Coleccion) =>
-          setDatos((previo) => ({ ...previo, [capa.archivo!]: coleccion })),
-        )
+        .then((coleccion: Coleccion) => setDatos((previo) => ({ ...previo, [archivo]: coleccion })))
         .catch((causa) => setError((causa as Error).message))
         .finally(() =>
           setCargando((previo) => {
             const copia = new Set(previo);
-            copia.delete(capa.archivo!);
+            copia.delete(archivo);
             return copia;
           }),
         );
     }
-  }, [activas, datos, cargando]);
+  }, [archivosNecesarios, datos, cargando]);
 
   // Cuando el ranking señala un área, el mapa vuela hasta ella. Se busca primero
   // entre las concesiones y después entre los yacimientos, que es el orden en el
@@ -201,7 +222,8 @@ export function MapaCuenca() {
   }, []);
 
   // --- pozos filtrados ------------------------------------------------------
-  const pozosCrudos = datos['wells.geojson']?.features ?? [];
+  const pozosCrudos = datos[ARCHIVO_POZOS]?.features ?? [];
+  const clusters = datos[ARCHIVO_CLUSTERS]?.features ?? [];
 
   const pozos = useMemo(
     () =>
@@ -390,7 +412,44 @@ export function MapaCuenca() {
       );
     }
 
-    if (encendida('pozos') && pozos.length) {
+    if (encendida('pozos') && !detallePozos && clusters.length) {
+      // El radio va por la raíz de la cantidad de pozos: el área del círculo
+      // queda proporcional al número, que es como el ojo lee una burbuja.
+      const maximo = Math.max(...clusters.map((c) => (c.properties.pozos as number) ?? 0), 1);
+      lista.push(
+        new ScatterplotLayer<Feature>({
+          id: 'pozos-agrupados',
+          data: clusters,
+          getPosition: (f) => f.geometry.coordinates as [number, number],
+          getRadius: (f) => Math.sqrt(((f.properties.pozos as number) ?? 0) / maximo) * 9000 + 900,
+          getFillColor: (f) => [...colorPozo(f.properties, pintado), 190] as [number, number, number, number],
+          stroked: true,
+          getLineColor: [8, 18, 44, 220],
+          lineWidthMinPixels: 1,
+          radiusMinPixels: 4,
+          radiusMaxPixels: 46,
+          pickable: true,
+          onHover: (info) => setSeñalado(info.object ? info : null),
+          updateTriggers: { getFillColor: [pintado] },
+        }),
+        new TextLayer<Feature>({
+          id: 'pozos-agrupados-texto',
+          data: clusters.filter((c) => ((c.properties.pozos as number) ?? 0) >= 25),
+          getPosition: (f) => f.geometry.coordinates as [number, number],
+          getText: (f) => String((f.properties.pozos as number) ?? ''),
+          getSize: 11,
+          getColor: [8, 18, 44, 235],
+          fontFamily: 'var(--font-mono), monospace',
+          outlineWidth: 2,
+          outlineColor: [238, 243, 255, 200],
+          fontSettings: { sdf: true },
+          sizeMinPixels: 9,
+          sizeMaxPixels: 14,
+        }),
+      );
+    }
+
+    if (encendida('pozos') && detallePozos && pozos.length) {
       lista.push(
         new ScatterplotLayer<Feature>({
           id: 'pozos',
@@ -469,7 +528,7 @@ export function MapaCuenca() {
     }
 
     return lista;
-  }, [activas, datos, raster, pozos, pintado, pintarPoligono, variable, quiebres, filtros.zona]);
+  }, [activas, datos, raster, pozos, clusters, detallePozos, pintado, pintarPoligono, variable, quiebres, filtros.zona]);
 
   // --- interfaz -------------------------------------------------------------
   const grupos = ['Base', 'Actividad', 'Logística', 'Territorio'] as const;
@@ -554,7 +613,14 @@ export function MapaCuenca() {
                 <div className="mt-2 space-y-1.5">
                   {CAPAS.filter((c) => c.grupo === grupo).map((capa) => {
                     const encendida = activas.has(capa.id);
-                    const bajando = capa.archivo ? cargando.has(capa.archivo) : false;
+                    // Los pozos no tienen un archivo fijo: el indicador de
+                    // descarga tiene que mirar los dos que puede estar pidiendo.
+                    const bajando =
+                      capa.id === 'pozos'
+                        ? cargando.has(ARCHIVO_POZOS) || cargando.has(ARCHIVO_CLUSTERS)
+                        : capa.archivo
+                          ? cargando.has(capa.archivo)
+                          : false;
                     return (
                       <label
                         key={capa.id}
@@ -572,7 +638,14 @@ export function MapaCuenca() {
                           style={{ background: `rgb(${capa.color.join(',')})` }}
                           aria-hidden="true"
                         />
-                        <span className="flex-1">{capa.etiqueta}</span>
+                        <span className="flex-1">
+                          {capa.etiqueta}
+                          {capa.id === 'pozos' && encendida ? (
+                            <span className="ml-1.5 text-[0.65rem] text-texto-tenue">
+                              {detallePozos ? 'uno por uno' : 'por yacimiento'}
+                            </span>
+                          ) : null}
+                        </span>
                         {bajando ? (
                           <span className="font-mono text-[0.65rem] text-oro">···</span>
                         ) : capa.peso ? (
@@ -686,6 +759,30 @@ function Detalle({ objeto, capa }: { objeto: Feature; capa: string }) {
               )
             : null}
         </dl>
+      </>
+    );
+  }
+
+  if (capa === 'pozos-agrupados') {
+    const npv = p.npv_musd_mediano as number | null;
+    return (
+      <>
+        <p className="font-medium text-texto">{p.yacimiento as string}</p>
+        <p className="mt-0.5 text-texto-tenue">{(p.operador_principal as string) ?? '—'}</p>
+        <dl className="mt-2 space-y-1 text-texto-suave">
+          {fila('Pozos', fmt.entero(p.pozos as number))}
+          {fila('Acumulada', `${fmt.entero(p.boe_acum_mboe as number)} Mboe`)}
+          {fila('Por pozo', `${fmt.numero(p.boe_por_pozo_mboe as number, 1)} Mboe`)}
+          {npv !== null && npv !== undefined
+            ? fila(
+                'NPV mediano',
+                <span className={npv >= 0 ? 'text-alza' : 'text-baja'}>US$ {fmt.numero(npv, 1)}M</span>,
+              )
+            : null}
+        </dl>
+        <p className="mt-2 text-[0.7rem] leading-snug text-texto-tenue">
+          Acercá para ver los pozos uno por uno.
+        </p>
       </>
     );
   }

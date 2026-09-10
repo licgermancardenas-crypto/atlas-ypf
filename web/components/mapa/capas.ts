@@ -94,13 +94,17 @@ export const CAPAS: DefinicionCapa[] = [
     ayuda: 'Subdivisión de las concesiones; más detalle, más polígonos.',
   },
   {
+    // Sin `archivo`: cuál de los dos se baja lo decide el mapa según el zoom y
+    // los filtros. Alejado alcanza con el agrupado por yacimiento (38 KB);
+    // el detalle pozo por pozo (1,8 MB) se pide recién cuando se puede leer.
     id: 'pozos',
     etiqueta: 'Pozos',
     grupo: 'Actividad',
-    archivo: 'wells.geojson',
-    peso: 1787,
+    peso: 38,
     color: PALETA.oro,
-    ayuda: '4.893 pozos no convencionales con producción acumulada, EUR y NPV.',
+    ayuda:
+      'Agrupados por yacimiento en la vista de cuenca; pozo por pozo al acercar o al filtrar ' +
+      'por operador.',
   },
   {
     id: 'ductos',
@@ -186,6 +190,15 @@ export const CAPAS: DefinicionCapa[] = [
 ];
 
 // Lo que se ve al abrir: suficiente para leer el mapa sin bajar ocho megas.
+// A partir de este zoom el mapa cambia las burbujas por los pozos y baja el
+// archivo de detalle. Está puesto donde una concesión ocupa buena parte de la
+// pantalla: más lejos, cinco mil puntos son una mancha; más cerca, el agrupado
+// esconde justo lo que se vino a mirar.
+export const ZOOM_DETALLE_POZOS = 8.5;
+
+export const ARCHIVO_POZOS = 'wells.geojson';
+export const ARCHIVO_CLUSTERS = 'well_clusters.geojson';
+
 export const CAPAS_INICIALES: IdCapa[] = [
   'relieve',
   'cuenca',

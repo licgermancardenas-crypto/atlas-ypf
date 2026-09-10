@@ -1,5 +1,5 @@
 {
-  "generado": "2026-09-09T17:02:54Z",
+  "generado": "2026-09-10T01:16:34Z",
   "crs": "EPSG:4326",
   "recorte": "cuenca Neuquina + 0,25 grados de margen",
   "simplificacion_grados": {
@@ -28,17 +28,20 @@
     "wells": {
       "bytes": 1830524
     },
+    "well_clusters": {
+      "bytes": 38561
+    },
     "roads": {
-      "bytes": 210689
+      "bytes": 142594
     },
     "towns": {
       "bytes": 23391
     },
     "rivers": {
-      "bytes": 919180
+      "bytes": 373697
     },
     "rail": {
-      "bytes": 6703
+      "bytes": 4699
     },
     "refineries": {
       "bytes": 2644
@@ -50,10 +53,10 @@
       "bytes": 192310
     },
     "pipelines": {
-      "bytes": 1990557
+      "bytes": 853287
     },
     "gas_pipelines": {
-      "bytes": 28607
+      "bytes": 20151
     }
   },
   "pozos": 4893,
