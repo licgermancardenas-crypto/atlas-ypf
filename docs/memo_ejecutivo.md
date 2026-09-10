@@ -50,14 +50,21 @@ al volumen, US$ 92 M a costos y downstream, y deja **US$ 521 M sin explicar**.
 El Brent promedio del trimestre subió de 78,8 a 96,9 dólares: es el driver que
 la compañía no controla, y el único que puede desandarse en un trimestre.
 
+Los US$ 521 M merecen una aclaración, porque invitan a buscarles un one-off que
+no tienen. No son una partida faltante: son la resta de los dos errores del
+modelo. En el 1T26 el modelo se pasó de optimista por US$ 300 M y en el 2T26 se
+quedó corto por US$ 221 M. Contra un error estándar de US$ 165 M por trimestre,
+ninguna de las dos desviaciones es un evento.
+
 **2. Para repetirlo hace falta un Brent que no está en la curva.** Con
 producción, costos y refinación en los niveles del 2T26, el modelo necesita un
 Brent de **US$ 106** para reproducir un EBITDA de US$ 2.804 M. A Brent 80 el
 mismo set de drivers da US$ 2.165 M por trimestre — **23% menos que el ritmo
 anualizado que el mercado tendría que capitalizar** si tomara el trimestre como
-representativo. El residual de US$ 521 M refuerza la duda: el margen de refino
-saltó de 14,9 a 23,2 US$/bbl en el trimestre, y el downstream es la parte del
-negocio que menos se parece a una ventaja estructural de Vaca Muerta.
+representativo. A eso se suma un dato que el residual no prueba pero que está a
+la vista en el propio balance: el margen de refino saltó de 14,9 a 23,2 US$/bbl
+en el trimestre, y el downstream es la parte del negocio que menos se parece a
+una ventaja estructural de Vaca Muerta.
 
 **3. El descuento es sistemático, no una reacción a este balance.** Midiendo
 cada reporte contra un modelo de mercado estimado sobre las 120 ruedas previas
@@ -124,6 +131,16 @@ la factura del riesgo país sobre el mismo recurso geológico.
   terminal del 8%, no reservas certificadas.
 - **El NPV por pozo es greenfield** y no incluye retenciones, abandono ni
   capital de trabajo.
+- **La venta de Metrogas no está en estos números, y conviene decirlo** porque
+  la coincidencia de fechas invita a lo contrario. YPF acordó transferir a
+  Edenor el 70% de Metrogas y el 5% de Metroenergía por US$ 780 M, pero el
+  directorio aprobó la firma el 10 de agosto de 2026 —después del cierre del
+  trimestre— y la operación queda sujeta a condiciones: en los estados
+  contables figura como hecho posterior. Además, US$ 780 M es el precio y no la
+  ganancia, y el Adjusted EBITDA de YPF excluye por definición el resultado por
+  venta de sociedades: en el 4T25 el segmento de New Energies reportó EBITDA de
+  US$ 358 M y Adj. EBITDA de US$ 23 M, después de descontar US$ 335 M de una
+  venta. Aun cuando cierre, no va a entrar en la métrica que se modela acá.
 
 ---
 
