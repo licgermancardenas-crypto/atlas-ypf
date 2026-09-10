@@ -56,6 +56,9 @@ TRANSFORM_SCRIPTS: list[tuple[str, Path, list[str]]] = [
     ("transform/segmentos", TRANSFORM / "segments_ypf.py", []),
     ("transform/peers", TRANSFORM / "peers.py", []),
     ("transform/deuda", TRANSFORM / "debt_ypf.py", []),
+    # Ultimo de los transforms: traduce todo lo anterior a los JSON que consume
+    # el modulo del sitio, asi que necesita que ya esten los otros.
+    ("transform/libro-web", TRANSFORM / "book_web.py", []),
     ("transform/production", TRANSFORM / "production_wells.py", []),
     ("transform/pais", TRANSFORM / "production_country.py", []),
     ("transform/reservas", TRANSFORM / "reserves.py", []),

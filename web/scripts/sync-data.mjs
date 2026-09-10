@@ -23,6 +23,11 @@ const DESTINO = join(AQUI, '..', 'public', 'data');
 const MEMO_ORIGEN = join(RAIZ, 'docs', 'memo_ejecutivo.md');
 const MEMO_DESTINO = join(AQUI, '..', 'public', 'memo_ejecutivo.md');
 
+// El libro de estados contables viaja por el mismo camino: el modulo /libro lo
+// ofrece para descargar, y para eso tiene que estar servido desde public/.
+const LIBRO_ORIGEN = join(RAIZ, 'docs', 'YPF_estados_financieros.xlsx');
+const LIBRO_DESTINO = join(AQUI, '..', 'public', 'YPF_estados_financieros.xlsx');
+
 // Solo lo que el navegador puede leer: los .parquet son intermedios del pipeline.
 const EXTENSIONES = ['.json', '.geojson', '.png'];
 
@@ -82,4 +87,12 @@ if (await existe(MEMO_ORIGEN)) {
   console.log('[sync-data] docs/memo_ejecutivo.md -> web/public/');
 } else {
   console.warn('[sync-data] falta docs/memo_ejecutivo.md: la ruta /ypf-project/memo va a fallar');
+}
+
+if (await existe(LIBRO_ORIGEN)) {
+  await cp(LIBRO_ORIGEN, LIBRO_DESTINO);
+  const { size } = await stat(LIBRO_DESTINO);
+  console.log(`[sync-data] docs/YPF_estados_financieros.xlsx -> web/public/ (${(size / 1024).toFixed(0)} KB)`);
+} else {
+  console.warn('[sync-data] falta el Excel de estados: el boton de descarga del modulo /libro va a dar 404');
 }

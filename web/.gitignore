@@ -7,3 +7,4 @@ next-env.d.ts
 # Datos sincronizados desde data/processed por scripts/sync-data.mjs
 public/data/
 public/memo_ejecutivo.md
+public/YPF_estados_financieros.xlsx

@@ -37,6 +37,10 @@ export interface FilaExcel {
   mapaCalor?: boolean;
   /** Nota corta que aparece al pasar el mouse por el concepto. */
   ayuda?: string;
+  /** Una letra por columna para marcar de dónde viene la celda: "D" la dibuja
+   *  en bastardilla (dato derivado) y "A" en marrón (traducido desde pesos).
+   *  Cualquier otra letra, o la ausencia de la cadena, deja la celda normal. */
+  marcas?: string;
   valores: (number | string | null)[];
 }
 
@@ -147,7 +151,9 @@ export function TablaExcel({
                     onMouseEnter={() => setCruz({ fila: indiceFila, columna: indiceColumna })}
                     className={`tabular border-l border-borde/40 px-3 py-1.5 text-right transition-colors ${
                       fila.subtotal ? 'border-t border-t-borde font-semibold text-texto' : 'text-texto'
-                    } ${enCruz ? 'bg-azul/10' : ''}`}
+                    } ${enCruz ? 'bg-azul/10' : ''} ${
+                      fila.marcas?.[indiceColumna] === 'D' ? 'italic' : ''
+                    } ${fila.marcas?.[indiceColumna] === 'A' ? 'text-oro/90' : ''}`}
                     style={{
                       background: fila.mapaCalor
                         ? fondoCalor(valor, maximos[indiceFila])

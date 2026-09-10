@@ -186,7 +186,7 @@
     "operadores": 85
   },
   "catalogo": {
-    "generated_at": "2026-09-10T20:41:51+00:00",
+    "generated_at": "2026-09-10T23:11:55+00:00",
     "sources": [
       "data/raw/_manifest.json",
       "data/processed/_manifest.json"
@@ -195,7 +195,7 @@
       "data/processed/catalogo.json"
     ],
     "datasets_crudos": 50,
-    "salidas_procesadas": 17
+    "salidas_procesadas": 18
   },
   "entity_graph": {
     "generated_at": "2026-09-10T05:09:47+00:00",
@@ -281,5 +281,19 @@
     ],
     "source": "data/raw/financials/ypf/filings",
     "note": "nota de préstamos de 2026-08-17"
+  },
+  "transform/libro-web": {
+    "generated_at": "2026-09-10T23:00:38+00:00",
+    "rows": 254,
+    "bytes": 155947,
+    "outputs": [
+      "data/processed/estados_web.json",
+      "data/processed/segmentos_web.json",
+      "data/processed/comparables_web.json",
+      "data/processed/deuda_web.json",
+      "data/processed/mercado_web.json"
+    ],
+    "source": "data/processed/statements_ypf.parquet",
+    "note": "254 líneas, 26 trimestres, para el módulo del sitio"
   }
 }

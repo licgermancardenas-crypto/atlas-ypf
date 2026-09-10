@@ -17,9 +17,9 @@ import { BarraFiltros } from './estado/BarraFiltros';
 import { ProveedorFiltros } from './estado/filtros';
 import { Franja } from './ui';
 
-export type Modulo = 'caso' | 'finanzas' | 'operativo' | 'red' | 'datos';
+export type Modulo = 'caso' | 'finanzas' | 'libro' | 'operativo' | 'red' | 'datos';
 
-// Los cuatro módulos. El caso es la narrativa —se lee de arriba abajo y
+// Los módulos. El caso es la narrativa —se lee de arriba abajo y
 // defiende una tesis—; los otros tres son de consulta y se entra a buscar algo
 // puntual. Separarlos evita el error de mezclar los dos modos en una sola
 // página larguísima donde ni se lee ni se consulta bien.
@@ -30,6 +30,12 @@ const MODULOS: { id: Modulo; ruta: string; etiqueta: string; resumen: string }[]
     ruta: '/ypf-project/finanzas',
     etiqueta: 'Finanzas',
     resumen: 'Serie trimestral y sensibilidad',
+  },
+  {
+    id: 'libro',
+    ruta: '/ypf-project/libro',
+    etiqueta: 'El libro',
+    resumen: 'Estados, segmentos y valuación',
   },
   {
     id: 'operativo',
