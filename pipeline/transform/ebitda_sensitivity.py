@@ -252,6 +252,18 @@ def descomponer_ultimo(modelo, panel: pd.DataFrame) -> dict:
     )
     delta_real = float(actual.adj_ebitda_musd - previo.adj_ebitda_musd)
 
+    # De donde sale, en realidad, el residual del puente.
+    #
+    # El residual no es una partida que falte: es la diferencia entre dos
+    # errores del modelo. Si el trimestre anterior el modelo se paso de
+    # optimista y este se quedo corto, el puente arrastra las dos cosas juntas
+    # y parece un one-off que no existe. Publicar los dos residuos por separado
+    # es lo que evita salir a buscar una venta de activos para explicar lo que
+    # explica un modelo con quince observaciones.
+    residuos = pd.Series(modelo.resid, index=modelo.model.data.row_labels)
+    residual_previo = float(residuos.get(validos.index[-2], float("nan")))
+    residual_actual = float(residuos.get(validos.index[-1], float("nan")))
+
     return {
         "desde": str(validos.index[-2]),
         "hasta": str(validos.index[-1]),
@@ -265,6 +277,9 @@ def descomponer_ultimo(modelo, panel: pd.DataFrame) -> dict:
         "residual_musd": round(
             delta_real - efecto_precio - efecto_volumen - efecto_costo - efecto_downstream, 1
         ),
+        "residual_previo_musd": round(residual_previo, 1),
+        "residual_actual_musd": round(residual_actual, 1),
+        "error_estandar_residual_musd": round(float(np.sqrt(modelo.mse_resid)), 1),
         "brent_previo": round(float(previo.brent_usd), 1),
         "brent_actual": round(float(actual.brent_usd), 1),
         "produccion_previa_kboed": float(previo.produccion_kboed),

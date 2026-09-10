@@ -226,8 +226,15 @@ export default async function CasoYPF() {
               a US$ {fmt.decimal(puente.brent_actual)}),{' '}
               {fmt.musd(puente.efecto_volumen_musd)} al volumen y{' '}
               {fmt.musd(puente.efecto_costo_musd + puente.efecto_downstream_musd)} a costos y
-              downstream. Quedan {fmt.musd(puente.residual_musd)} sin explicar: casi la mitad del
-              salto no se sigue de los drivers estructurales.
+              downstream. Quedan {fmt.musd(puente.residual_musd)} sin explicar, y conviene leer
+              bien qué son: no una partida faltante, sino la resta de dos errores del modelo. En{' '}
+              {fmt.trimestre(puente.desde)} el modelo se pasó de optimista por{' '}
+              {fmt.musd(Math.abs(puente.residual_previo_musd))} y en {fmt.trimestre(puente.hasta)} se
+              quedó corto por {fmt.musd(puente.residual_actual_musd)}. Contra un error estándar de{' '}
+              {fmt.musd(puente.error_estandar_residual_musd)} por trimestre, ninguno de los dos es un
+              evento: es un modelo de {sensibilidad.modelo_operativo.observaciones} observaciones
+              haciendo lo que hace un modelo de {sensibilidad.modelo_operativo.observaciones}{' '}
+              observaciones.
             </Nota>
           </Tarjeta>
 
@@ -656,8 +663,55 @@ export default async function CasoYPF() {
                 El NPV por pozo es greenfield y no incluye retenciones, abandono ni capital de
                 trabajo.
               </li>
+              <li>
+                El residual del puente no es un one-off: son dos errores del modelo restándose. La
+                tarjeta de abajo lo desarrolla con el candidato más obvio.
+              </li>
             </ul>
           </Tarjeta>
+        </div>
+
+        {/* El one-off que no fue. Va en Método y no en el análisis porque lo que
+            aporta es una advertencia sobre cómo leer el residual, no un
+            hallazgo sobre el trimestre. */}
+        <div className="mt-8 rounded-lg border border-borde bg-superficie p-6">
+          <h3 className="text-lg font-semibold text-texto">
+            Por qué la venta de Metrogas no explica el residual
+          </h3>
+          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-texto-suave">
+            Es la primera hipótesis razonable: el mismo trimestre en que quedan{' '}
+            {fmt.musd(puente.residual_musd)} sin explicar, YPF acordó vender el 70% de Metrogas y el
+            5% de Metroenergía a Edenor por US$ 780 millones. La coincidencia invita, y los filings
+            la descartan por tres motivos independientes.
+          </p>
+          <ol className="mt-4 max-w-3xl space-y-2.5 text-sm leading-relaxed text-texto-suave">
+            <li>
+              <span className="text-texto">Es posterior al cierre.</span> El directorio aprobó la
+              firma del acuerdo el 10 de agosto de 2026 y el trimestre cerró el 30 de junio. En los
+              estados contables figura como hecho posterior, sujeto además a condiciones de cierre.
+            </li>
+            <li>
+              <span className="text-texto">US$ 780 millones es el precio, no la ganancia.</span>{' '}
+              Confundir uno con otro es el error clásico al leer una venta de participaciones.
+            </li>
+            <li>
+              <span className="text-texto">
+                El Adjusted EBITDA excluye el resultado por venta de sociedades, por definición.
+              </span>{' '}
+              No hay que suponerlo: en el 4T25 el segmento de New Energies reportó EBITDA de US$ 358
+              millones y Adj. EBITDA de US$ 23 millones, después de descontar US$ 335 millones de
+              una venta. Aun cuando cierre, la operación no va a entrar en la variable que modela
+              este caso.
+            </li>
+          </ol>
+          <p className="mt-4 max-w-3xl text-sm leading-relaxed text-texto-suave">
+            La tentación acá era agregar una variable dummy para el 2T26. Lo hace subir el R² de{' '}
+            {fmt.numero(sensibilidad.modelo_operativo.r2)} a 0,97, y no explica nada: una dummy para
+            una sola observación absorbe su residuo por construcción. Se probó también una dummy de
+            estacionalidad de invierno —el 2T es el pico de demanda de gas—, que sí sería una
+            explicación de verdad, y no resulta significativa (p = 0,36). El residuo se queda como
+            está, declarado.
+          </p>
         </div>
 
         <div className="mt-8 rounded-lg border border-azul/50 bg-superficie p-6">

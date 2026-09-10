@@ -60,6 +60,11 @@ export interface Descomposicion {
   efecto_costo_musd: number;
   efecto_downstream_musd: number;
   residual_musd: number;
+  /** El residual del puente es la resta de estos dos: el error del modelo en
+   *  cada trimestre, no una partida que falte en el medio. */
+  residual_previo_musd: number;
+  residual_actual_musd: number;
+  error_estandar_residual_musd: number;
   brent_previo: number;
   brent_actual: number;
 }
