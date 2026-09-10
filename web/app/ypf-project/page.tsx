@@ -13,6 +13,7 @@ import { ExploradorProduccion, type ProduccionPais } from '@/components/Explorad
 import { Panel } from '@/components/Panel';
 import { PanelReservas, type Reservas } from '@/components/Reservas';
 import { RankingCrecimiento, type FilaRanking } from '@/components/RankingCrecimiento';
+import { aSlug } from '@/lib/operadores';
 import { PanelFinanciero } from '@/components/PanelFinanciero';
 import { Shell } from '@/components/Shell';
 import { Simulador } from '@/components/Simulador';
@@ -535,7 +536,14 @@ export default async function CasoYPF() {
                 { clave: 'eur', titulo: 'EUR mediana', alineacion: 'der' },
               ]}
               filas={economia.por_operador.slice(0, 6).map((fila) => ({
-                operador: fila.operador,
+                operador: (
+                  <Link
+                    href={`/ypf-project/operador/${aSlug(fila.operador!)}`}
+                    className="text-azul-claro hover:underline"
+                  >
+                    {fila.operador}
+                  </Link>
+                ),
                 pozos: fmt.entero(fila.pozos),
                 npv: (
                   <span className={fila.npv_musd_mediano >= 0 ? 'text-alza' : 'text-baja'}>

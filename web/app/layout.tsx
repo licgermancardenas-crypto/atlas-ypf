@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { Archivo, IBM_Plex_Mono, IBM_Plex_Sans } from 'next/font/google';
+import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import './globals.css';
 
 // Tres roles, tres familias. Archivo es una grotesca ancha y con peso: sostiene
@@ -51,6 +53,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Saltar al contenido
         </a>
         {children}
+        {/* Medicion de Vercel: cuanta gente llega, que secciones mira y cuanto
+            tarda en cargar de verdad, en dispositivos reales y no en esta
+            maquina. Ninguno de los dos usa cookies ni identifica personas. */}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

@@ -224,6 +224,13 @@ export interface CurvasDeclive {
   metodo: string;
   advertencia: string;
   pozos_ajustados: number;
+  por_operador: {
+    operador: string;
+    pozos: number;
+    pico_bd_mediano: number;
+    declive_ef_anual_mediano: number;
+    eur_bbl_mediano: number;
+  }[];
   por_vintage: {
     vintage: number;
     pozos: number;
