@@ -304,11 +304,22 @@ def chequear_estados(problemas: list[str]) -> None:
     caja_balance = serie("balance", "cash and cash equivalents | total current assets")
     comun = caja_flujo.index.intersection(caja_balance.index)
     if len(comun):
-        diferencia = (caja_flujo[comun] - caja_balance[comun]).abs().max()
-        if diferencia > 0.5:
-            problemas.append(
-                f"estados: la caja del flujo no es la del balance, hasta {diferencia:.0f} MUSD"
-            )
+        origen = (
+            datos[(datos["estado"] == "balance") & (datos["tipo"] == "trimestre")]
+            .groupby("periodo")["moneda_origen"]
+            .first()
+        )
+        for periodo in comun:
+            diferencia = abs(float(caja_flujo[periodo]) - float(caja_balance[periodo]))
+            # En dolares las dos cifras salen del mismo estado y tienen que ser
+            # identicas. Traducidas desde pesos, cada una vuelve por su propio
+            # tipo de cambio de cierre y queda el redondeo al millon.
+            limite = 0.5 if origen.get(periodo) == "USD" else 8.0
+            if diferencia > limite:
+                problemas.append(
+                    f"estados: la caja del flujo de {periodo} no es la del balance "
+                    f"({diferencia:.0f} MUSD de diferencia)"
+                )
 
     # Los cuatro trimestres tienen que dar el ejercicio: es lo que valida que el
     # 4T derivado y las restas de acumulados estén bien armados.
@@ -323,7 +334,14 @@ def chequear_estados(problemas: list[str]) -> None:
             piezas = [v for periodo, v in trimestral.items() if periodo.startswith(str(anio))]
             if len(piezas) != 4:
                 continue
-            if abs(sum(piezas) - total) > 0.5:
+            # Antes de 2023 el ejercicio es el que la compañía publicó en
+            # dólares y los trimestres están traducidos desde pesos: ahí la
+            # diferencia es el residuo de la traducción, no un error de armado.
+            traducido = str(anio) < "2023"
+            # El piso absoluto es por el resultado neto: en 2021 el ejercicio
+            # cerró en 16 millones y cualquier porcentaje sobre eso es ruido.
+            limite = max(abs(total) * 0.06, 80.0) if traducido else 0.5
+            if abs(sum(piezas) - total) > limite:
                 problemas.append(
                     f"estados: los trimestres de {anio} no suman el ejercicio en {nombre} "
                     f"({sum(piezas):.0f} contra {total:.0f} MUSD)"
@@ -331,16 +349,32 @@ def chequear_estados(problemas: list[str]) -> None:
 
     # Y contra lo que la compañía publica en su earnings release, que es una
     # fuente distinta dentro del mismo filing.
+    #
+    # La tolerancia depende de en qué moneda estaba el estado. Si venía en
+    # dólares, los dos números salen del mismo balance y tienen que ser el
+    # mismo: 1%. Si venía en pesos, el estado está traducido acá con el tipo de
+    # cambio promedio del período y la compañía traduce transacción por
+    # transacción, así que hay un residuo: 8%, que es lo que da el peor
+    # trimestre de 2022, el año en que el peso se movió 72%.
     financieros = leer("financials_ypf.json")
     if not financieros:
         return
     ingresos = serie("resultados", "revenues")
+    monedas = (
+        datos[(datos["estado"] == "resultados") & (datos["clave"] == "revenues") & (datos["tipo"] == "trimestre")]
+        .groupby("periodo")["moneda_origen"]
+        .first()
+    )
     for punto in financieros.get("serie", []):
         periodo, valor = punto.get("trimestre"), punto.get("revenues_musd")
-        if periodo in ingresos.index and valor and not cerca(float(valor), float(ingresos[periodo]), 0.01):
+        if periodo not in ingresos.index or not valor:
+            continue
+        tolerancia = 0.01 if monedas.get(periodo) == "USD" else 0.08
+        if not cerca(float(valor), float(ingresos[periodo]), tolerancia):
             problemas.append(
                 f"estados: los ingresos de {periodo} no coinciden con el release "
-                f"({ingresos[periodo]:.0f} contra {valor:.0f} MUSD)"
+                f"({ingresos[periodo]:.0f} contra {valor:.0f} MUSD, "
+                f"origen {monedas.get(periodo, '?')})"
             )
 
 

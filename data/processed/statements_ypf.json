@@ -1,10 +1,28 @@
 {
-  "generado": "2026-09-10T16:55:18Z",
+  "generado": "2026-09-10T19:12:59Z",
   "moneda": "USD",
   "unidad": "millones",
   "trimestres": [
+    "2016Q4",
+    "2017Q4",
+    "2018Q1",
+    "2018Q2",
+    "2018Q4",
+    "2019Q1",
+    "2019Q2",
+    "2019Q3",
+    "2019Q4",
+    "2020Q1",
+    "2020Q2",
+    "2020Q3",
     "2020Q4",
+    "2021Q1",
+    "2021Q2",
+    "2021Q3",
     "2021Q4",
+    "2022Q1",
+    "2022Q2",
+    "2022Q3",
     "2022Q4",
     "2023Q1",
     "2023Q2",
@@ -23,9 +41,27 @@
   ],
   "cobertura": {
     "balance": [
+      "2016Q4",
+      "2017Q4",
+      "2018Q4",
+      "2019Q1",
+      "2019Q2",
+      "2019Q4",
+      "2020Q1",
+      "2020Q2",
+      "2020Q3",
       "2020Q4",
+      "2021Q1",
+      "2021Q2",
+      "2021Q3",
       "2021Q4",
+      "2022Q1",
+      "2022Q2",
+      "2022Q3",
       "2022Q4",
+      "2023Q1",
+      "2023Q2",
+      "2023Q3",
       "2023Q4",
       "2024Q1",
       "2024Q2",
@@ -39,8 +75,25 @@
       "2026Q2"
     ],
     "flujo": [
+      "2017Q4",
+      "2018Q1",
+      "2018Q2",
+      "2018Q4",
+      "2019Q1",
+      "2019Q2",
+      "2019Q3",
+      "2019Q4",
+      "2020Q1",
+      "2020Q2",
+      "2020Q3",
       "2020Q4",
+      "2021Q1",
+      "2021Q2",
+      "2021Q3",
       "2021Q4",
+      "2022Q1",
+      "2022Q2",
+      "2022Q3",
       "2022Q4",
       "2023Q1",
       "2023Q2",
@@ -58,6 +111,24 @@
       "2026Q2"
     ],
     "resultados": [
+      "2018Q1",
+      "2018Q2",
+      "2019Q1",
+      "2019Q2",
+      "2019Q3",
+      "2019Q4",
+      "2020Q1",
+      "2020Q2",
+      "2020Q3",
+      "2020Q4",
+      "2021Q1",
+      "2021Q2",
+      "2021Q3",
+      "2021Q4",
+      "2022Q1",
+      "2022Q2",
+      "2022Q3",
+      "2022Q4",
       "2023Q1",
       "2023Q2",
       "2023Q3",
@@ -75,6 +146,10 @@
     ]
   },
   "anios": [
+    "2016",
+    "2017",
+    "2018",
+    "2019",
     "2020",
     "2021",
     "2022",
@@ -84,86 +159,240 @@
   ],
   "presentaciones": [
     {
+      "accession": "0001193125-19-077142",
+      "form": "6-K",
+      "presentado": "2019-03-18",
+      "moneda": "ARS"
+    },
+    {
+      "accession": "0001193125-19-096821",
+      "form": "20-F",
+      "presentado": "2019-04-04",
+      "moneda": "ARS"
+    },
+    {
+      "accession": "0001193125-19-150596",
+      "form": "6-K",
+      "presentado": "2019-05-17",
+      "moneda": "ARS"
+    },
+    {
+      "accession": "0001193125-19-223505",
+      "form": "6-K",
+      "presentado": "2019-08-16",
+      "moneda": "ARS"
+    },
+    {
+      "accession": "0001193125-20-073084",
+      "form": "6-K",
+      "presentado": "2020-03-13",
+      "moneda": "ARS"
+    },
+    {
+      "accession": "0001193125-20-119222",
+      "form": "20-F",
+      "presentado": "2020-04-24",
+      "moneda": "ARS"
+    },
+    {
+      "accession": "0001193125-20-145071",
+      "form": "6-K",
+      "presentado": "2020-05-18",
+      "moneda": "ARS"
+    },
+    {
+      "accession": "0001193125-20-220670",
+      "form": "6-K",
+      "presentado": "2020-08-17",
+      "moneda": "ARS"
+    },
+    {
+      "accession": "0001193125-20-294756",
+      "form": "6-K",
+      "presentado": "2020-11-16",
+      "moneda": "ARS"
+    },
+    {
+      "accession": "0001193125-21-079603",
+      "form": "6-K",
+      "presentado": "2021-03-12",
+      "moneda": "ARS"
+    },
+    {
+      "accession": "0001193125-21-125294",
+      "form": "20-F",
+      "presentado": "2021-04-22",
+      "moneda": "ARS"
+    },
+    {
+      "accession": "0001193125-21-164899",
+      "form": "6-K",
+      "presentado": "2021-05-18",
+      "moneda": "ARS"
+    },
+    {
+      "accession": "0001193125-21-248561",
+      "form": "6-K",
+      "presentado": "2021-08-17",
+      "moneda": "ARS"
+    },
+    {
+      "accession": "0001193125-21-330598",
+      "form": "6-K",
+      "presentado": "2021-11-16",
+      "moneda": "ARS"
+    },
+    {
+      "accession": "0001193125-22-073108",
+      "form": "6-K",
+      "presentado": "2022-03-11",
+      "moneda": "ARS"
+    },
+    {
+      "accession": "0001193125-22-111088",
+      "form": "20-F",
+      "presentado": "2022-04-20",
+      "moneda": "ARS"
+    },
+    {
+      "accession": "0001193125-22-153508",
+      "form": "6-K",
+      "presentado": "2022-05-18",
+      "moneda": "ARS"
+    },
+    {
+      "accession": "0001193125-22-222931",
+      "form": "6-K",
+      "presentado": "2022-08-17",
+      "moneda": "ARS"
+    },
+    {
+      "accession": "0001193125-22-286175",
+      "form": "6-K",
+      "presentado": "2022-11-16",
+      "moneda": "ARS"
+    },
+    {
       "accession": "0001193125-23-072463",
       "form": "6-K",
-      "presentado": "2023-03-16"
+      "presentado": "2023-03-16",
+      "moneda": "USD"
+    },
+    {
+      "accession": "0001193125-23-072461",
+      "form": "6-K",
+      "presentado": "2023-03-16",
+      "moneda": "ARS"
     },
     {
       "accession": "0001193125-23-097822",
       "form": "20-F",
-      "presentado": "2023-04-11"
+      "presentado": "2023-04-11",
+      "moneda": "USD"
+    },
+    {
+      "accession": "0001193125-23-148119",
+      "form": "6-K",
+      "presentado": "2023-05-18",
+      "moneda": "ARS"
+    },
+    {
+      "accession": "0001193125-23-215023",
+      "form": "6-K",
+      "presentado": "2023-08-17",
+      "moneda": "ARS"
+    },
+    {
+      "accession": "0001193125-23-277880",
+      "form": "6-K",
+      "presentado": "2023-11-15",
+      "moneda": "ARS"
     },
     {
       "accession": "0001193125-24-067865",
       "form": "6-K",
-      "presentado": "2024-03-14"
+      "presentado": "2024-03-14",
+      "moneda": "ARS"
     },
     {
       "accession": "0001193125-24-114066",
       "form": "20-F",
-      "presentado": "2024-04-25"
+      "presentado": "2024-04-25",
+      "moneda": "USD"
     },
     {
       "accession": "0001193125-24-140516",
       "form": "6-K",
-      "presentado": "2024-05-16"
+      "presentado": "2024-05-16",
+      "moneda": "USD"
     },
     {
       "accession": "0001193125-24-201303",
       "form": "6-K",
-      "presentado": "2024-08-15"
+      "presentado": "2024-08-15",
+      "moneda": "USD"
     },
     {
       "accession": "0001193125-24-258522",
       "form": "6-K",
-      "presentado": "2024-11-14"
+      "presentado": "2024-11-14",
+      "moneda": "USD"
     },
     {
       "accession": "0001193125-25-054782",
       "form": "6-K",
-      "presentado": "2025-03-14"
+      "presentado": "2025-03-14",
+      "moneda": "ARS"
     },
     {
       "accession": "0001193125-25-067155",
       "form": "20-F",
-      "presentado": "2025-03-28"
+      "presentado": "2025-03-28",
+      "moneda": "USD"
     },
     {
       "accession": "0001193125-25-119819",
       "form": "6-K",
-      "presentado": "2025-05-14"
+      "presentado": "2025-05-14",
+      "moneda": "USD"
     },
     {
       "accession": "0001193125-25-180832",
       "form": "6-K",
-      "presentado": "2025-08-14"
+      "presentado": "2025-08-14",
+      "moneda": "USD"
     },
     {
       "accession": "0001193125-25-283146",
       "form": "6-K",
-      "presentado": "2025-11-14"
+      "presentado": "2025-11-14",
+      "moneda": "USD"
     },
     {
       "accession": "0001193125-26-096690",
       "form": "6-K",
-      "presentado": "2026-03-06"
+      "presentado": "2026-03-06",
+      "moneda": "USD"
     },
     {
       "accession": "0001193125-26-126363",
       "form": "20-F",
-      "presentado": "2026-03-26"
+      "presentado": "2026-03-26",
+      "moneda": "USD"
     },
     {
       "accession": "0001193125-26-224194",
       "form": "6-K",
-      "presentado": "2026-05-14"
+      "presentado": "2026-05-14",
+      "moneda": "USD"
     },
     {
       "accession": "0001193125-26-354159",
       "form": "6-K",
-      "presentado": "2026-08-17"
+      "presentado": "2026-08-17",
+      "moneda": "USD"
     }
   ],
-  "lineas_reexpresadas": 51,
+  "lineas_reexpresadas": 91,
   "nota": "Estados en dólares. Los trimestres del flujo de efectivo salen por diferencia de acumulados; el 4T de resultados y de flujo, del ejercicio menos los nueve meses."
 }

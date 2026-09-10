@@ -7,11 +7,15 @@ estados contables completos que YPF adjunta como Item 1 del 6-K: estado de
 situación patrimonial, estado de resultados integrales y flujo de efectivo,
 línea por línea y como los reporta la compañía.
 
-Alcance y por qué: solo la era USD. YPF definió el dólar como moneda funcional
-y de presentación, y los estados en pesos anteriores están reexpresados por
-IAS 29 (inflación). Encadenar pesos ajustados con dólares daría una serie que
-no significa nada. Los estados en USD arrancan con el 6-K del 1Q24, que trae
-2023 como comparativo, así que la serie trimestral empieza en 1Q23.
+Alcance: desde 2019 hasta hoy. Los estados en dólares arrancan con el 6-K del
+1Q24 —que trae 2023 como comparativo— y hacia atrás la compañía presentaba en
+pesos. Esos pesos no son pesos reexpresados por inflación: la moneda funcional
+de YPF es el dólar y la presentación en pesos es una traducción NIC 21, con
+tipo de cambio de cierre para los saldos y promedio del período para los
+flujos. Deshacer esa traducción es dividir por el mismo tipo de cambio, y el
+resultado se puede verificar: el activo de diciembre de 2022 vuelve a dar los
+25.912 millones que la compañía publicó en dólares con un décimo de punto de
+diferencia.
 
 Cómo se arma cada trimestre:
   - resultados: el interino publica el trimestre explícito ("three-month
@@ -38,6 +42,7 @@ import re
 import sys
 import unicodedata
 import warnings
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -47,6 +52,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _common import (  # noqa: E402
     PROCESSED,
     RAW,
+    serie_yahoo,
     base_parser,
     human,
     log,
@@ -61,8 +67,21 @@ FILINGS = RAW / "financials" / "ypf" / "filings"
 OUT_LONG = PROCESSED / "statements_ypf.parquet"
 OUT_JSON = PROCESSED / "statements_ypf.json"
 
-# La era USD: antes de esto los estados vienen en pesos reexpresados por IAS 29.
+# Las dos monedas en las que YPF presentó estos estados. Hasta el ejercicio
+# 2023 el interino venía en pesos reexpresados por IAS 29; después, en dólares.
 MARCA_USD = "expressed in millions of united states dollars"
+# El interino escribe "millions of Pesos" y el anual "millions of Argentine
+# Pesos". Es la misma moneda con dos redacciones, y de esa diferencia dependía
+# que el ejercicio en pesos entrara o no: sin el anual no hay cuarto trimestre.
+RE_ARS = re.compile(r"expressed in millions of (argentine )?pesos", re.IGNORECASE)
+
+
+def moneda_de(titulo: str) -> str | None:
+    if MARCA_USD in titulo.lower():
+        return "USD"
+    if RE_ARS.search(titulo):
+        return "ARS"
+    return None
 
 # Firmas para reconocer cada estado sin depender del título, que cambia de
 # "CONSOLIDATED" a "CONDENSED INTERIM CONSOLIDATED" entre el anual y el interino.
@@ -254,7 +273,7 @@ def _secciones(etiquetas: list[str], estado: str) -> list[str]:
     return seccion
 
 
-def leer_estado(tabla: pd.DataFrame, estado: str, contexto: str = "") -> list[dict]:
+def leer_estado(tabla: pd.DataFrame, estado: str, contexto: str = "", moneda: str = "USD") -> list[dict]:
     """Las líneas de un estado contable: etiqueta, período y valor."""
     tabla = tabla.dropna(axis=1, how="all")
     if tabla.empty:
@@ -300,9 +319,13 @@ def leer_estado(tabla: pd.DataFrame, estado: str, contexto: str = "") -> list[di
             valor = valores[id(periodo)]
             if np.isnan(valor):
                 continue
-            # Los estados están en millones: nada legítimo llega al billón. Un
-            # número así es la concatenación de dos celdas del encabezado.
-            if abs(valor) > 1e6:
+            # Un número imposible es la concatenación de dos celdas del
+            # encabezado. Dónde está lo imposible depende de la moneda: en
+            # millones de dólares nada legítimo pasa el millón, pero en millones
+            # de pesos reexpresados los ingresos de un ejercicio son siete
+            # cifras. Con el tope del dólar puesto acá, los últimos ejercicios
+            # en pesos —los más grandes— desaparecían en silencio.
+            if abs(valor) > (1e6 if moneda == "USD" else 1e8):
                 continue
             filas.append(
                 {
@@ -369,7 +392,8 @@ def leer_filing(carpeta: Path) -> list[dict]:
         sopa = BeautifulSoup(html, "lxml")
         # El marcador de moneda se busca sobre el texto y no sobre el HTML: en
         # el crudo la frase viene cortada por tags de estilo cada dos palabras.
-        if MARCA_USD not in limpiar(sopa.get_text(" ")).lower():
+        texto_documento = limpiar(sopa.get_text(" ")).lower()
+        if MARCA_USD not in texto_documento and not RE_ARS.search(texto_documento):
             continue
         vistos: set[str] = set()
         for tabla_html in sopa.find_all("table"):
@@ -379,7 +403,8 @@ def leer_filing(carpeta: Path) -> list[dict]:
                 continue
             contexto = _texto_previo(tabla_html)
             titulo = _titulo_de(contexto)
-            if not RE_TITULO_ESTADO.search(titulo) or MARCA_USD not in titulo.lower():
+            moneda = moneda_de(titulo)
+            if not RE_TITULO_ESTADO.search(titulo) or moneda is None:
                 continue
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
@@ -389,13 +414,14 @@ def leer_filing(carpeta: Path) -> list[dict]:
                     continue
             if not marcos:
                 continue
-            filas = leer_estado(marcos[0], estado, contexto)
+            filas = leer_estado(marcos[0], estado, contexto, moneda)
             if not filas:
                 continue
             vistos.add(estado)
             for fila in filas:
                 fila.update(
                     {
+                        "moneda": moneda,
                         "accession": meta["accession"],
                         "form": meta["form"],
                         "presentado": meta["filing_date"],
@@ -491,6 +517,105 @@ def normalizar_clave(etiqueta: str) -> str:
     return ALIAS.get(s, s)
 
 
+@lru_cache(maxsize=1)
+def _tipo_de_cambio():
+    return serie_yahoo(RAW / "macro" / "fx" / "ars_usd.json", "ars_usd")
+
+
+def fx_cierre(fecha: pd.Timestamp) -> float:
+    """Tipo de cambio del último día con cotización hasta esa fecha."""
+    fx = _tipo_de_cambio()
+    previos = fx[fx.index <= fecha]
+    return float(previos.iloc[-1]) if len(previos) else float("nan")
+
+
+def fx_promedio(desde: pd.Timestamp, hasta: pd.Timestamp) -> float:
+    """Tipo de cambio promedio del período."""
+    fx = _tipo_de_cambio()
+    tramo = fx[(fx.index >= desde) & (fx.index <= hasta)]
+    return float(tramo.mean()) if len(tramo) else fx_cierre(hasta)
+
+
+def _inicio_de(fin: pd.Timestamp, meses: int) -> pd.Timestamp:
+    return (fin - pd.DateOffset(months=meses) + pd.Timedelta(days=1)).normalize()
+
+
+def convertir_a_usd(df: pd.DataFrame) -> pd.DataFrame:
+    """Pasa a dólares lo que la compañía presentó en pesos.
+
+    La clave es qué son esos pesos. No son pesos reexpresados por inflación: la
+    moneda funcional de YPF es el dólar, y los estados en pesos son esa misma
+    contabilidad traducida —NIC 21— con el tipo de cambio de cierre para los
+    saldos y el promedio del período para los flujos. Se nota en que los
+    comparativos no cambian de una presentación a la otra: bajo IAS 29
+    cambiarían con cada punto de inflación.
+
+    Así que deshacer la traducción es dividir por el mismo tipo de cambio con el
+    que se hizo. El chequeo está en la hoja Chequeos del Excel y en checks.py:
+    el activo de diciembre de 2022 vuelve a dar 25.944 contra los 25.912
+    millones que la compañía publicó en dólares —un décimo de punto— y los
+    trimestres de ingresos vuelven con menos de tres puntos de diferencia
+    contra el earnings release.
+
+    El promedio es el de la cotización diaria del período. La compañía traduce
+    transacción por transacción, así que en un trimestre con salto cambiario la
+    diferencia se nota; es el residuo que queda a la vista en los chequeos.
+    """
+    if "moneda" not in df.columns:
+        df["moneda"] = "USD"
+    df = df.copy()
+    df["valor_origen"] = df["valor_musd"]
+
+    pesos = df["moneda"] == "ARS"
+    if not pesos.any():
+        df["fx_usado"] = np.nan
+        return df
+
+    def tipo(fila) -> float:
+        fin = pd.Timestamp(fila["fin"])
+        if fila["clase"] == "instante":
+            return fx_cierre(fin)
+        # Adentro del estado de flujo viajan dos saldos —la caja al inicio y la
+        # caja al cierre— que no son flujos del período: son fotos de una fecha,
+        # y la compañía las traduce al tipo de cambio de esa fecha. Con el
+        # promedio del período, la caja del flujo dejaba de ser la del balance
+        # por hasta 423 millones.
+        clave = fila.get("clave")
+        if clave == SALDO_CIERRE:
+            return fx_cierre(fin)
+        if clave == SALDO_APERTURA:
+            return fx_cierre(_inicio_de(fin, int(fila["meses"])) - pd.Timedelta(days=1))
+        return fx_promedio(_inicio_de(fin, int(fila["meses"])), fin)
+
+    df.loc[pesos, "fx_usado"] = df.loc[pesos].apply(tipo, axis=1)
+    df.loc[pesos, "valor_musd"] = df.loc[pesos, "valor_origen"] / df.loc[pesos, "fx_usado"]
+    return df
+
+
+def agregar_clave(df: pd.DataFrame) -> pd.DataFrame:
+    """La clave con la que se sigue una línea entre presentaciones.
+
+    En balance y flujo la sección desempata las líneas homónimas —"Loans"
+    aparece dos veces, corriente y no corriente—; en resultados, donde la
+    atribución del resultado y la del resultado integral repiten las mismas dos
+    líneas seguidas, desempata el orden de aparición.
+    """
+    df = df.copy()
+    df["clave"] = df["etiqueta"].map(normalizar_clave)
+    con_seccion = (
+        df["estado"].isin(["balance", "flujo"])
+        & (df["seccion"] != "")
+        & (df["clave"] != df["seccion"])
+    )
+    df.loc[con_seccion, "clave"] = df.loc[con_seccion, "clave"] + " | " + df.loc[con_seccion, "seccion"]
+    repetida = (~con_seccion) & (df["aparicion"] > 1)
+    df.loc[repetida, "clave"] = (
+        df.loc[repetida, "clave"] + " (" + df.loc[repetida, "aparicion"].astype(str) + ")"
+    )
+    df["presentado"] = pd.to_datetime(df["presentado"])
+    return df
+
+
 def consolidar(df: pd.DataFrame) -> pd.DataFrame:
     """Un valor por línea y período: el de la presentación más reciente.
 
@@ -500,19 +625,16 @@ def consolidar(df: pd.DataFrame) -> pd.DataFrame:
     guarda cuántas versiones hubo y cuánto se movió el número, que es lo que
     permite auditar una reexpresión en vez de que pase inadvertida.
     """
-    df = df.copy()
-    df["clave"] = df["etiqueta"].map(normalizar_clave)
-    # En balance y flujo la sección desempata; en resultados, donde la
-    # atribución del resultado y la del resultado integral repiten las mismas
-    # dos líneas seguidas, desempata el orden de aparición.
-    con_seccion = df["estado"].isin(["balance", "flujo"]) & (df["seccion"] != "") & (df["clave"] != df["seccion"])
-    df.loc[con_seccion, "clave"] = df.loc[con_seccion, "clave"] + " | " + df.loc[con_seccion, "seccion"]
-    repetida = (~con_seccion) & (df["aparicion"] > 1)
-    df.loc[repetida, "clave"] = df.loc[repetida, "clave"] + " (" + df.loc[repetida, "aparicion"].astype(str) + ")"
-    df["presentado"] = pd.to_datetime(df["presentado"])
-    llave = ["estado", "clave", "clase", "meses", "fin"]
+    df = agregar_clave(df)
+    llave = ["estado", "clave", "clase", "meses", "fin", "moneda"]
 
-    df = df.sort_values("presentado")
+    # El orden decide quién gana cuando un período aparece dos veces: primero
+    # la moneda —el dólar reportado le gana al peso convertido, siempre— y
+    # después la fecha. Un trimestre de 2023 está en los dos lados: en el
+    # interino de ese año en pesos y en el comparativo de 2024 en dólares. El
+    # bueno es el segundo: es la propia compañía la que hizo la conversión.
+    df["prioridad"] = (df["moneda"] == "USD").astype(int)
+    df = df.sort_values(["prioridad", "presentado"])
     agrupado = df.groupby(llave, dropna=False)
     resumen = agrupado.agg(
         valor_musd=("valor_musd", "last"),
@@ -524,7 +646,13 @@ def consolidar(df: pd.DataFrame) -> pd.DataFrame:
         versiones=("valor_musd", "size"),
         valor_primero=("valor_musd", "first"),
         presentado_primero=("presentado", "first"),
+        moneda_primera=("moneda", "first"),
+        valor_origen=("valor_origen", "last"),
+        fx_usado=("fx_usado", "last"),
     ).reset_index()
+    # La diferencia contra el primer reporte solo significa algo entre versiones
+    # de la misma moneda. Comparar un peso convertido contra el dólar que
+    # publicó la compañía no mide una reexpresión: mide la conversión.
     resumen["reexpresado_musd"] = resumen["valor_musd"] - resumen["valor_primero"]
     return resumen
 
@@ -540,7 +668,50 @@ def _cierre(anio: int, trimestre: int) -> pd.Timestamp:
     return pd.Timestamp(year=anio, month=mes, day=dia)
 
 
-def serie_trimestral(cons: pd.DataFrame) -> pd.DataFrame:
+def _par_mas_cercano(opciones_acumulado, opciones_previo):
+    """Las dos versiones publicadas más cercanas entre sí en el tiempo.
+
+    Restar un acumulado de una presentación con otro de una presentación de dos
+    años después es restar dos contabilidades que no siempre son la misma. Se
+    eligen las versiones que convivieron.
+    """
+    if not opciones_acumulado or not opciones_previo:
+        return None
+    # Empatan seguido —el ejercicio y los nueve meses siempre están a cuatro
+    # meses— y ahí gana el par más reciente: si hubo una reexpresión, la última
+    # versión de las dos es la que la compañía sostiene junta.
+    return min(
+        ((a, p) for a in opciones_acumulado for p in opciones_previo),
+        key=lambda par: (
+            abs((par[0]["presentado"] - par[1]["presentado"]).days),
+            -par[0]["presentado"].value,
+            -par[1]["presentado"].value,
+        ),
+    )
+
+
+def _restar(acumulado: tuple, previo: tuple, fin: pd.Timestamp, fin_previo: pd.Timestamp,
+            moneda: str) -> float | None:
+    """El trimestre como diferencia de acumulados.
+
+    En dólares es una resta. En pesos también, pero hay que hacerla antes de
+    convertir: los dos acumulados están traducidos al promedio de su propio
+    período —nueve meses uno, seis el otro— y restar dos números convertidos con
+    tipos distintos mete la diferencia entre esos dos tipos adentro del
+    trimestre. Restados en pesos y convertidos después al promedio del trimestre
+    que se está armando, el número queda donde tiene que quedar.
+    """
+    if moneda != "ARS":
+        return acumulado[0] - previo[0]
+
+    diferencia_pesos = acumulado[3] - previo[3]
+    tipo = fx_promedio(_inicio_de(fin, 3), fin)
+    if not tipo or np.isnan(tipo):
+        return None
+    return diferencia_pesos / tipo
+
+
+def serie_trimestral(cons: pd.DataFrame, crudo: pd.DataFrame | None = None) -> pd.DataFrame:
     """Trimestres, acumulados y ejercicios completos, con su derivación.
 
     El balance es un stock y se toma a la fecha. Resultados y flujo son flujos:
@@ -553,7 +724,13 @@ def serie_trimestral(cons: pd.DataFrame) -> pd.DataFrame:
     filas: list[dict] = []
 
     # --- balance: instantes -------------------------------------------------
-    balance = cons[cons["clase"] == "instante"]
+    # Un cierre de diciembre existe dos veces: en pesos, en el interino de ese
+    # año, y en dólares, en el 20-F que lo publicó después. Vale el dólar.
+    balance = cons[cons["clase"] == "instante"].copy()
+    balance["prioridad"] = (balance["moneda"] == "USD").astype(int)
+    balance = balance.sort_values("prioridad").drop_duplicates(
+        ["estado", "clave", "fin"], keep="last"
+    )
     for fila in balance.itertuples():
         fin = pd.Timestamp(fila.fin)
         trimestre = (fin.month - 1) // 3 + 1
@@ -573,17 +750,43 @@ def serie_trimestral(cons: pd.DataFrame) -> pd.DataFrame:
                 "derivacion": "reportado",
                 "fuentes": fila.accession,
                 "presentado": pd.Timestamp(fila.presentado).date().isoformat(),
+                "moneda_origen": fila.moneda,
                 "reexpresado_musd": fila.reexpresado_musd,
             }
         )
 
     # --- resultados y flujo: duraciones ------------------------------------
     flujos = cons[cons["clase"] == "duracion"]
-    indice: dict[tuple, tuple[float, str]] = {}
+    indice: dict[tuple, tuple[float, str, str, float]] = {}
     cubiertos: set[tuple[str, int, pd.Timestamp]] = set()
+    # Todas las versiones publicadas de cada acumulado, no solo la última. Un
+    # acumulado aparece en varias presentaciones y no siempre con el mismo
+    # número: entre 2021 y 2023 la compañía reexpresó algunos comparativos.
+    # Restar un ejercicio reexpresado de un acumulado que no lo fue mete esa
+    # diferencia adentro del cuarto trimestre —en 2020 eran trece puntos de
+    # ingresos—, así que la resta va entre las dos versiones que convivieron.
+    versiones: dict[tuple, list[dict]] = {}
+    if crudo is not None:
+        duraciones = crudo[crudo["clase"] == "duracion"]
+        for fila in duraciones.itertuples():
+            versiones.setdefault(
+                (fila.estado, fila.clave, int(fila.meses), pd.Timestamp(fila.fin), fila.moneda), []
+            ).append(
+                {
+                    "valor": fila.valor_musd,
+                    "origen": fila.valor_origen,
+                    "accession": fila.accession,
+                    "presentado": pd.Timestamp(fila.presentado),
+                }
+            )
     for fila in flujos.itertuples():
         fin = pd.Timestamp(fila.fin)
-        indice[(fila.estado, fila.clave, int(fila.meses), fin)] = (fila.valor_musd, fila.accession)
+        indice[(fila.estado, fila.clave, int(fila.meses), fin, fila.moneda)] = (
+            fila.valor_musd,
+            fila.accession,
+            fila.moneda,
+            fila.valor_origen,
+        )
         cubiertos.add((fila.estado, int(fila.meses), fin))
 
     # La etiqueta y el orden de presentación se toman de la presentación más
@@ -593,7 +796,7 @@ def serie_trimestral(cons: pd.DataFrame) -> pd.DataFrame:
 
     for (estado, clave), fila in recientes.iterrows():
         for anio in anios:
-            computados: dict[int, float] = {}
+            computados: dict[str, dict[int, float]] = {"USD": {}, "ARS": {}}
             for trimestre in (1, 2, 3, 4):
                 fin = _cierre(anio, trimestre)
                 # Sin un estado que cierre en esa fecha no hay trimestre que
@@ -602,52 +805,105 @@ def serie_trimestral(cons: pd.DataFrame) -> pd.DataFrame:
                 ventanas = {3, 3 * trimestre} | ({12} if trimestre == 4 else set())
                 if not any((estado, meses, fin) in cubiertos for meses in ventanas):
                     continue
-                directo = indice.get((estado, clave, 3, fin))
-                if directo is not None:
-                    valor, fuentes, derivacion = directo[0], directo[1], "reportado"
-                elif clave in SOLO_REPORTADO:
-                    continue
-                elif clave == SALDO_CIERRE:
-                    saldo = indice.get((estado, clave, 3 * trimestre, fin))
-                    if saldo is None:
+                # El trimestre se arma dentro de una sola moneda de origen.
+                # Restarle a un acumulado en dólares uno convertido desde pesos
+                # metería toda la diferencia de conversión adentro de un solo
+                # trimestre —el cuarto, siempre— y ese trimestre dejaría de ser
+                # un dato para pasar a ser el residuo del método. Se prueba
+                # primero el camino en dólares y, si no está completo, el camino
+                # en pesos.
+                armado = None
+                for moneda in ("USD", "ARS"):
+                    directo = indice.get((estado, clave, 3, fin, moneda))
+                    if directo is not None:
+                        armado = (directo[0], directo[1], "reportado", moneda)
+                        break
+                    if clave in SOLO_REPORTADO:
                         continue
-                    valor, fuentes, derivacion = saldo[0], saldo[1], "saldo al cierre"
-                elif clave == SALDO_APERTURA:
-                    # La apertura del trimestre es el cierre del anterior; la del
-                    # primero es la apertura del ejercicio, que sí viene publicada.
-                    if trimestre == 1:
-                        saldo = indice.get((estado, clave, 3, fin))
-                    else:
-                        anterior = _cierre(anio, trimestre - 1)
-                        saldo = indice.get((estado, SALDO_CIERRE, 3 * (trimestre - 1), anterior))
-                    if saldo is None:
+                    if clave == SALDO_CIERRE:
+                        saldo = indice.get((estado, clave, 3 * trimestre, fin, moneda))
+                        if saldo is not None:
+                            armado = (saldo[0], saldo[1], "saldo al cierre", moneda)
+                            break
                         continue
-                    valor, fuentes, derivacion = saldo[0], saldo[1], "saldo al cierre del trimestre anterior"
-                else:
-                    acumulado = indice.get((estado, clave, 3 * trimestre, fin))
+                    if clave == SALDO_APERTURA:
+                        # La apertura del trimestre es el cierre del anterior; la
+                        # del primero es la apertura del ejercicio, publicada.
+                        if trimestre == 1:
+                            saldo = indice.get((estado, clave, 3, fin, moneda))
+                        else:
+                            anterior = _cierre(anio, trimestre - 1)
+                            saldo = indice.get(
+                                (estado, SALDO_CIERRE, 3 * (trimestre - 1), anterior, moneda)
+                            )
+                        if saldo is not None:
+                            armado = (
+                                saldo[0],
+                                saldo[1],
+                                "saldo al cierre del trimestre anterior",
+                                moneda,
+                            )
+                            break
+                        continue
+
+                    acumulado = indice.get((estado, clave, 3 * trimestre, fin, moneda))
                     if acumulado is None:
                         continue
                     if trimestre == 1:
-                        valor, fuentes, derivacion = acumulado[0], acumulado[1], "reportado"
+                        armado = (acumulado[0], acumulado[1], "reportado", moneda)
+                        break
+                    fin_previo = _cierre(anio, trimestre - 1)
+                    par = _par_mas_cercano(
+                        versiones.get((estado, clave, 3 * trimestre, fin, moneda)),
+                        versiones.get((estado, clave, 3 * (trimestre - 1), fin_previo, moneda)),
+                    )
+                    if par is not None:
+                        version_acum, version_prev = par
+                        acumulado = (
+                            version_acum["valor"],
+                            version_acum["accession"],
+                            moneda,
+                            version_acum["origen"],
+                        )
+                        previo = (
+                            version_prev["valor"],
+                            version_prev["accession"],
+                            moneda,
+                            version_prev["origen"],
+                        )
                     else:
-                        previo = indice.get((estado, clave, 3 * (trimestre - 1), _cierre(anio, trimestre - 1)))
-                        if previo is not None:
-                            valor = acumulado[0] - previo[0]
-                            fuentes = f"{acumulado[1]} - {previo[1]}"
-                            derivacion = f"{3 * trimestre}M menos {3 * (trimestre - 1)}M"
-                        elif all(t in computados for t in range(1, trimestre)):
-                            # Una línea puede faltar en el acumulado anterior
-                            # —la compañía no la abrió ese trimestre— y estar en
-                            # el ejercicio. Ahí el trimestre sale de restarle al
-                            # acumulado los trimestres que ya se armaron, que es
-                            # aritméticamente lo mismo cuando los dos existen.
-                            valor = acumulado[0] - sum(computados[t] for t in range(1, trimestre))
-                            fuentes = acumulado[1]
-                            derivacion = f"{3 * trimestre}M menos los trimestres anteriores"
-                        else:
+                        previo = indice.get((estado, clave, 3 * (trimestre - 1), fin_previo, moneda))
+                    if previo is not None:
+                        diferencia = _restar(acumulado, previo, fin, fin_previo, moneda)
+                        if diferencia is None:
                             continue
+                        armado = (
+                            diferencia,
+                            f"{acumulado[1]} - {previo[1]}",
+                            f"{3 * trimestre}M menos {3 * (trimestre - 1)}M",
+                            moneda,
+                        )
+                        break
+                    previos = computados[moneda]
+                    if moneda == "USD" and all(t in previos for t in range(1, trimestre)):
+                        # Una línea puede faltar en el acumulado anterior —la
+                        # compañía no la abrió ese trimestre— y estar en el
+                        # ejercicio. Ahí el trimestre sale de restarle al
+                        # acumulado los trimestres ya armados, que es lo mismo
+                        # cuando los dos existen.
+                        armado = (
+                            acumulado[0] - sum(previos[t] for t in range(1, trimestre)),
+                            acumulado[1],
+                            f"{3 * trimestre}M menos los trimestres anteriores",
+                            moneda,
+                        )
+                        break
+
+                if armado is None:
+                    continue
+                valor, fuentes, derivacion, moneda_origen = armado
                 if derivacion != "saldo al cierre del trimestre anterior":
-                    computados[trimestre] = valor
+                    computados[moneda_origen][trimestre] = valor
                 filas.append(
                     {
                         "estado": estado,
@@ -662,11 +918,14 @@ def serie_trimestral(cons: pd.DataFrame) -> pd.DataFrame:
                         "derivacion": derivacion,
                         "fuentes": fuentes,
                         "presentado": pd.Timestamp(fila.presentado).date().isoformat(),
+                        "moneda_origen": moneda_origen,
                         "reexpresado_musd": np.nan,
                     }
                 )
 
-            anual = indice.get((estado, clave, 12, _cierre(anio, 4)))
+            anual = indice.get((estado, clave, 12, _cierre(anio, 4), "USD")) or indice.get(
+                (estado, clave, 12, _cierre(anio, 4), "ARS")
+            )
             if anual is not None:
                 filas.append(
                     {
@@ -682,6 +941,7 @@ def serie_trimestral(cons: pd.DataFrame) -> pd.DataFrame:
                         "derivacion": "reportado",
                         "fuentes": anual[1],
                         "presentado": pd.Timestamp(fila.presentado).date().isoformat(),
+                        "moneda_origen": anual[2],
                         "reexpresado_musd": np.nan,
                     }
                 )
@@ -706,11 +966,16 @@ def construir_json(serie: pd.DataFrame, cons: pd.DataFrame, crudo: pd.DataFrame)
     reexpresiones = cons[cons["reexpresado_musd"].abs() > 0.5]
     # La ficha de cada presentacion: la fecha es la del filing, no la de la
     # linea, que puede venir de una presentacion posterior que la reexpreso.
-    fichas = (
-        crudo.drop_duplicates("accession")
-        .sort_values("presentado")[["accession", "form", "presentado"]]
-        .to_dict("records")
-    )
+    fichas = crudo.drop_duplicates("accession").sort_values("presentado")
+    fichas = [
+        {
+            "accession": fila.accession,
+            "form": fila.form,
+            "presentado": pd.Timestamp(fila.presentado).date().isoformat(),
+            "moneda": fila.moneda,
+        }
+        for fila in fichas.itertuples()
+    ]
     return {
         "generado": pd.Timestamp.now("UTC").strftime("%Y-%m-%dT%H:%M:%SZ"),
         "moneda": "USD",
@@ -732,9 +997,9 @@ def main() -> int:
     parser = base_parser(__doc__.splitlines()[0])
     parser.parse_args()
 
-    crudo = recolectar()
+    crudo = convertir_a_usd(agregar_clave(recolectar()))
     cons = consolidar(crudo)
-    serie = serie_trimestral(cons)
+    serie = serie_trimestral(cons, crudo)
 
     salida = serie.sort_values(["estado", "periodo", "orden"]).reset_index(drop=True)
     bytes_parquet = save_parquet(salida, OUT_LONG)
