@@ -48,6 +48,9 @@ TRANSFORM_SCRIPTS: list[tuple[str, Path, list[str]]] = [
     # Los estados contables completos salen de los mismos filings que los
     # highlights, pero de las tablas del Item 1 y no de la de resumen.
     ("transform/estados", TRANSFORM / "statements_ypf.py", []),
+    # Los segmentos salen de la misma nota del mismo filing, pero de otra
+    # tabla: es lo que abre el consolidado en los tres negocios que lo forman.
+    ("transform/segmentos", TRANSFORM / "segments_ypf.py", []),
     ("transform/production", TRANSFORM / "production_wells.py", []),
     ("transform/pais", TRANSFORM / "production_country.py", []),
     ("transform/reservas", TRANSFORM / "reserves.py", []),

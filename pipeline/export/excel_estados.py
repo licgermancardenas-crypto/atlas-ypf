@@ -43,6 +43,7 @@ from _common import PROCESSED, ROOT, base_parser, human, log, record, rel  # noq
 ENTRADA = PROCESSED / "statements_ypf.parquet"
 META = PROCESSED / "statements_ypf.json"
 HIGHLIGHTS = PROCESSED / "financials_ypf.parquet"
+SEGMENTOS_ENTRADA = PROCESSED / "segments_ypf.parquet"
 SALIDA = ROOT / "docs" / "YPF_estados_financieros.xlsx"
 
 # Seis ejercicios completos más lo que va del séptimo. Hacia atrás hay algunos
@@ -118,11 +119,12 @@ def formatos(libro: xlsxwriter.Workbook) -> dict:
 # --------------------------------------------------------------------------- #
 # Datos
 # --------------------------------------------------------------------------- #
-def cargar() -> tuple[pd.DataFrame, dict, pd.DataFrame]:
+def cargar() -> tuple[pd.DataFrame, dict, pd.DataFrame, pd.DataFrame]:
     datos = pd.read_parquet(ENTRADA)
     meta = json.loads(META.read_text(encoding="utf-8"))
     highlights = pd.read_parquet(HIGHLIGHTS) if HIGHLIGHTS.exists() else pd.DataFrame()
-    return datos, meta, highlights
+    segmentos = pd.read_parquet(SEGMENTOS_ENTRADA) if SEGMENTOS_ENTRADA.exists() else pd.DataFrame()
+    return datos, meta, highlights, segmentos
 
 
 SUFIJOS_SECCION = {
@@ -469,6 +471,8 @@ def escribir_portada(libro, fmt, meta: dict, datos: pd.DataFrame, trimestres: li
         ("Resultados", "Estado de resultados integrales, trimestral y anual."),
         ("Balance", "Estado de situación patrimonial."),
         ("Flujo de efectivo", "Estado de flujo de efectivo."),
+        ("Segmentos", "Ingresos, resultado operativo, capex y activos por negocio, con el margen de cada uno."),
+        ("Operativo", "Producción, precios de realización y las métricas por barril que salen de cruzarlos con los estados."),
         ("Análisis", "Márgenes, retornos, estructura de capital, liquidez, capital de trabajo y caja. Todo con fórmulas."),
         ("Valuación", "Cuatro métodos —descontado, múltiplo, reservas y valor libro— sobre supuestos editables."),
         ("Chequeos", "Identidades contables y cruce contra el earnings release de la compañía."),
@@ -1657,12 +1661,284 @@ def escribir_valuacion(libro, fmt, mapas: dict, analisis: dict, mercado: dict,
     hoja.freeze_panes(3, 1)
 
 
+
+
+# --------------------------------------------------------------------------- #
+# Segmentos
+# --------------------------------------------------------------------------- #
+# El orden en el que la compañía los presenta, y en el que se leen: primero de
+# dónde sale el petróleo, después qué se hace con él, y al final lo que ajusta.
+ORDEN_SEGMENTOS = [
+    "Upstream",
+    "Midstream y Downstream",
+    "Downstream",
+    "Industrialización",
+    "Comercialización",
+    "Gas y energía",
+    "GNL y gas integrado",
+    "Nuevas energías",
+    "Administración central y otros",
+    "Ajustes de consolidación",
+    "Total",
+]
+
+BLOQUES_SEGMENTO = [
+    ("ingresos_totales", "Ingresos", "dato"),
+    ("resultado_operativo", "Resultado operativo", "dato"),
+    ("capex_ppe", "Capex en bienes de uso", "dato"),
+    ("depreciacion_ppe", "Depreciación de bienes de uso", "dato"),
+    ("activos", "Activos", "dato"),
+]
+
+
+def escribir_segmentos(libro, fmt, segmentos: pd.DataFrame, trimestres: list[str],
+                       anios: list[str], columnas: dict) -> dict:
+    """Los segmentos, que es donde el consolidado deja de promediar.
+
+    Un trimestre récord puede ser shale creciendo, refino recuperando margen o
+    el gas cobrando un invierno. Son tres negocios con tres múltiplos distintos
+    y el consolidado los suma hasta que no se distingue ninguno.
+    """
+    hoja = libro.add_worksheet("Segmentos")
+    hoja.hide_gridlines(2)
+    hoja.set_column(0, 0, ANCHO_ETIQUETA)
+    hoja.set_column(1, len(trimestres) + len(anios) + 3, ANCHO_DATO)
+    hoja.set_tab_color(AZUL)
+
+    hoja.write(0, 0, "Segmentos", fmt["titulo"])
+    hoja.write(
+        1, 0,
+        "De la nota de segmentos de cada 6-K. La compañía la publica acumulada, así que el trimestre "
+        "sale por diferencia; cuando cambió la apertura, el trimestre del cambio queda vacío.",
+        fmt["subtitulo"],
+    )
+
+    fila_encabezado = 3
+    hoja.write(fila_encabezado, 0, "En dólares", fmt["encabezado_izq"])
+    for periodo, columna in columnas.items():
+        hoja.write(fila_encabezado, columna, periodo if periodo in trimestres else f"FY{periodo[-2:]}", fmt["encabezado"])
+
+    presentes = [s for s in ORDEN_SEGMENTOS if s in set(segmentos["segmento"])]
+    filas_por_bloque: dict[tuple[str, str], int] = {}
+    fila = fila_encabezado + 1
+
+    for concepto, titulo, formato in BLOQUES_SEGMENTO:
+        datos_bloque = segmentos[segmentos["concepto"] == concepto]
+        if datos_bloque.empty:
+            continue
+        matriz_bloque = datos_bloque.pivot_table(
+            index="segmento", columns="periodo", values="valor_musd", aggfunc="first"
+        )
+        hoja.write(fila, 0, titulo, fmt["seccion"])
+        fila += 1
+        for segmento in presentes:
+            if segmento not in matriz_bloque.index:
+                continue
+            es_total = segmento == "Total"
+            hoja.write(fila, 0, segmento, fmt["etiqueta_total"] if es_total else fmt["etiqueta"])
+            for periodo, columna in columnas.items():
+                if periodo not in matriz_bloque.columns:
+                    continue
+                valor = matriz_bloque.at[segmento, periodo]
+                if pd.isna(valor):
+                    continue
+                hoja.write_number(
+                    fila, columna, float(valor) * ESCALA,
+                    fmt["dato_total"] if es_total else fmt[formato],
+                )
+            filas_por_bloque[(concepto, segmento)] = fila
+            fila += 1
+
+        # El control que importa: las partes tienen que dar el todo.
+        if "Total" in matriz_bloque.index:
+            hoja.write(fila, 0, "Suma de segmentos − total", fmt["nota"])
+            for periodo, columna in columnas.items():
+                partes = [
+                    filas_por_bloque[(concepto, s)]
+                    for s in presentes
+                    if s != "Total" and (concepto, s) in filas_por_bloque
+                ]
+                if not partes or (concepto, "Total") not in filas_por_bloque:
+                    continue
+                letra = xlsxwriter.utility.xl_col_to_name(columna)
+                celdas = [f"{letra}{f + 1}" for f in partes]
+                suma = "+".join(celdas)
+                total = f"{letra}{filas_por_bloque[(concepto, 'Total')] + 1}"
+                # Con un solo segmento sin publicar, la resta deja de medir un
+                # descuadre y pasa a medir el hueco: ahí no se muestra nada.
+                completo = f"COUNT({','.join(celdas)})={len(celdas)}"
+                hoja.write_formula(
+                    fila, columna,
+                    f"=IF(AND(COUNT({total})=1,{completo}),({suma})-{total},\"\")",
+                    fmt["dato"], "",
+                )
+            fila += 1
+        fila += 1
+
+    # Márgenes: el número por el que existe la hoja.
+    hoja.write(fila, 0, "Margen operativo por segmento", fmt["seccion"])
+    fila += 1
+    for segmento in presentes:
+        if ("resultado_operativo", segmento) not in filas_por_bloque:
+            continue
+        if ("ingresos_totales", segmento) not in filas_por_bloque:
+            continue
+        hoja.write(fila, 0, segmento, fmt["etiqueta_ratio"])
+        for periodo, columna in columnas.items():
+            letra = xlsxwriter.utility.xl_col_to_name(columna)
+            arriba = f"{letra}{filas_por_bloque[('resultado_operativo', segmento)] + 1}"
+            abajo = f"{letra}{filas_por_bloque[('ingresos_totales', segmento)] + 1}"
+            hoja.write_formula(fila, columna, f"=IFERROR({arriba}/{abajo},\"\")", fmt["porcentaje"], "")
+        fila += 1
+
+    hoja.freeze_panes(fila_encabezado + 1, 1)
+    return filas_por_bloque
+
+
+# --------------------------------------------------------------------------- #
+# Operativo: el puente entre los barriles y los dólares
+# --------------------------------------------------------------------------- #
+KPI_OPERATIVOS = [
+    ("produccion_kboed", "Producción total (kboe/d)", "dias"),
+    ("petroleo_kbbld", "Petróleo (kbbl/d)", "dias"),
+    ("shale_oil_kbbld", "Petróleo shale (kbbl/d)", "dias"),
+    ("gas_mm3d", "Gas (Mm³/d)", "dias"),
+    ("crudo_procesado_kbbld", "Crudo procesado (kbbl/d)", "dias"),
+    ("precio_crudo_usd_bbl", "Precio de realización del crudo (USD/bbl)", "decimal"),
+    ("precio_gas_usd_mbtu", "Precio de realización del gas (USD/MBTU)", "decimal"),
+    ("lifting_cost_usd_boe", "Lifting cost (USD/boe)", "decimal"),
+]
+
+DIAS_POR_TRIMESTRE = {1: 90.25, 2: 91, 3: 92, 4: 92}
+
+
+def escribir_operativo(libro, fmt, highlights: pd.DataFrame, mapas: dict, analisis: dict,
+                       filas_segmento: dict, trimestres: list[str], anios: list[str]) -> None:
+    """Los barriles al lado de los dólares.
+
+    Una petrolera no se compara por margen sino por lo que le saca a cada barril
+    y lo que le cuesta ponerlo arriba. Esta hoja divide las dos cosas: arriba lo
+    que publica la compañía en su release, abajo lo que sale de dividir los
+    estados por la producción del trimestre.
+    """
+    hoja = libro.add_worksheet("Operativo")
+    hoja.hide_gridlines(2)
+    hoja.set_column(0, 0, ANCHO_ETIQUETA)
+    hoja.set_column(1, len(trimestres) + len(anios) + 3, ANCHO_DATO)
+    hoja.set_tab_color("#3fb98a")
+
+    hoja.write(0, 0, "Operativo", fmt["titulo"])
+    hoja.write(
+        1, 0,
+        "Producción y precios del earnings release; las métricas por barril salen de cruzarlos con los estados.",
+        fmt["subtitulo"],
+    )
+
+    columnas = mapas["columnas"]
+    fila_encabezado = 3
+    hoja.write(fila_encabezado, 0, "", fmt["encabezado_izq"])
+    for periodo, columna in columnas.items():
+        hoja.write(fila_encabezado, columna, periodo if periodo in trimestres else f"FY{periodo[-2:]}", fmt["encabezado"])
+
+    indexado = highlights.set_index("trimestre") if not highlights.empty else pd.DataFrame()
+    fila = fila_encabezado + 1
+    hoja.write(fila, 0, "Lo que publica la compañía", fmt["seccion"])
+    fila += 1
+    filas_kpi: dict[str, int] = {}
+    for campo, etiqueta, formato in KPI_OPERATIVOS:
+        if indexado.empty or campo not in indexado.columns:
+            continue
+        hoja.write(fila, 0, etiqueta, fmt["etiqueta"])
+        for periodo, columna in columnas.items():
+            if periodo not in indexado.index:
+                continue
+            valor = indexado.at[periodo, campo]
+            if pd.isna(valor):
+                continue
+            hoja.write_number(fila, columna, float(valor), fmt["decimal"])
+        filas_kpi[campo] = fila
+        fila += 1
+
+    if "produccion_kboed" not in filas_kpi:
+        hoja.freeze_panes(fila_encabezado + 1, 1)
+        return
+
+    fila += 1
+    hoja.write(fila, 0, "Producción del período", fmt["seccion"])
+    fila += 1
+    fila_dias = fila
+    hoja.write(fila, 0, "Días del período", fmt["etiqueta"])
+    for periodo, columna in columnas.items():
+        dias = DIAS_POR_TRIMESTRE[int(periodo[-1])] if periodo in trimestres else 365
+        hoja.write_number(fila, columna, dias, fmt["dias"])
+    fila += 1
+
+    fila_boe = fila
+    hoja.write(fila, 0, "Producción del período (Mboe)", fmt["etiqueta"])
+    for periodo, columna in columnas.items():
+        letra = xlsxwriter.utility.xl_col_to_name(columna)
+        produccion = f"{letra}{filas_kpi['produccion_kboed'] + 1}"
+        hoja.write_formula(
+            fila, columna, f"=IFERROR({produccion}*{letra}{fila_dias + 1}/1000,\"\")", fmt["decimal"], ""
+        )
+    fila += 1
+
+    def por_boe(etiqueta: str, referencia, formato_celda, nota: str = "") -> int:
+        nonlocal fila
+        hoja.write(fila, 0, etiqueta, fmt["etiqueta_ratio"])
+        for periodo, columna in columnas.items():
+            celda = referencia(columna)
+            if not celda:
+                continue
+            letra = xlsxwriter.utility.xl_col_to_name(columna)
+            hoja.write_formula(
+                fila, columna,
+                f"=IFERROR({celda}/({letra}{fila_boe + 1}*1000000),\"\")",
+                formato_celda, "",
+            )
+        if nota:
+            hoja.write(fila, max(columnas.values()) + 2, nota, fmt["nota"])
+        fila += 1
+        return fila - 1
+
+    hoja.write(fila, 0, "Por barril equivalente", fmt["seccion"])
+    fila += 1
+
+    def ref_analisis(clave: str):
+        return lambda columna: f"'Análisis'!{xlsxwriter.utility.xl_col_to_name(columna)}{analisis[clave] + 1}"
+
+    def ref_segmento(concepto: str, segmento: str):
+        fila_segmento = filas_segmento.get((concepto, segmento))
+        if fila_segmento is None:
+            return lambda columna: None
+        return lambda columna: f"'Segmentos'!{xlsxwriter.utility.xl_col_to_name(columna)}{fila_segmento + 1}"
+
+    por_boe("EBITDA por boe", ref_analisis("ebitda"), fmt["decimal"],
+            "EBITDA consolidado sobre producción: incluye el aporte de refino, que no produce barriles.")
+    por_boe("Ingresos de Upstream por boe", ref_segmento("ingresos_totales", "Upstream"), fmt["decimal"],
+            "Incluye las ventas intersegmento, que es como el crudo llega a la refinería propia.")
+    por_boe("Resultado operativo de Upstream por boe", ref_segmento("resultado_operativo", "Upstream"), fmt["decimal"])
+    por_boe("Capex de Upstream por boe", ref_segmento("capex_ppe", "Upstream"), fmt["decimal"])
+    por_boe("Depreciación de Upstream por boe", ref_segmento("depreciacion_ppe", "Upstream"), fmt["decimal"],
+            "Es el costo de agotamiento del yacimiento: contra el resultado operativo por boe dice cuánto del margen es caja.")
+    fila_cfo = mapas["flujo"].get("net cash flows from operating activities")
+    if fila_cfo is not None:
+        por_boe(
+            "Flujo operativo por boe",
+            lambda columna: f"'{HOJAS['flujo']}'!{xlsxwriter.utility.xl_col_to_name(columna)}{fila_cfo + 1}",
+            fmt["decimal"],
+            "Consolidado: el flujo de refino y comercialización también está adentro.",
+        )
+
+    hoja.freeze_panes(fila_encabezado + 1, 1)
+
+
 # --------------------------------------------------------------------------- #
 def main() -> int:
     parser = base_parser(__doc__.splitlines()[0])
     parser.parse_args()
 
-    datos, meta, highlights = cargar()
+    datos, meta, highlights, segmentos = cargar()
     trimestres = sorted(p for p in datos.loc[datos["tipo"] == "trimestre", "periodo"].unique() if p >= DESDE)
     # Los ejercicios anteriores a 2019 existen en la hoja Datos —salen de los
     # comparativos de presentaciones viejas— pero no entran a las hojas de
@@ -1671,7 +1947,11 @@ def main() -> int:
     anios = sorted(a for a in datos.loc[datos["tipo"] == "anual", "periodo"].unique() if a >= "2019")
 
     SALIDA.parent.mkdir(parents=True, exist_ok=True)
-    libro = xlsxwriter.Workbook(str(SALIDA), {"constant_memory": False})
+    # Se escribe primero a un temporal y después se reemplaza. Si el libro está
+    # abierto en Excel, Windows no deja pisarlo: sin esto, la corrida termina
+    # con un "Permission denied" a mitad de camino y deja el archivo roto.
+    provisorio = SALIDA.with_suffix(".tmp.xlsx")
+    libro = xlsxwriter.Workbook(str(provisorio), {"constant_memory": False})
     libro.set_properties(
         {
             "title": "YPF — estados contables trimestrales",
@@ -1696,18 +1976,34 @@ def main() -> int:
         mapas["columnas"] = columnas
 
     filas_analisis = escribir_analisis(libro, fmt, mapas, trimestres, anios)
+    filas_segmento: dict = {}
+    if not segmentos.empty:
+        filas_segmento = escribir_segmentos(
+            libro, fmt, segmentos, trimestres, anios, mapas["columnas"]
+        )
+    escribir_operativo(libro, fmt, highlights, mapas, filas_analisis, filas_segmento, trimestres, anios)
     escribir_valuacion(libro, fmt, mapas, filas_analisis, datos_de_mercado(trimestres), trimestres, anios)
     escribir_chequeos(libro, fmt, mapas, datos, highlights, trimestres, anios)
     escribir_datos(libro, fmt, datos)
 
     libro.close()
-    tamanio = SALIDA.stat().st_size
-    log(f"{rel(SALIDA)} ({human(tamanio)}) · {len(trimestres)} trimestres · {len(anios)} ejercicios")
+    try:
+        provisorio.replace(SALIDA)
+        destino = SALIDA
+    except PermissionError:
+        destino = SALIDA.with_name(f"{SALIDA.stem} (nuevo){SALIDA.suffix}")
+        provisorio.replace(destino)
+        log(
+            f"{rel(SALIDA)} está abierto en Excel y no se pudo reemplazar; "
+            f"el libro nuevo quedó en {rel(destino)}"
+        )
+    tamanio = destino.stat().st_size
+    log(f"{rel(destino)} ({human(tamanio)}) · {len(trimestres)} trimestres · {len(anios)} ejercicios")
     record(
         "export/excel",
         rows=int(len(datos)),
         bytes=int(tamanio),
-        outputs=[rel(SALIDA)],
+        outputs=[rel(destino)],
         source=rel(ENTRADA),
         note=f"{trimestres[0]}–{trimestres[-1]} trimestral y FY{anios[0]}–FY{anios[-1]}",
     )

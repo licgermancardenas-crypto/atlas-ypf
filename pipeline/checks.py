@@ -378,6 +378,92 @@ def chequear_estados(problemas: list[str]) -> None:
             )
 
 
+def chequear_segmentos(problemas: list[str]) -> None:
+    """La nota de segmentos tiene que cerrar contra el estado de resultados.
+
+    Son dos lecturas independientes del mismo filing: los ingresos del estado
+    de resultados y el total de la nota de segmentos salen de tablas distintas,
+    parseadas con reglas distintas. Que den lo mismo es la prueba de que las dos
+    estan bien leidas. Y adentro de la nota, las partes tienen que dar el total:
+    si la compania cambio la apertura de segmentos y el parseo mezclo dos
+    aperturas, esta suma se rompe.
+    """
+    ruta = PROCESSED / "segments_ypf.parquet"
+    if not ruta.exists():
+        return
+
+    import pandas as pd
+
+    segmentos = pd.read_parquet(ruta)
+    trimestral = segmentos[segmentos["tipo"] == "trimestre"]
+
+    total_segmentos = (
+        trimestral[(trimestral["concepto"] == "ingresos_totales") & (trimestral["segmento"] == "Total")]
+        .groupby("periodo")["valor_musd"]
+        .first()
+    )
+
+    estados = PROCESSED / "statements_ypf.parquet"
+    if estados.exists():
+        datos = pd.read_parquet(estados)
+        ingresos = (
+            datos[
+                (datos["estado"] == "resultados")
+                & (datos["clave"] == "revenues")
+                & (datos["tipo"] == "trimestre")
+            ]
+            .groupby("periodo")["valor_musd"]
+            .first()
+        )
+        origen = (
+            trimestral[(trimestral["concepto"] == "ingresos_totales") & (trimestral["segmento"] == "Total")]
+            .groupby("periodo")["moneda_origen"]
+            .first()
+        )
+        comun = total_segmentos.index.intersection(ingresos.index)
+        for periodo in comun:
+            # En dolares las dos lecturas salen del mismo estado y tienen que
+            # dar lo mismo. Traducidas desde pesos, cada una llega por su propio
+            # camino de conversion y queda el residuo de siempre.
+            origen_estado = (
+                datos[
+                    (datos["estado"] == "resultados")
+                    & (datos["clave"] == "revenues")
+                    & (datos["tipo"] == "trimestre")
+                    & (datos["periodo"] == periodo)
+                ]["moneda_origen"].iloc[0]
+                if "moneda_origen" in datos.columns
+                else "USD"
+            )
+            en_dolares = origen.get(periodo) == "USD" and origen_estado == "USD"
+            tolerancia = 0.01 if en_dolares else 0.06
+            if not cerca(float(total_segmentos[periodo]), float(ingresos[periodo]), tolerancia):
+                problemas.append(
+                    f"segmentos: el total de la nota de {periodo} no coincide con los ingresos del "
+                    f"estado de resultados ({total_segmentos[periodo]:.0f} contra {ingresos[periodo]:.0f} MUSD)"
+                )
+
+    # Las partes contra el todo, solo donde estan todas las partes.
+    for concepto in ("ingresos_totales", "resultado_operativo", "capex_ppe", "activos"):
+        datos_concepto = trimestral[trimestral["concepto"] == concepto]
+        if datos_concepto.empty:
+            continue
+        for periodo, grupo in datos_concepto.groupby("periodo"):
+            partes = grupo[grupo["segmento"] != "Total"]
+            total = grupo[grupo["segmento"] == "Total"]
+            if total.empty or len(partes) < 3:
+                continue
+            suma = float(partes["valor_musd"].sum())
+            esperado = float(total["valor_musd"].iloc[0])
+            if abs(esperado) < 50:
+                continue
+            if not cerca(suma, esperado, 0.02):
+                problemas.append(
+                    f"segmentos: en {periodo} las partes no dan el total de {concepto} "
+                    f"({suma:.0f} contra {esperado:.0f} MUSD)"
+                )
+
+
 CHEQUEOS = (
     ("produccion del pais", chequear_pais),
     ("rankings", chequear_rankings),
@@ -388,6 +474,7 @@ CHEQUEOS = (
     ("geo", chequear_geo),
     ("grafo de entidades", chequear_grafo),
     ("estados contables", chequear_estados),
+    ("segmentos", chequear_segmentos),
 )
 
 

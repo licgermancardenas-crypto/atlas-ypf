@@ -186,7 +186,7 @@
     "operadores": 85
   },
   "catalogo": {
-    "generated_at": "2026-09-10T19:14:54+00:00",
+    "generated_at": "2026-09-10T20:27:14+00:00",
     "sources": [
       "data/raw/_manifest.json",
       "data/processed/_manifest.json"
@@ -195,7 +195,7 @@
       "data/processed/catalogo.json"
     ],
     "datasets_crudos": 49,
-    "salidas_procesadas": 14
+    "salidas_procesadas": 15
   },
   "entity_graph": {
     "generated_at": "2026-09-10T05:09:47+00:00",
@@ -240,13 +240,24 @@
     "note": "2016Q4–2026Q2 en USD; el 4T sale del anual menos nueve meses"
   },
   "export/excel": {
-    "generated_at": "2026-09-10T19:15:32+00:00",
+    "generated_at": "2026-09-10T20:27:02+00:00",
     "rows": 5174,
-    "bytes": 296443,
+    "bytes": 322091,
     "outputs": [
-      "docs/YPF_estados_financieros.xlsx"
+      "docs/YPF_estados_financieros (nuevo).xlsx"
     ],
     "source": "data/processed/statements_ypf.parquet",
     "note": "2020Q1–2026Q2 trimestral y FY2019–FY2025"
+  },
+  "transform/segmentos": {
+    "generated_at": "2026-09-10T20:26:17+00:00",
+    "rows": 1808,
+    "bytes": 24451,
+    "outputs": [
+      "data/processed/segments_ypf.parquet",
+      "data/processed/segments_ypf.json"
+    ],
+    "source": "data/raw/financials/ypf/filings",
+    "note": "2019Q1–2026Q2; el trimestre sale de la diferencia de acumulados"
   }
 }

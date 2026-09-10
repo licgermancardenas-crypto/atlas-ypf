@@ -33,3 +33,7 @@ data/processed/*.parquet
 
 # artefacto de tsc, se regenera en cada build
 web/tsconfig.tsbuildinfo
+
+# Copia que deja el exportador cuando el libro esta abierto en Excel
+docs/*(nuevo).xlsx
+~$*.xlsx
