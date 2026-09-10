@@ -53,6 +53,9 @@ TRANSFORM_SCRIPTS: list[tuple[str, Path, list[str]]] = [
     ("transform/market", TRANSFORM / "market_reaction.py", []),
     ("transform/scenario", TRANSFORM / "scenario_engine.py", []),
     ("transform/geo", TRANSFORM / "geo_layers.py", []),
+    # Despues de geo: la titularidad sale del padron de concesiones que baja
+    # ingest/geo_layers.py, y las metricas del panel de produccion.
+    ("transform/grafo", TRANSFORM / "entity_graph.py", []),
     ("transform/catalogo", TRANSFORM / "catalogo.py", []),
     # Ultima etapa: si algo quedo imposible, el job termina en rojo y el commit
     # automatico de datos no llega a ejecutarse.

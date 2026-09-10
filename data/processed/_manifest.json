@@ -196,5 +196,36 @@
     ],
     "datasets_crudos": 49,
     "salidas_procesadas": 11
+  },
+  "entity_graph": {
+    "generated_at": "2026-09-10T05:09:47+00:00",
+    "sources": [
+      "data/processed/production_wells.parquet",
+      "data/raw/geo/concessions"
+    ],
+    "outputs": [
+      "data/processed/graph/entities.json",
+      "data/processed/graph/entities_agregado.json",
+      "data/processed/graph/pozos"
+    ],
+    "shards_de_pozos": 102,
+    "mes_referencia": "2026-07",
+    "nodos": 5350,
+    "aristas": 10403,
+    "nodos_por_tipo": {
+      "pozo": 5062,
+      "yacimiento": 141,
+      "concesion": 102,
+      "empresa": 45
+    },
+    "aristas_por_tipo": {
+      "tiene_pozo": 5062,
+      "operado_por": 5062,
+      "contiene": 141,
+      "titularidad": 138
+    },
+    "pozos_excluidos": 0,
+    "concesiones_sin_titularidad": 14,
+    "bytes": 5046652
   }
 }

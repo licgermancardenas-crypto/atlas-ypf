@@ -224,6 +224,54 @@ def chequear_geo(problemas: list[str]) -> None:
         problemas.append(f"geo: {fuera} pozos con coordenadas fuera de la Argentina")
 
 
+def chequear_grafo(problemas: list[str]) -> None:
+    """Ninguna arista del grafo puede apuntar a un nodo que no existe.
+
+    El transform ya valida esto antes de escribir, pero el chequeo se repite
+    aca por una razon: el archivo publicado puede quedar desfasado respecto del
+    codigo que lo genero -una corrida a medias, un merge, un commit parcial- y
+    lo que rompe el frontend es el archivo, no el transform.
+    """
+    ruta = PROCESSED / "graph" / "entities.json"
+    if not ruta.exists():
+        return
+
+    grafo = json.loads(ruta.read_text(encoding="utf-8"))
+    ids = {nodo["id"] for nodo in grafo["nodes"]}
+
+    if len(ids) != len(grafo["nodes"]):
+        problemas.append(
+            f"grafo: {len(grafo['nodes']) - len(ids)} ids de nodo repetidos"
+        )
+
+    huerfanas = sum(
+        1
+        for arista in grafo["edges"]
+        if arista["source"] not in ids or arista["target"] not in ids
+    )
+    if huerfanas:
+        problemas.append(f"grafo: {huerfanas} aristas apuntan a nodos inexistentes")
+
+    for tipo in ("concesion", "yacimiento", "empresa", "pozo"):
+        if not any(nodo["type"] == tipo for nodo in grafo["nodes"]):
+            problemas.append(f"grafo: no hay ningun nodo de tipo {tipo}")
+
+    # Las participaciones de una concesion suman 100% o el padron esta mal
+    # leido. Se tolera medio punto por los redondeos de la fuente.
+    por_concesion: dict[str, float] = {}
+    for arista in grafo["edges"]:
+        if arista["type"] == "titularidad":
+            pct = (arista.get("props") or {}).get("participacion_pct", 0)
+            por_concesion[arista["source"]] = por_concesion.get(arista["source"], 0) + pct
+    torcidas = {c: round(t, 2) for c, t in por_concesion.items() if abs(t - 100) > 0.5}
+    if torcidas:
+        ejemplo = sorted(torcidas.items())[:3]
+        problemas.append(
+            f"grafo: {len(torcidas)} concesiones con participaciones que no suman 100% "
+            f"(p. ej. {ejemplo})"
+        )
+
+
 CHEQUEOS = (
     ("produccion del pais", chequear_pais),
     ("rankings", chequear_rankings),
@@ -232,6 +280,7 @@ CHEQUEOS = (
     ("financieros", chequear_financieros),
     ("simulador", chequear_modelo),
     ("geo", chequear_geo),
+    ("grafo de entidades", chequear_grafo),
 )
 
 
