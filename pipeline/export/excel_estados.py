@@ -475,6 +475,7 @@ def escribir_portada(libro, fmt, meta: dict, datos: pd.DataFrame, trimestres: li
         ("Operativo", "Producción, precios de realización y las métricas por barril que salen de cruzarlos con los estados."),
         ("Análisis", "Márgenes, retornos, estructura de capital, liquidez, capital de trabajo y caja. Todo con fórmulas."),
         ("Valuación", "Cuatro métodos —descontado, múltiplo, reservas y valor libro— sobre supuestos editables."),
+        ("Comparables", "YPF contra Vista y Pampa: márgenes, apalancamiento y múltiplos, del XBRL de sus 20-F."),
         ("Chequeos", "Identidades contables y cruce contra el earnings release de la compañía."),
         ("Datos", "Tabla larga: cada número con su derivación y la presentación de la que salió."),
     ]:
@@ -1933,6 +1934,349 @@ def escribir_operativo(libro, fmt, highlights: pd.DataFrame, mapas: dict, analis
     hoja.freeze_panes(fila_encabezado + 1, 1)
 
 
+
+
+# --------------------------------------------------------------------------- #
+# Comparables
+# --------------------------------------------------------------------------- #
+PEERS = PROCESSED / "peers.parquet"
+PEERS_META = PROCESSED / "peers.json"
+
+
+def datos_de_comparables() -> dict:
+    """Los comparables y sus precios, listos para la hoja."""
+    from _common import RAW, serie_yahoo
+
+    if not PEERS.exists() or not PEERS_META.exists():
+        return {}
+
+    tabla = pd.read_parquet(PEERS)
+    meta = json.loads(PEERS_META.read_text(encoding="utf-8"))
+    fichas = {ficha["ticker"]: ficha for ficha in meta.get("emisores", [])}
+
+    precios = {}
+    for ticker in fichas:
+        ruta = RAW / "market" / "stock" / f"{ticker}.json"
+        if ruta.exists():
+            serie = serie_yahoo(ruta, ticker)
+            precios[ticker] = {"precio": float(serie.iloc[-1]), "fecha": serie.index[-1].date().isoformat()}
+
+    valores = {
+        (fila.ticker, fila.concepto, int(fila.anio)): float(fila.valor_usd)
+        for fila in tabla.itertuples()
+    }
+    anios = sorted({int(a) for _, _, a in valores})
+    return {"valores": valores, "fichas": fichas, "precios": precios, "anios": anios, "meta": meta}
+
+
+def escribir_comparables(libro, fmt, mapas: dict, analisis: dict, mercado: dict, comparables: dict,
+                         trimestres: list[str], anios: list[str]) -> None:
+    """YPF al lado de los dos que se le parecen.
+
+    Vista es shale puro: sirve para aislar cuánto del múltiplo de YPF es Vaca
+    Muerta y cuánto es todo lo demás. Pampa mezcla upstream con generación
+    eléctrica, que es el otro extremo del mismo país. Los tres presentan ante la
+    SEC, así que las líneas son comparables de verdad y no una traducción de
+    tres criterios contables distintos.
+
+    Los dos comparables van al último ejercicio con XBRL publicado; YPF va con
+    esos mismos ejercicios y además con los últimos doce meses, que es lo que
+    cotiza hoy. La diferencia de fechas está a la vista en el encabezado: es
+    preferible a emparejar por la fuerza dos cosas que no son iguales.
+    """
+    if not comparables:
+        return
+
+    hoja = libro.add_worksheet("Comparables")
+    hoja.hide_gridlines(2)
+    hoja.set_column(0, 0, ANCHO_ETIQUETA)
+    hoja.set_column(1, 12, ANCHO_DATO)
+    hoja.set_tab_color("#f0a830")
+
+    hoja.write(0, 0, "Comparables", fmt["titulo"])
+    hoja.write(
+        1, 0,
+        "YPF contra Vista Energy y Pampa Energía, las dos únicas argentinas con disclosure equiparable ante la SEC.",
+        fmt["subtitulo"],
+    )
+
+    valores = comparables["valores"]
+    fichas = comparables["fichas"]
+    precios = comparables["precios"]
+    anios_peer = [a for a in comparables["anios"] if a >= 2023]
+    ultimo_trimestre = trimestres[-1]
+
+    # Las columnas: YPF con sus ejercicios y sus últimos doce meses, y cada
+    # comparable con los ejercicios que tenga publicados.
+    columnas: list[dict] = []
+    for anio in [a for a in anios if int(a) >= 2023]:
+        columnas.append({"clase": "ypf_fy", "anio": anio, "titulo": f"YPF FY{anio[-2:]}"})
+    columnas.append({"clase": "ypf_udm", "titulo": f"YPF UDM {ultimo_trimestre}"})
+    for ticker in sorted(fichas):
+        for anio in anios_peer:
+            if (ticker, "ingresos", anio) in valores:
+                columnas.append({"clase": "peer", "ticker": ticker, "anio": anio, "titulo": f"{ticker} FY{str(anio)[-2:]}"})
+
+    fila_encabezado = 3
+    hoja.write(fila_encabezado, 0, "En dólares", fmt["encabezado_izq"])
+    for i, columna in enumerate(columnas):
+        columna["col"] = i + 1
+        hoja.write(fila_encabezado, columna["col"], columna["titulo"], fmt["encabezado"])
+
+    def celda_ypf(estado: str, clave: str, anio: str) -> str | None:
+        fila_clave = mapas[estado].get(clave)
+        if fila_clave is None or anio not in mapas["columnas"]:
+            return None
+        letra = xlsxwriter.utility.xl_col_to_name(mapas["columnas"][anio])
+        return f"'{HOJAS[estado]}'!{letra}{fila_clave + 1}"
+
+    def celda_analisis(clave: str) -> str:
+        letra = xlsxwriter.utility.xl_col_to_name(mapas["columnas"][ultimo_trimestre])
+        return f"'Análisis'!{letra}{analisis[clave] + 1}"
+
+    filas_metrica: dict[str, int] = {}
+
+    def escribir_metrica(nombre: str, etiqueta: str, ypf_fy, ypf_udm, concepto_peer,
+                         formato=None, nota: str = "") -> None:
+        nonlocal fila
+        formato = formato or fmt["dato"]
+        hoja.write(fila, 0, etiqueta, fmt["etiqueta"])
+        for columna in columnas:
+            destino = columna["col"]
+            if columna["clase"] == "ypf_fy" and ypf_fy:
+                formula = ypf_fy(columna["anio"])
+                if formula:
+                    hoja.write_formula(fila, destino, formula, formato, "")
+            elif columna["clase"] == "ypf_udm" and ypf_udm:
+                formula = ypf_udm()
+                if formula:
+                    hoja.write_formula(fila, destino, formula, formato, "")
+            elif columna["clase"] == "peer" and concepto_peer:
+                valor = concepto_peer(columna["ticker"], columna["anio"])
+                if valor is not None:
+                    hoja.write_number(fila, destino, valor, formato)
+        if nota:
+            hoja.write(fila, len(columnas) + 2, nota, fmt["nota"])
+        filas_metrica[nombre] = fila
+        fila += 1
+
+    def peer(concepto: str, signo: float = 1.0):
+        def leer(ticker: str, anio: int) -> float | None:
+            valor = valores.get((ticker, concepto, anio))
+            return None if valor is None else valor * signo
+        return leer
+
+    def peer_suma(*conceptos: str):
+        def leer(ticker: str, anio: int) -> float | None:
+            partes = [valores.get((ticker, c, anio)) for c in conceptos]
+            if any(p is None for p in partes):
+                return None
+            return float(sum(partes))
+        return leer
+
+    fila = fila_encabezado + 1
+    hoja.write(fila, 0, "Resultados y caja", fmt["seccion"])
+    fila += 1
+
+    escribir_metrica(
+        "ingresos", "Ingresos",
+        lambda anio: (c := celda_ypf("resultados", "revenues", anio)) and f"={c}",
+        lambda: f"={celda_analisis('ltm_ingresos')}",
+        peer("ingresos"),
+    )
+    escribir_metrica(
+        "ebitda", "EBITDA",
+        lambda anio: (
+            f"={celda_ypf('resultados', 'operating profit', anio)}"
+            f"+{celda_ypf('flujo', 'depreciation of property plant and equipment | net cash flows from operating activities', anio)}"
+            f"+{celda_ypf('flujo', 'amortization of intangible assets | net cash flows from operating activities', anio)}"
+            f"+{celda_ypf('flujo', 'depreciation of right of use assets | net cash flows from operating activities', anio)}"
+        ) if celda_ypf("resultados", "operating profit", anio) else None,
+        lambda: f"={celda_analisis('ltm_ebitda')}",
+        peer_suma("resultado_operativo", "depreciacion_y_amortizacion"),
+        nota="Resultado operativo más depreciaciones y amortizaciones, para los tres igual.",
+    )
+    escribir_metrica(
+        "operativo", "Resultado operativo",
+        lambda anio: (c := celda_ypf("resultados", "operating profit", anio)) and f"={c}",
+        lambda: f"={celda_analisis('ltm_ebit')}",
+        peer("resultado_operativo"),
+    )
+    escribir_metrica(
+        "neto", "Resultado neto",
+        lambda anio: (c := celda_ypf("resultados", "net profit", anio)) and f"={c}",
+        lambda: f"={celda_analisis('ltm_neto')}",
+        peer("resultado_neto"),
+    )
+    escribir_metrica(
+        "cfo", "Flujo operativo",
+        lambda anio: (c := celda_ypf("flujo", "net cash flows from operating activities", anio)) and f"={c}",
+        lambda: f"={celda_analisis('ltm_cfo')}",
+        peer("flujo_operativo"),
+    )
+    escribir_metrica(
+        "capex", "Capex",
+        lambda anio: (c := celda_ypf(
+            "flujo",
+            "acquisition of property plant and equipment and intangible assets | net cash flows used in investing activities",
+            anio,
+        )) and f"=-{c}",
+        lambda: f"=-{celda_analisis('ltm_capex')}",
+        peer("capex"),
+        nota="En positivo para los tres: en el estado de flujo de YPF viene con signo negativo.",
+    )
+
+    fila += 1
+    hoja.write(fila, 0, "Balance", fmt["seccion"])
+    fila += 1
+    escribir_metrica(
+        "activos", "Activos",
+        lambda anio: (c := celda_ypf("balance", "total assets", anio)) and f"={c}",
+        lambda: (c := celda_ypf("balance", "total assets", ultimo_trimestre)) and f"={c}",
+        peer("activos"),
+    )
+    escribir_metrica(
+        "patrimonio", "Patrimonio neto",
+        lambda anio: (c := celda_ypf("balance", "total shareholders equity", anio)) and f"={c}",
+        lambda: (c := celda_ypf("balance", "total shareholders equity", ultimo_trimestre)) and f"={c}",
+        peer("patrimonio"),
+    )
+    escribir_metrica(
+        "deuda", "Deuda financiera bruta",
+        lambda anio: (
+            f"={celda_ypf('balance', 'loans | total non current liabilities', anio)}"
+            f"+{celda_ypf('balance', 'loans | total current liabilities', anio)}"
+        ) if celda_ypf("balance", "loans | total non current liabilities", anio) else None,
+        lambda: (
+            f"={celda_ypf('balance', 'loans | total non current liabilities', ultimo_trimestre)}"
+            f"+{celda_ypf('balance', 'loans | total current liabilities', ultimo_trimestre)}"
+        ),
+        peer("deuda_financiera"),
+    )
+    escribir_metrica(
+        "caja", "Caja",
+        lambda anio: (c := celda_ypf("balance", "cash and cash equivalents | total current assets", anio)) and f"={c}",
+        lambda: (c := celda_ypf("balance", "cash and cash equivalents | total current assets", ultimo_trimestre)) and f"={c}",
+        peer("caja"),
+    )
+
+    def local(fila_metrica: str, columna: int) -> str:
+        return f"{xlsxwriter.utility.xl_col_to_name(columna)}{filas_metrica[fila_metrica] + 1}"
+
+    fila_deuda_neta = fila
+    hoja.write(fila, 0, "Deuda financiera neta", fmt["etiqueta"])
+    for columna in columnas:
+        destino = columna["col"]
+        hoja.write_formula(
+            fila, destino,
+            f"=IFERROR({local('deuda', destino)}-{local('caja', destino)},\"\")",
+            fmt["dato"], "",
+        )
+    filas_metrica["deuda_neta"] = fila
+    fila += 1
+
+    fila += 1
+    hoja.write(fila, 0, "Mercado", fmt["seccion"])
+    fila += 1
+    hoja.write(fila, len(columnas) + 2,
+               "El precio es el último de cada papel, aunque el balance sea de distinta fecha: "
+               "es el precio al que cotizan hoy esos números.", fmt["nota"])
+
+    hoja.write(fila, 0, "Precio del ADR (USD)", fmt["etiqueta"])
+    for columna in columnas:
+        if columna["clase"] == "peer":
+            precio = precios.get(columna["ticker"], {}).get("precio")
+        else:
+            precio = mercado["ultimo_precio"]
+        if precio is not None:
+            hoja.write_number(fila, columna["col"], precio, fmt["decimal"])
+    filas_metrica["precio"] = fila
+    fila += 1
+
+    hoja.write(fila, 0, "ADR equivalentes", fmt["etiqueta"])
+    for columna in columnas:
+        if columna["clase"] == "peer":
+            ficha = fichas[columna["ticker"]]
+            acciones = ficha.get("acciones")
+            por_ads = ficha.get("acciones_por_ads") or 1
+            cantidad = acciones / por_ads if acciones else None
+        else:
+            cantidad = ADRS
+        if cantidad:
+            hoja.write_number(fila, columna["col"], cantidad, fmt["dato"])
+    filas_metrica["adrs"] = fila
+    hoja.write(fila, len(columnas) + 2,
+               "Acciones en circulación dividido las que representa cada ADR, de la portada del 20-F: "
+               "en Pampa son 25 por ADR y en Vista una.", fmt["nota"])
+    fila += 1
+
+    for nombre, etiqueta, formula in [
+        ("capitalizacion", "Capitalización bursátil", lambda c: f"={local('precio', c)}*{local('adrs', c)}"),
+        ("ev", "Valor de la empresa (EV)", lambda c: f"=IFERROR({local('capitalizacion', c)}+{local('deuda_neta', c)},\"\")"),
+    ]:
+        hoja.write(fila, 0, etiqueta, fmt["etiqueta"])
+        for columna in columnas:
+            hoja.write_formula(fila, columna["col"], formula(columna["col"]), fmt["dato"], "")
+        filas_metrica[nombre] = fila
+        fila += 1
+
+    fila += 1
+    hoja.write(fila, 0, "Márgenes y retornos", fmt["seccion"])
+    fila += 1
+    for etiqueta, arriba, abajo, formato in [
+        ("Margen EBITDA", "ebitda", "ingresos", "porcentaje"),
+        ("Margen operativo", "operativo", "ingresos", "porcentaje"),
+        ("Margen neto", "neto", "ingresos", "porcentaje"),
+        ("Flujo operativo / ingresos", "cfo", "ingresos", "porcentaje"),
+        ("Capex / EBITDA", "capex", "ebitda", "porcentaje"),
+        ("Resultado neto / patrimonio", "neto", "patrimonio", "porcentaje"),
+    ]:
+        hoja.write(fila, 0, etiqueta, fmt["etiqueta_ratio"])
+        for columna in columnas:
+            destino = columna["col"]
+            hoja.write_formula(
+                fila, destino,
+                f"=IFERROR({local(arriba, destino)}/{local(abajo, destino)},\"\")",
+                fmt[formato], "",
+            )
+        fila += 1
+
+    fila += 1
+    hoja.write(fila, 0, "Múltiplos", fmt["seccion"])
+    fila += 1
+    for etiqueta, arriba, abajo, formato in [
+        ("EV / EBITDA", "ev", "ebitda", "multiplo"),
+        ("EV / ingresos", "ev", "ingresos", "multiplo"),
+        ("Precio / utilidad", "capitalizacion", "neto", "multiplo"),
+        ("Precio / valor libro", "capitalizacion", "patrimonio", "multiplo"),
+        ("Deuda neta / EBITDA", "deuda_neta", "ebitda", "multiplo"),
+    ]:
+        hoja.write(fila, 0, etiqueta, fmt["etiqueta_ratio"])
+        for columna in columnas:
+            destino = columna["col"]
+            hoja.write_formula(
+                fila, destino,
+                f"=IFERROR({local(arriba, destino)}/{local(abajo, destino)},\"\")",
+                fmt[formato], "",
+            )
+        fila += 1
+
+    fila += 2
+    fechas = ", ".join(
+        f"{ticker}: 20-F de {fichas[ticker].get('ultimo_20f', '?')}" for ticker in sorted(fichas)
+    )
+    hoja.write(
+        fila, 0,
+        "Los comparables salen del XBRL de sus 20-F, que la SEC publica estructurado y en dólares "
+        f"({fechas}). El último ejercicio con XBRL disponible es 2024: el 20-F siguiente ya está "
+        "presentado pero sus estados todavía no aparecen en la API de datos estructurados. YPF, en "
+        "cambio, está al último trimestre, porque sus estados los arma este pipeline desde el filing.",
+        fmt["nota"],
+    )
+    hoja.set_row(fila, 42)
+    hoja.freeze_panes(fila_encabezado + 1, 1)
+
+
 # --------------------------------------------------------------------------- #
 def main() -> int:
     parser = base_parser(__doc__.splitlines()[0])
@@ -1982,7 +2326,11 @@ def main() -> int:
             libro, fmt, segmentos, trimestres, anios, mapas["columnas"]
         )
     escribir_operativo(libro, fmt, highlights, mapas, filas_analisis, filas_segmento, trimestres, anios)
-    escribir_valuacion(libro, fmt, mapas, filas_analisis, datos_de_mercado(trimestres), trimestres, anios)
+    mercado = datos_de_mercado(trimestres)
+    escribir_valuacion(libro, fmt, mapas, filas_analisis, mercado, trimestres, anios)
+    escribir_comparables(
+        libro, fmt, mapas, filas_analisis, mercado, datos_de_comparables(), trimestres, anios
+    )
     escribir_chequeos(libro, fmt, mapas, datos, highlights, trimestres, anios)
     escribir_datos(libro, fmt, datos)
 

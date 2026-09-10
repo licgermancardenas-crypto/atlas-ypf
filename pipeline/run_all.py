@@ -37,6 +37,9 @@ INGEST_SCRIPTS = [
     ("production/sesco", INGEST / "production_country.py", []),
     ("reservas", INGEST / "reserves.py", []),
     ("financials/ypf", INGEST / "financials_ypf.py", []),
+    # Los comparables: su XBRL sale estructurado, asi que es una descarga chica
+    # y un transform sin parseo de HTML.
+    ("financials/peers", INGEST / "peers_sec.py", []),
     ("geo/vectores", INGEST / "geo_layers.py", []),
     ("geo/dem", INGEST / "dem_neuquina.py", []),
 ]
@@ -51,6 +54,7 @@ TRANSFORM_SCRIPTS: list[tuple[str, Path, list[str]]] = [
     # Los segmentos salen de la misma nota del mismo filing, pero de otra
     # tabla: es lo que abre el consolidado en los tres negocios que lo forman.
     ("transform/segmentos", TRANSFORM / "segments_ypf.py", []),
+    ("transform/peers", TRANSFORM / "peers.py", []),
     ("transform/production", TRANSFORM / "production_wells.py", []),
     ("transform/pais", TRANSFORM / "production_country.py", []),
     ("transform/reservas", TRANSFORM / "reserves.py", []),

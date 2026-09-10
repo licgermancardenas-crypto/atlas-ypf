@@ -1,0 +1,65 @@
+{
+  "generado": "2026-09-10T20:32:46Z",
+  "moneda": "USD",
+  "fuente": "SEC EDGAR, XBRL de los 20-F (taxonomía IFRS)",
+  "emisores": [
+    {
+      "ticker": "PAM",
+      "nombre": "Pampa Energía S.A.",
+      "cik": "0001469395",
+      "ultimo_20f": "2025-12-31",
+      "presentado": "2026-04-09",
+      "acciones_por_ads": 25,
+      "acciones": 1359606137,
+      "ejercicios": [
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024
+      ]
+    },
+    {
+      "ticker": "VIST",
+      "nombre": "Vista Energy, S.A.B. de C.V.",
+      "cik": "0001762506",
+      "ultimo_20f": "2025-12-31",
+      "presentado": "2026-04-28",
+      "acciones_por_ads": 1,
+      "acciones": 104299703,
+      "ejercicios": [
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024
+      ]
+    }
+  ],
+  "conceptos": [
+    "activos",
+    "bienes_de_uso",
+    "caja",
+    "capex",
+    "costo_de_ventas",
+    "costos_financieros",
+    "depreciacion_y_amortizacion",
+    "deuda_financiera",
+    "flujo_operativo",
+    "impuesto_a_las_ganancias",
+    "ingresos",
+    "patrimonio",
+    "resultado_bruto",
+    "resultado_neto",
+    "resultado_operativo"
+  ],
+  "nota": "Solo ejercicio completo: el XBRL de un emisor privado extranjero no trae el trimestre. Las acciones y el ratio de ADS salen de la portada del último 20-F."
+}
