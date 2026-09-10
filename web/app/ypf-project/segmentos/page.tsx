@@ -1,5 +1,6 @@
+import { MedidorBarriles } from '@/components/ilustraciones/MedidorBarriles';
 import { Shell } from '@/components/Shell';
-import { IlustracionSegmento } from '@/components/segmentos/Ilustraciones';
+import { IlustracionSegmento } from '@/components/ilustraciones/escenas';
 import { ModuloSegmentos } from '@/components/segmentos/ModuloSegmentos';
 import { QUE_HACE } from '@/components/segmentos/negocios';
 import { Dato, Franja } from '@/components/ui';
@@ -101,6 +102,20 @@ export default async function ModuloSegmentosPagina() {
             }
             detalle="del resultado operativo consolidado"
             tono="alza"
+          />
+        </div>
+
+        {/* Un pictograma de barriles: la proporción se ve antes de leerla. */}
+        <div className="marquesina mt-6 grid gap-8 rounded-lg border border-borde bg-superficie p-5 sm:grid-cols-2">
+          <MedidorBarriles
+            proporcion={ingresosUpstream && interUpstream ? interUpstream / ingresosUpstream : 0}
+            etiqueta="de lo que factura Upstream se lo vende a la propia YPF"
+            detalle="El que le vende al mercado es Downstream: Upstream le vende a su propia refinería."
+          />
+          <MedidorBarriles
+            proporcion={capexUpstream && capexTotal ? capexUpstream / capexTotal : 0}
+            etiqueta="de la inversión del trimestre se la lleva Upstream"
+            detalle="Un pozo de shale declina rápido: crecer exige perforar todos los años."
           />
         </div>
 

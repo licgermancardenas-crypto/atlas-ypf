@@ -8,6 +8,7 @@ import {
   ReaccionBalances,
   ShaleYCostos,
 } from '@/components/charts';
+import { EscenaUpstream } from '@/components/ilustraciones/escenas';
 import { MapaLazy } from '@/components/mapa/MapaLazy';
 import { ExploradorProduccion, type ProduccionPais } from '@/components/ExploradorProduccion';
 import { Panel } from '@/components/Panel';
@@ -79,15 +80,22 @@ export default async function CasoYPF() {
       {/* ------------------------------------------------------------------ */}
       <header className="border-b border-borde">
         <div className="mx-auto max-w-6xl px-6 py-14 sm:py-20">
-          <Franja className="w-24" />
-          <p className="mt-5 font-mono text-xs tracking-[0.2em] text-azul-claro">
-            ATLAS-YPF · CASO DE ESTUDIO · {fmt.trimestre(ultimo.trimestre)}
-          </p>
-          <h1 className="mt-5 max-w-3xl text-3xl font-bold leading-[1.1] sm:text-5xl">
-            YPF publicó el mejor trimestre de su historia.
-            <br />
-            <span className="text-texto-suave">El mercado lo vendió.</span>
-          </h1>
+          <div className="flex items-start justify-between gap-12">
+            <div>
+              <Franja className="w-24" />
+              <p className="mt-5 font-mono text-xs tracking-[0.2em] text-azul-claro">
+                ATLAS-YPF · CASO DE ESTUDIO · {fmt.trimestre(ultimo.trimestre)}
+              </p>
+              <h1 className="mt-5 max-w-3xl text-3xl font-bold leading-[1.1] sm:text-5xl">
+                YPF publicó el mejor trimestre de su historia.
+                <br />
+                <span className="text-texto-suave">El mercado lo vendió.</span>
+              </h1>
+            </div>
+            {/* El yacimiento a la derecha del titular: el balancín se mueve, que
+                es lo único que se mueve de verdad en este negocio. */}
+            <EscenaUpstream className="hidden h-40 w-72 shrink-0 xl:block" />
+          </div>
 
           {/* La confrontación: los dos números que son la tesis del caso. El
               resto de la página existe para explicar por qué conviven. */}

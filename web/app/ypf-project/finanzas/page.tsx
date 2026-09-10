@@ -1,3 +1,4 @@
+import { EscenaFinanzas } from '@/components/ilustraciones/escenas';
 import { Panel } from '@/components/Panel';
 import { Shell } from '@/components/Shell';
 import { TablaExcel, type FilaExcel } from '@/components/TablaExcel';
@@ -146,14 +147,19 @@ export default async function ModuloFinanzas() {
   return (
     <Shell actualizado={financieros.generado.slice(0, 10)} operadores={[]} modulo="finanzas">
       <main className="mx-auto max-w-6xl px-6 py-12">
-        <Franja className="w-24" />
-        <h1 className="mt-5 text-3xl font-bold sm:text-4xl">Finanzas</h1>
-        <p className="mt-3 max-w-3xl leading-relaxed text-texto-suave">
+        <div className="flex items-start justify-between gap-10">
+          <div>
+            <Franja className="w-24" />
+            <h1 className="mt-5 text-3xl font-bold sm:text-4xl">Finanzas</h1>
+            <p className="mt-3 max-w-3xl leading-relaxed text-texto-suave">
           {financieros.trimestres} trimestres reconstruidos desde los earnings releases que YPF
           adjunta a cada 6-K, cruzados con Brent y con la producción. Los conceptos van en las filas
           y los períodos en las columnas, que es como se lee un modelo financiero y no como viene el
           dato.
-        </p>
+            </p>
+          </div>
+          <EscenaFinanzas className="hidden h-32 w-56 shrink-0 lg:block" />
+        </div>
 
         <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Dato

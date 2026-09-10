@@ -29,7 +29,7 @@ import {
   YAxis,
 } from 'recharts';
 
-import { IlustracionSegmento } from '@/components/segmentos/Ilustraciones';
+import { IlustracionSegmento } from '@/components/ilustraciones/escenas';
 import { COLOR, QUE_HACE } from '@/components/segmentos/negocios';
 import { fmt } from '@/lib/data';
 import type { Segmentos } from '@/lib/libro';

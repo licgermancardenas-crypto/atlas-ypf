@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { EscenaRed } from '@/components/ilustraciones/escenas';
 import { RedLazy } from '@/components/RedLazy';
 import { Shell } from '@/components/Shell';
 import { ProveedorEntidad } from '@/components/estado/entidad';
@@ -57,13 +58,18 @@ export default async function ModuloRed() {
     >
       <ProveedorEntidad>
         <main className="mx-auto max-w-6xl px-6 py-12">
-          <Franja className="w-24" />
-          <h1 className="mt-5 text-3xl font-bold sm:text-4xl">Relaciones</h1>
-          <p className="mt-3 max-w-3xl leading-relaxed text-texto-suave">
+          <div className="flex items-start justify-between gap-10">
+            <div>
+              <Franja className="w-24" />
+              <h1 className="mt-5 text-3xl font-bold sm:text-4xl">Relaciones</h1>
+              <p className="mt-3 max-w-3xl leading-relaxed text-texto-suave">
             Quién opera qué, con quién y cuánto sale de cada nodo. Clic en cualquier círculo abre
             su ficha con las entidades conectadas; cada una de esas es a su vez un clic. El link de
             la barra de direcciones se actualiza solo, así que una selección se puede compartir.
-          </p>
+              </p>
+            </div>
+            <EscenaRed className="hidden h-32 w-56 shrink-0 lg:block" />
+          </div>
 
           <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Dato

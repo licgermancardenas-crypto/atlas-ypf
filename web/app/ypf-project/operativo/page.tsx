@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { EscenaCuenca } from '@/components/ilustraciones/escenas';
 import { Panel } from '@/components/Panel';
 import { Shell } from '@/components/Shell';
 import { TablaExcel, type FilaExcel } from '@/components/TablaExcel';
@@ -168,13 +169,18 @@ export default async function ModuloOperativo() {
       modulo="operativo"
     >
       <main className="mx-auto max-w-6xl px-6 py-12">
-        <Franja className="w-24" />
-        <h1 className="mt-5 text-3xl font-bold sm:text-4xl">Operativo</h1>
-        <p className="mt-3 max-w-3xl leading-relaxed text-texto-suave">
+        <div className="flex items-start justify-between gap-10">
+          <div>
+            <Franja className="w-24" />
+            <h1 className="mt-5 text-3xl font-bold sm:text-4xl">Operativo</h1>
+            <p className="mt-3 max-w-3xl leading-relaxed text-texto-suave">
           De dónde sale el crudo, quién lo opera, cuánto queda y cuánto cuesta sacarlo. La
           producción es bruta operada: incluye la parte de los socios, así que para cada compañía es
           mayor que la que consolida en su balance.
-        </p>
+            </p>
+          </div>
+          <EscenaCuenca className="hidden h-32 w-56 shrink-0 lg:block" />
+        </div>
 
         <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Dato

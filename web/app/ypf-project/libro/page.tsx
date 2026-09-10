@@ -1,3 +1,4 @@
+import { EscenaLibro } from '@/components/ilustraciones/escenas';
 import { Shell } from '@/components/Shell';
 import { Libro } from '@/components/libro/Libro';
 import { Dato, Franja } from '@/components/ui';
@@ -63,14 +64,19 @@ export default async function ModuloLibro() {
       modulo="libro"
     >
       <main className="mx-auto max-w-6xl px-6 py-12">
-        <Franja className="w-24" />
-        <h1 className="mt-5 text-3xl font-bold sm:text-4xl">El libro</h1>
-        <p className="mt-3 max-w-3xl leading-relaxed text-texto-suave">
+        <div className="flex items-start justify-between gap-10">
+          <div>
+            <Franja className="w-24" />
+            <h1 className="mt-5 text-3xl font-bold sm:text-4xl">El libro</h1>
+            <p className="mt-3 max-w-3xl leading-relaxed text-texto-suave">
           Los estados contables de YPF armados desde los 6-K y los 20-F de la SEC, trimestre por
           trimestre desde 2020: resultados, balance, flujo de efectivo, la apertura por segmento, el
           perfil de deuda y los comparables. Y una valuación por cuatro métodos que se recalcula
           mientras movés los supuestos, que es lo que un archivo no puede hacer.
-        </p>
+            </p>
+          </div>
+          <EscenaLibro className="hidden h-32 w-56 shrink-0 lg:block" />
+        </div>
 
         <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Dato

@@ -163,6 +163,55 @@ h3 {
 }
 
 /* ---------------------------------------------------------------------------
+   Ilustraciones
+
+   Los dibujos del sitio son SVG propio y algunos se mueven: el balancín sube y
+   baja, el molino gira, el mechero titila, la gota cae. El movimiento es lento
+   y de amplitud chica a propósito —una ilustración que se agita al lado de un
+   número compite con el número—, y el bloque de prefers-reduced-motion de más
+   arriba lo apaga entero para quien lo pidió.
+--------------------------------------------------------------------------- */
+@keyframes balanceo {
+  0%, 100% { transform: rotate(-7deg); }
+  50% { transform: rotate(7deg); }
+}
+
+@keyframes giro {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes titileo {
+  0%, 100% { transform: scale(1); opacity: 0.95; }
+  35% { transform: scale(1.12) translateY(-1px); opacity: 1; }
+  70% { transform: scale(0.94); opacity: 0.8; }
+}
+
+@keyframes goteo {
+  0% { transform: translateY(0); opacity: 0; }
+  20% { opacity: 1; }
+  75% { transform: translateY(16px); opacity: 1; }
+  100% { transform: translateY(20px); opacity: 0; }
+}
+
+@keyframes oleaje {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(6px); }
+}
+
+@keyframes llenado {
+  from { transform: scaleY(0.15); }
+  to { transform: scaleY(1); }
+}
+
+.anima-balanceo { animation: balanceo 5.5s ease-in-out infinite; }
+.anima-giro { animation: giro 9s linear infinite; }
+.anima-titileo { animation: titileo 2.6s ease-in-out infinite; }
+.anima-goteo { animation: goteo 3.4s ease-in infinite; }
+.anima-oleaje { animation: oleaje 7s ease-in-out infinite; }
+.anima-llenado { animation: llenado 1.2s ease-out both; }
+
+/* ---------------------------------------------------------------------------
    Memo ejecutivo
 
    Va con hoja aparte y no con clases en el markup porque el HTML lo genera
