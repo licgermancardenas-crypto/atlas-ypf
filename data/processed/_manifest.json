@@ -186,7 +186,7 @@
     "operadores": 85
   },
   "catalogo": {
-    "generated_at": "2026-09-10T00:58:37+00:00",
+    "generated_at": "2026-09-10T05:40:18+00:00",
     "sources": [
       "data/raw/_manifest.json",
       "data/processed/_manifest.json"
@@ -195,7 +195,7 @@
       "data/processed/catalogo.json"
     ],
     "datasets_crudos": 49,
-    "salidas_procesadas": 11
+    "salidas_procesadas": 12
   },
   "entity_graph": {
     "generated_at": "2026-09-10T05:09:47+00:00",
