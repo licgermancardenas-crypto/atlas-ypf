@@ -18,6 +18,8 @@ de Vaca Muerta), de mercado, macro y geoespaciales.
 - El frontend consume solo data/processed/*.json — nunca pega directo a las APIs
 - Todo cálculo financiero (NPV/IRR/sensibilidad) vive en pipeline/transform/, testeado
   aparte del frontend
+- Las salidas de presentación (el Excel de estados contables) van en pipeline/export/:
+  leen data/processed/ y no calculan nada que no esté ya en un transform
 - Competidores de benchmark: solo YPF, Vista Energy (VIST) y Pampa Energía (PAM/PAMP)
   — son los únicos tres con disclosure financiero comparable
 

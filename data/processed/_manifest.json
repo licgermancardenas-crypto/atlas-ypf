@@ -186,7 +186,7 @@
     "operadores": 85
   },
   "catalogo": {
-    "generated_at": "2026-09-10T05:40:18+00:00",
+    "generated_at": "2026-09-10T16:52:00+00:00",
     "sources": [
       "data/raw/_manifest.json",
       "data/processed/_manifest.json"
@@ -195,7 +195,7 @@
       "data/processed/catalogo.json"
     ],
     "datasets_crudos": 49,
-    "salidas_procesadas": 12
+    "salidas_procesadas": 14
   },
   "entity_graph": {
     "generated_at": "2026-09-10T05:09:47+00:00",
@@ -227,5 +227,26 @@
     "pozos_excluidos": 0,
     "concesiones_sin_titularidad": 14,
     "bytes": 5046652
+  },
+  "transform/statements": {
+    "generated_at": "2026-09-10T16:55:18+00:00",
+    "rows": 2441,
+    "bytes": 26167,
+    "outputs": [
+      "data/processed/statements_ypf.parquet",
+      "data/processed/statements_ypf.json"
+    ],
+    "source": "data/raw/financials/ypf/filings",
+    "note": "2020Q4–2026Q2 en USD; el 4T sale del anual menos nueve meses"
+  },
+  "export/excel": {
+    "generated_at": "2026-09-10T16:56:21+00:00",
+    "rows": 2441,
+    "bytes": 128494,
+    "outputs": [
+      "docs/YPF_estados_financieros.xlsx"
+    ],
+    "source": "data/processed/statements_ypf.parquet",
+    "note": "2023Q1–2026Q2 trimestral y FY2020–FY2025"
   }
 }

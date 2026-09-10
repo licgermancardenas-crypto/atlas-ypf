@@ -18,3 +18,11 @@ statsmodels~=0.14
 # pandas.read_html necesita un parser: la tabla de highlights de los 6-K de YPF
 # viene con celdas partidas y colspans, y lxml es el que la resuelve bien.
 lxml~=6.1
+
+# Los estados contables del Item 1 de los 6-K se ubican recorriendo el HTML
+# (que tabla es cada una, que titulo la precede) antes de parsearla con pandas.
+beautifulsoup4~=4.14
+
+# El Excel de estados contables lleva formatos y formulas, no solo celdas:
+# xlsxwriter es el unico que escribe las dos cosas sin abrir el archivo.
+xlsxwriter~=3.2

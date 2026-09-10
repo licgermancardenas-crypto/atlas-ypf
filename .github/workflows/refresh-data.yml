@@ -5,10 +5,11 @@
 # cero y el job queda en rojo: no hay `|| true` en ningún lado, porque un dato
 # que no se actualizó y nadie mira es peor que un job roto.
 #
-# Qué se commitea: solo data/processed/ y web/lib/scenarioEngine.ts, que es
-# generado por transform/scenario_engine.py a partir de los coeficientes del
-# modelo. Si el modelo cambia y el .ts no se actualiza, el simulador del
-# frontend queda mostrando los coeficientes de la semana pasada.
+# Qué se commitea: data/processed/, web/lib/scenarioEngine.ts —generado por
+# transform/scenario_engine.py a partir de los coeficientes del modelo, y si el
+# modelo cambia y el .ts no se actualiza el simulador del frontend queda
+# mostrando los coeficientes de la semana pasada— y el Excel de estados
+# contables, que también es una salida generada y no un archivo editado.
 #
 # Qué NO se commitea: data/raw/, que está en .gitignore. Vive en el caché de
 # Actions entre corridas, que además es lo que hace que la ingesta sea
@@ -89,13 +90,13 @@ jobs:
       - name: Ver qué cambió
         id: cambios
         run: |
-          git add --intent-to-add data/processed web/lib/scenarioEngine.ts
-          if git diff --quiet -- data/processed web/lib/scenarioEngine.ts; then
+          git add --intent-to-add data/processed web/lib/scenarioEngine.ts docs/YPF_estados_financieros.xlsx
+          if git diff --quiet -- data/processed web/lib/scenarioEngine.ts docs/YPF_estados_financieros.xlsx; then
             echo "hay_cambios=false" >> "$GITHUB_OUTPUT"
             echo "Sin cambios en los datos procesados."
           else
             echo "hay_cambios=true" >> "$GITHUB_OUTPUT"
-            git diff --stat -- data/processed web/lib/scenarioEngine.ts
+            git diff --stat -- data/processed web/lib/scenarioEngine.ts docs/YPF_estados_financieros.xlsx
           fi
 
       - name: Commitear los datos nuevos
@@ -103,7 +104,7 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add data/processed web/lib/scenarioEngine.ts
+          git add data/processed web/lib/scenarioEngine.ts docs/YPF_estados_financieros.xlsx
           git commit -m 'chore: refresh data [skip ci]'
           git push
 

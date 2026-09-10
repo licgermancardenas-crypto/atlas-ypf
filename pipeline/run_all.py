@@ -22,6 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 INGEST = ROOT / "pipeline" / "ingest"
 TRANSFORM = ROOT / "pipeline" / "transform"
+EXPORT = ROOT / "pipeline" / "export"
 
 # Orden deliberado: primero lo liviano, para fallar rápido si no hay red.
 # El tercer elemento son los argumentos propios de esa etapa, si los tiene.
@@ -44,6 +45,9 @@ INGEST_SCRIPTS = [
 # normaliza el panel pozo-mes que consumen los transforms financieros.
 TRANSFORM_SCRIPTS: list[tuple[str, Path, list[str]]] = [
     ("transform/financials", TRANSFORM / "financials_ypf.py", []),
+    # Los estados contables completos salen de los mismos filings que los
+    # highlights, pero de las tablas del Item 1 y no de la de resumen.
+    ("transform/estados", TRANSFORM / "statements_ypf.py", []),
     ("transform/production", TRANSFORM / "production_wells.py", []),
     ("transform/pais", TRANSFORM / "production_country.py", []),
     ("transform/reservas", TRANSFORM / "reserves.py", []),
@@ -57,6 +61,9 @@ TRANSFORM_SCRIPTS: list[tuple[str, Path, list[str]]] = [
     # ingest/geo_layers.py, y las metricas del panel de produccion.
     ("transform/grafo", TRANSFORM / "entity_graph.py", []),
     ("transform/catalogo", TRANSFORM / "catalogo.py", []),
+    # El Excel se arma despues del catalogo: es una salida de presentacion,
+    # no una entrada de ningun otro paso.
+    ("export/excel", EXPORT / "excel_estados.py", []),
     # Ultima etapa: si algo quedo imposible, el job termina en rojo y el commit
     # automatico de datos no llega a ejecutarse.
     ("checks", ROOT / "pipeline" / "checks.py", []),

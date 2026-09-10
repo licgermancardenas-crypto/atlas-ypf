@@ -272,6 +272,78 @@ def chequear_grafo(problemas: list[str]) -> None:
         )
 
 
+def chequear_estados(problemas: list[str]) -> None:
+    """Los tres estados tienen que cerrar entre ellos y contra el release.
+
+    Estos estados no salen de un XBRL: salen de parsear las tablas HTML de los
+    6-K, y el trimestre de flujo de efectivo es una resta entre dos
+    presentaciones distintas. Si el parseo se corre una fila o una columna, el
+    activo deja de dar pasivo mas patrimonio y los cuatro trimestres dejan de
+    sumar el ejercicio. Es el chequeo mas barato que hay contra eso.
+    """
+    ruta = PROCESSED / "statements_ypf.parquet"
+    if not ruta.exists():
+        return
+
+    import pandas as pd
+
+    datos = pd.read_parquet(ruta)
+
+    def serie(estado: str, clave: str, tipo: str = "trimestre"):
+        sub = datos[(datos["estado"] == estado) & (datos["clave"] == clave) & (datos["tipo"] == tipo)]
+        return sub.groupby("periodo")["valor_musd"].first()
+
+    activo = serie("balance", "total assets")
+    pasivo = serie("balance", "total liabilities")
+    patrimonio = serie("balance", "total shareholders equity")
+    descuadre = (activo - (pasivo + patrimonio)).abs().max()
+    if descuadre and descuadre > 0.5:
+        problemas.append(f"estados: el balance no cierra, hasta {descuadre:.0f} MUSD de diferencia")
+
+    caja_flujo = serie("flujo", "cash and cash equivalents at the end of the period")
+    caja_balance = serie("balance", "cash and cash equivalents | total current assets")
+    comun = caja_flujo.index.intersection(caja_balance.index)
+    if len(comun):
+        diferencia = (caja_flujo[comun] - caja_balance[comun]).abs().max()
+        if diferencia > 0.5:
+            problemas.append(
+                f"estados: la caja del flujo no es la del balance, hasta {diferencia:.0f} MUSD"
+            )
+
+    # Los cuatro trimestres tienen que dar el ejercicio: es lo que valida que el
+    # 4T derivado y las restas de acumulados estén bien armados.
+    for estado, clave, nombre in [
+        ("resultados", "revenues", "ingresos"),
+        ("resultados", "net profit", "resultado neto"),
+        ("flujo", "net cash flows from operating activities", "flujo operativo"),
+    ]:
+        trimestral = serie(estado, clave)
+        anual = serie(estado, clave, "anual")
+        for anio, total in anual.items():
+            piezas = [v for periodo, v in trimestral.items() if periodo.startswith(str(anio))]
+            if len(piezas) != 4:
+                continue
+            if abs(sum(piezas) - total) > 0.5:
+                problemas.append(
+                    f"estados: los trimestres de {anio} no suman el ejercicio en {nombre} "
+                    f"({sum(piezas):.0f} contra {total:.0f} MUSD)"
+                )
+
+    # Y contra lo que la compañía publica en su earnings release, que es una
+    # fuente distinta dentro del mismo filing.
+    financieros = leer("financials_ypf.json")
+    if not financieros:
+        return
+    ingresos = serie("resultados", "revenues")
+    for punto in financieros.get("serie", []):
+        periodo, valor = punto.get("trimestre"), punto.get("revenues_musd")
+        if periodo in ingresos.index and valor and not cerca(float(valor), float(ingresos[periodo]), 0.01):
+            problemas.append(
+                f"estados: los ingresos de {periodo} no coinciden con el release "
+                f"({ingresos[periodo]:.0f} contra {valor:.0f} MUSD)"
+            )
+
+
 CHEQUEOS = (
     ("produccion del pais", chequear_pais),
     ("rankings", chequear_rankings),
@@ -281,6 +353,7 @@ CHEQUEOS = (
     ("simulador", chequear_modelo),
     ("geo", chequear_geo),
     ("grafo de entidades", chequear_grafo),
+    ("estados contables", chequear_estados),
 )
 
 
