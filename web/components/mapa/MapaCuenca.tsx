@@ -12,6 +12,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import DeckGL from '@deck.gl/react';
 import { BitmapLayer, GeoJsonLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers';
+import { TerrainLayer } from '@deck.gl/geo-layers';
+// deck.gl la publica con guion bajo: la extensión de terreno sigue marcada
+// como experimental en la 9.4. Es la única forma soportada de que las capas
+// vectoriales se apoyen sobre la malla en vez de quedar enterradas.
+import { _TerrainExtension as TerrainExtension } from '@deck.gl/extensions';
 import { FlyToInterpolator, type Layer, type PickingInfo } from '@deck.gl/core';
 
 import { fmt } from '@/lib/data';
@@ -19,6 +24,8 @@ import { RANGO_ANIOS, useFiltros } from '../estado/filtros';
 import {
   ARCHIVO_CLUSTERS,
   ARCHIVO_POZOS,
+  ARCHIVO_TERRENO,
+  DECODIFICADOR_TERRENO,
   CAPAS,
   CAPAS_INICIALES,
   ZOOM_DETALLE_POZOS,
@@ -48,6 +55,11 @@ interface Raster {
 }
 
 type PintadoPozos = 'volumen' | 'valor' | 'antiguedad';
+
+// Una sola instancia para todo el ciclo de vida: si la extensión se creara en
+// cada render, deck.gl vería una prop nueva y recompilaría los shaders de cada
+// capa en cada movimiento del mapa.
+const EXTENSIONES_TERRENO = [new TerrainExtension()];
 
 const VISTA_INICIAL = { longitude: -69.1, latitude: -38.3, zoom: 6.7, pitch: 45, bearing: -17 };
 
@@ -125,6 +137,7 @@ export function MapaCuenca() {
   const [datos, setDatos] = useState<Record<string, Coleccion>>({});
   const [cargando, setCargando] = useState<Set<string>>(new Set());
   const [raster, setRaster] = useState<Raster | null>(null);
+  const [terrenoListo, setTerrenoListo] = useState(false);
   const [variable, setVariable] = useState<IdVariable>('boe_acum_mboe');
   const [pintado, setPintado] = useState<PintadoPozos>('volumen');
   const [señalado, setSeñalado] = useState<PickingInfo | null>(null);
@@ -140,6 +153,32 @@ export function MapaCuenca() {
       .then(setRaster)
       .catch((causa) => setError((causa as Error).message));
   }, []);
+
+  // El terrain-RGB lo baja deck.gl por su cuenta cuando la capa se enciende,
+  // pero por dentro y sin avisar. Se pide antes desde acá —el navegador lo
+  // sirve de su cache cuando deck.gl lo vuelve a pedir— nada más que para
+  // encender el indicador del panel: es la capa más pesada del mapa y quedarse
+  // un segundo y medio sin señal se lee como que el interruptor no anduvo.
+  useEffect(() => {
+    if (!activas.has('relieve3d') || terrenoListo) return;
+    let vivo = true;
+    setCargando((previo) => new Set([...previo, ARCHIVO_TERRENO]));
+    fetch(`/data/geo/${ARCHIVO_TERRENO}`)
+      .then((r) => r.blob())
+      .catch(() => null)
+      .finally(() => {
+        if (!vivo) return;
+        setTerrenoListo(true);
+        setCargando((previo) => {
+          const copia = new Set(previo);
+          copia.delete(ARCHIVO_TERRENO);
+          return copia;
+        });
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [activas, terrenoListo]);
 
   // Con la cuenca entera en pantalla y sin filtros, los pozos se muestran
   // agrupados por yacimiento y el archivo de detalle no se baja. Se baja al
@@ -271,8 +310,12 @@ export function MapaCuenca() {
     const lista: Layer[] = [];
     const encendida = (id: IdCapa) => activas.has(id);
     const coleccion = (archivo: string) => datos[archivo];
+    // Con el 3D encendido el hillshade deja de ser una lámina y pasa a ser la
+    // textura del terreno, así que la versión plana sobra y además pelearía
+    // por el mismo lugar en el buffer de profundidad.
+    const relieve3d = encendida('relieve3d') && Boolean(raster);
 
-    if (encendida('relieve') && raster) {
+    if (encendida('relieve') && !relieve3d && raster) {
       lista.push(
         new BitmapLayer({
           id: 'relieve',
@@ -527,7 +570,32 @@ export function MapaCuenca() {
       );
     }
 
-    return lista;
+    if (!relieve3d || !raster) return lista;
+
+    // Con el terreno levantado, todo lo demás está dibujado a altura cero y
+    // quedaría enterrado. La extensión lo resuelve por capa: los polígonos y
+    // las líneas se proyectan sobre la superficie y los puntos se suben hasta
+    // ella. Se agrega clonando en vez de repetir la prop trece veces.
+    const drapeadas = lista.map((capa) => capa.clone({ extensions: EXTENSIONES_TERRENO }) as Layer);
+
+    return [
+      new TerrainLayer({
+        id: 'relieve-3d',
+        elevationData: `/data/geo/${ARCHIVO_TERRENO}`,
+        texture: '/data/geo/hillshade.png',
+        bounds: raster.bounds,
+        elevationDecoder: DECODIFICADOR_TERRENO,
+        // El error de la malla en metros: 8 deja el relieve de la meseta y los
+        // cañadones sin quedarse dos segundos triangulando piedra por piedra.
+        meshMaxError: 8,
+        color: [26, 40, 70],
+        // 'terrain+draw' es lo que le dice a deck.gl que esta capa, además de
+        // dibujarse, es la superficie sobre la que se apoyan las otras.
+        operation: 'terrain+draw',
+        material: { ambient: 0.6, diffuse: 0.55, shininess: 12, specularColor: [38, 56, 92] },
+      }) as Layer,
+      ...drapeadas,
+    ];
   }, [activas, datos, raster, pozos, clusters, detallePozos, pintado, pintarPoligono, variable, quiebres, filtros.zona]);
 
   // --- interfaz -------------------------------------------------------------
@@ -618,9 +686,11 @@ export function MapaCuenca() {
                     const bajando =
                       capa.id === 'pozos'
                         ? cargando.has(ARCHIVO_POZOS) || cargando.has(ARCHIVO_CLUSTERS)
-                        : capa.archivo
-                          ? cargando.has(capa.archivo)
-                          : false;
+                        : capa.id === 'relieve3d'
+                          ? cargando.has(ARCHIVO_TERRENO)
+                          : capa.archivo
+                            ? cargando.has(capa.archivo)
+                            : false;
                     return (
                       <label
                         key={capa.id}

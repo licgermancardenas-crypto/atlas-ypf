@@ -23,6 +23,7 @@ export const PALETA = {
 
 export type IdCapa =
   | 'relieve'
+  | 'relieve3d'
   | 'cuenca'
   | 'provincias'
   | 'concesiones'
@@ -56,6 +57,16 @@ export const CAPAS: DefinicionCapa[] = [
     grupo: 'Base',
     color: PALETA.neutro,
     ayuda: 'Sombreado del terreno derivado del Copernicus DEM a 30 m.',
+  },
+  {
+    id: 'relieve3d',
+    etiqueta: 'Relieve 3D',
+    grupo: 'Base',
+    peso: 1429,
+    color: PALETA.neutro,
+    ayuda:
+      'Levanta el terreno con las alturas reales del DEM en vez de dibujarlas. Baja 1,4 MB y ' +
+      'se lee inclinando la cámara (botón derecho o Ctrl + arrastrar).',
   },
   {
     id: 'provincias',
@@ -195,6 +206,25 @@ export const CAPAS: DefinicionCapa[] = [
 // pantalla: más lejos, cinco mil puntos son una mancha; más cerca, el agrupado
 // esconde justo lo que se vino a mirar.
 export const ZOOM_DETALLE_POZOS = 8.5;
+
+export const ARCHIVO_TERRENO = 'terrain.png';
+
+// El terrain-RGB de Mapbox guarda la altura en el color: altura_m = -10000 +
+// (R*65536 + G*256 + B) * 0.1. Multiplicar los cuatro números por la
+// exageración estira la vertical sin tocar la imagen.
+//
+// La meseta donde están los pozos va de 400 a 1200 m sobre 300 km de ancho: a
+// escala real es una mesa. Con 2,5x el valle del Neuquén y los cañadones se
+// distinguen de la meseta, que es lo que hay para leer acá; más que eso ya
+// convierte la cuenca en una cordillera que no existe.
+export const EXAGERACION_RELIEVE = 2.5;
+
+export const DECODIFICADOR_TERRENO = {
+  rScaler: 6553.6 * EXAGERACION_RELIEVE,
+  gScaler: 25.6 * EXAGERACION_RELIEVE,
+  bScaler: 0.1 * EXAGERACION_RELIEVE,
+  offset: -10000 * EXAGERACION_RELIEVE,
+};
 
 export const ARCHIVO_POZOS = 'wells.geojson';
 export const ARCHIVO_CLUSTERS = 'well_clusters.geojson';
