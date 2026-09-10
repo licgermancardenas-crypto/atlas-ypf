@@ -240,11 +240,11 @@
     "note": "2016Q4–2026Q2 en USD; el 4T sale del anual menos nueve meses"
   },
   "export/excel": {
-    "generated_at": "2026-09-10T20:41:50+00:00",
+    "generated_at": "2026-09-10T22:26:55+00:00",
     "rows": 5174,
     "bytes": 338442,
     "outputs": [
-      "docs/YPF_estados_financieros (nuevo).xlsx"
+      "docs/YPF_estados_financieros.xlsx"
     ],
     "source": "data/processed/statements_ypf.parquet",
     "note": "2020Q1–2026Q2 trimestral y FY2019–FY2025"
