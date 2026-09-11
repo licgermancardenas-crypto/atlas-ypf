@@ -308,9 +308,9 @@
     "note": "mapa liviano: cuenca, yacimientos, ductos, rutas y relieve sombreado"
   },
   "transform/ypf-produccion": {
-    "generated_at": "2026-09-11T06:10:33+00:00",
+    "generated_at": "2026-09-11T15:24:12+00:00",
     "rows": 67845,
-    "bytes": 301691,
+    "bytes": 344350,
     "outputs": [
       "data/processed/ypf_produccion.json",
       "data/processed/ypf_dimensiones.json"

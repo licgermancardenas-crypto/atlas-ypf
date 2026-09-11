@@ -31,6 +31,10 @@
   --color-oro: #f0a830;
   --color-alza: #3fb98a;
   --color-baja: #e2603f;
+  /* El violeta es el shale y solo el shale. En este proyecto el color dice de
+     qué se habla: oro es hidrocarburo producido, celeste es gas, violeta es la
+     roca no convencional, verde es crecer y naranja es caer. */
+  --color-shale: #8e6fd8;
 
   --color-fondo: #000d2d;
   --color-superficie: #061437;

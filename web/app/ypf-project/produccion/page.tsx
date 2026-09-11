@@ -1,42 +1,103 @@
-import { EscenaUpstream } from '@/components/ilustraciones/escenas';
 import { LeyendaMapa, Mapa } from '@/components/ilustraciones/mapa';
-import { ExploradorYPF, type ProduccionYPF } from '@/components/ProduccionYPF';
+import { Kpis } from '@/components/produccion/Kpis';
+import { ModuloProduccion, type EnlacesActivo } from '@/components/produccion/Modulo';
+import { SenalEjecutiva } from '@/components/produccion/SenalEjecutiva';
 import { Shell } from '@/components/Shell';
-import { Dato, Franja } from '@/components/ui';
+import { Franja } from '@/components/ui';
 import { fmt, type Economia, type Financieros } from '@/lib/data';
+import type { ProduccionYPF } from '@/lib/produccion';
 import { cargar } from '@/lib/server-data';
 
 // El módulo de la compañía sola.
 //
 // Todo lo demás del sitio mira a YPF contra algo: contra el país, contra sus
-// comparables, contra su propio balance. Acá no hay contra nadie. Es qué
-// produce, de dónde sale y cómo cambia según la lupa: cinco dimensiones —cuenca,
-// provincia, concesión, yacimiento y el pueblo más cercano— y tres escalas de
-// tiempo, que no son un adorno: en el mes se ve el ruido operativo, en el
-// trimestre se ve lo que la compañía reporta y en el año se ve la tendencia.
+// comparables, contra su balance. Acá no hay contra nadie. Es qué produce, de
+// dónde sale y cómo cambia según la lupa.
 //
-// La aclaración que gobierna todo el módulo está arriba de todo y no al pie:
-// esta producción es bruta operada. Es lo que sale de las áreas que YPF opera,
-// socios incluidos, y por eso es mayor que la que consolida en su balance. Un
-// lector que compare este número con el del estado de resultados sin saberlo se
-// va con una conclusión equivocada, y evitar eso vale una línea en el encabezado.
+// La página está ordenada como se investiga, no como se archiva:
+//
+//   lectura      qué está pasando, en dos frases calculadas
+//   indicadores  los cuatro números, con su variación y su forma
+//   análisis     el gráfico, sus filtros y la ficha del activo
+//   intelligence las señales que un analista sacaría de esos mismos datos
+//   territorio   dónde queda todo eso
+//
+// Lo de arriba se pinta en el servidor y no espera a ninguna descarga; lo único
+// que corre en el navegador es el bloque de análisis, que es lo que se toca.
+//
+// La aclaración que gobierna el módulo está en el encabezado y no al pie: esta
+// producción es bruta operada. Es lo que sale de las áreas que YPF opera, socios
+// incluidos, y por eso es mayor que la que consolida en su balance. Un lector
+// que compare este número con el del estado de resultados sin saberlo se va con
+// una conclusión equivocada.
 
 export const metadata = {
-  title: 'Lo que produce YPF — ATLAS-YPF',
+  title: 'Producción — ATLAS-YPF',
   description:
-    'Producción de YPF por cuenca, provincia, concesión, yacimiento y localidad, por mes, trimestre y año, separando convencional, shale y tight.',
+    'Producción operada de YPF por cuenca, provincia, concesión, yacimiento y localidad, por mes, trimestre y año, separando convencional, shale y tight.',
 };
 
-export default async function ModuloProduccion() {
+interface NodoGrafo {
+  id: string;
+  type: string;
+  label: string;
+}
+
+/** Los enlaces a la ficha de Relaciones, resueltos en el build.
+ *
+ *  Se comprueba que la entidad exista en el grafo antes de ofrecer el botón: un
+ *  link que abre un panel vacío es peor que no tener el link. El padrón del
+ *  grafo y las series de producción no siempre nombran igual al mismo activo,
+ *  así que el cruce se hace normalizado. */
+async function enlacesDeEntidades(datos: ProduccionYPF): Promise<EnlacesActivo> {
+  const normalizar = (texto: string) =>
+    texto
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toUpperCase();
+
+  try {
+    // El agregado y no el grafo completo: trae las mismas concesiones y
+    // yacimientos sin los cinco mil pozos, que acá no sirven de nada. 126 KB
+    // contra 2,5 MB por cada render.
+    const grafo = await cargar<{ nodes: NodoGrafo[] }>('graph/entities_agregado.json');
+    const porTipo: Record<string, Map<string, string>> = { concesion: new Map(), yacimiento: new Map() };
+    for (const nodo of grafo.nodes) {
+      const mapa = porTipo[nodo.type];
+      if (mapa) mapa.set(normalizar(nodo.label), nodo.id);
+    }
+
+    const entidades: Record<string, Record<string, string>> = {};
+    for (const dimension of ['concesion', 'yacimiento'] as const) {
+      const mapa = porTipo[dimension];
+      const encontrados: Record<string, string> = {};
+      for (const fila of datos.rankings[dimension] ?? []) {
+        const id = mapa.get(normalizar(fila.nombre));
+        if (id) encontrados[fila.nombre] = id;
+      }
+      entidades[dimension] = encontrados;
+    }
+    return { entidades };
+  } catch {
+    // Sin grafo, la ficha del activo simplemente no ofrece ese botón.
+    return { entidades: {} };
+  }
+}
+
+export default async function ModuloProduccionPagina() {
   const [produccion, financieros, economia] = await Promise.all([
     cargar<ProduccionYPF>('ypf_produccion.json'),
     cargar<Financieros>('financials_ypf.json'),
     cargar<Economia>('well_economics.json'),
   ]);
+  const enlaces = await enlacesDeEntidades(produccion);
 
   const { resumen, cobertura } = produccion;
-  const totalBoed = resumen.petroleo_bd + resumen.gas_boed;
-  const shale = totalBoed ? resumen.shale_bd / totalBoed : null;
+  const provincias = produccion.rankings.provincia ?? [];
+  const cuencas = produccion.rankings.cuenca ?? [];
+  const neuquina = cuencas.find((fila) => fila.nombre === 'Neuquina');
   const mejorConcesion = produccion.rankings.concesion?.[0];
   const mejorLocalidad = produccion.rankings.localidad?.[0];
 
@@ -46,163 +107,220 @@ export default async function ModuloProduccion() {
       operadores={economia.por_operador.map((fila) => fila.operador!).filter(Boolean)}
       modulo="produccion"
     >
-      <main className="mx-auto max-w-6xl px-6 py-12">
-        <div className="flex items-start justify-between gap-10">
-          <div>
-            <Franja className="w-24" />
-            <h1 className="mt-5 text-3xl font-bold sm:text-4xl">Lo que produce YPF</h1>
-            <p className="mt-3 max-w-3xl leading-relaxed text-texto-suave">
-              Solo la compañía, sin comparaciones: cuánto petróleo y cuánto gas salen de sus áreas,
-              abierto por cuenca, provincia, concesión, yacimiento y el pueblo más cercano, y medido
-              por mes, por trimestre, por año o por día. Datos de {cobertura.desde} a{' '}
-              {cobertura.hasta}, declarados área por área ante la Secretaría de Energía.
-            </p>
-            <p className="mt-3 max-w-3xl text-xs leading-relaxed text-texto-tenue">
-              Es producción <span className="text-texto-suave">bruta operada</span>: todo lo que sale
-              de las áreas que YPF opera, incluida la parte de sus socios. Es mayor que la que la
-              compañía consolida en su balance, así que este número y el del estado de resultados no
-              tienen por qué coincidir.
+      <main className="mx-auto max-w-6xl px-6 py-10">
+        {/* ------------------------------------------------------------- */}
+        {/* Encabezado: qué es esta pantalla y de cuándo son los datos      */}
+        {/* ------------------------------------------------------------- */}
+        <header>
+          <Franja className="w-20" />
+          <h1 className="mt-4 font-mono text-[0.7rem] uppercase tracking-[0.22em] text-azul-claro">
+            Producción
+          </h1>
+          <p className="mt-2 max-w-3xl text-2xl font-bold leading-tight sm:text-3xl">
+            Producción operada de YPF
+          </p>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-texto-suave">
+            Evolución de petróleo, gas y shale por activo y por período. Es producción{' '}
+            <span className="text-texto">bruta operada</span>: incluye la parte de los socios en las
+            áreas que YPF opera, así que es mayor que la que consolida en su balance.
+          </p>
+          <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1 font-mono text-[0.66rem] uppercase tracking-[0.1em] text-texto-tenue">
+            <li>Datos al {financieros.generado.slice(0, 10)}</li>
+            <li>Fuente: Secretaría de Energía</li>
+            <li>
+              Cobertura: {cobertura.desde.slice(0, 4)}–{cobertura.hasta.slice(0, 4)} ·{' '}
+              {cobertura.meses} meses
+            </li>
+          </ul>
+        </header>
+
+        <div className="mt-6">
+          <SenalEjecutiva datos={produccion} />
+        </div>
+
+        <div className="mt-6">
+          <Kpis datos={produccion} />
+        </div>
+
+        <ModuloProduccion datos={produccion} enlaces={enlaces} />
+
+        {/* ------------------------------------------------------------- */}
+        {/* Territorio                                                     */}
+        {/* ------------------------------------------------------------- */}
+        <section id="donde" aria-labelledby="titulo-donde" className="mt-14 scroll-mt-24">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+            <h2 id="titulo-donde" className="text-xl font-semibold text-texto">
+              Dónde produce YPF
+            </h2>
+            <p className="text-xs text-texto-tenue">
+              {resumen.concesiones} concesiones · {resumen.yacimientos} yacimientos ·{' '}
+              {resumen.provincias} provincias · {resumen.cuencas} cuencas
             </p>
           </div>
-          <EscenaUpstream className="hidden h-32 w-56 shrink-0 lg:block" />
-        </div>
 
-        <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Dato
-            etiqueta="Petróleo · últimos 12 meses"
-            valor={`${fmt.entero(resumen.petroleo_bd)} bbl/d`}
-            detalle="promedio diario de los últimos doce meses"
-            tono="crudo"
-          />
-          <Dato
-            etiqueta="Gas · últimos 12 meses"
-            valor={`${fmt.entero(resumen.gas_boed)} boe/d`}
-            detalle={`${fmt.entero(totalBoed)} boe/d entre los dos`}
-            tono="marca"
-          />
-          <Dato
-            etiqueta="Shale sobre el total"
-            valor={fmt.porcentaje(shale, 0)}
-            detalle={`convencional ${fmt.entero(resumen.convencional_bd)} boe/d · tight ${fmt.entero(
-              resumen.tight_bd,
-            )} boe/d`}
-            tono="alza"
-          />
-          <Dato
-            etiqueta="Dónde"
-            valor={`${resumen.concesiones} concesiones`}
-            detalle={`${resumen.yacimientos} yacimientos, ${resumen.cuencas} cuencas, ${resumen.provincias} provincias`}
-          />
-        </div>
-
-        <div className="mt-8">
-          <ExploradorYPF datos={produccion} />
-        </div>
-
-        {/* ------------------------------------------------------------- */}
-        {/* La misma producción, sobre el terreno                          */}
-        {/* ------------------------------------------------------------- */}
-        <h2 className="mt-14 text-xl font-semibold text-texto">Dónde están esas áreas</h2>
-        <p className="mt-3 max-w-3xl text-sm leading-relaxed text-texto-suave">
-          El gráfico dice cuánto sale de cada área; el mapa, dónde queda. Están marcadas las
-          concesiones con YPF en el título —operadas por la compañía o con participación—, sobre la
-          cuenca neuquina, que es de donde sale{' '}
-          {fmt.porcentaje(
-            produccion.rankings.cuenca?.find((fila) => fila.nombre === 'Neuquina')?.participacion ??
-              null,
-            0,
-          )}{' '}
-          de todo lo que produce.
-        </p>
-        <div className="marquesina mt-5 rounded-lg border border-borde bg-superficie p-5">
-          <div className="grid items-start gap-8 lg:grid-cols-[26rem_minmax(0,1fr)]">
-            <Mapa
-              className="w-full"
-              capas={[
-                'provincias',
-                'rios',
-                'cuenca',
-                'concesiones',
-                'areas_ypf',
-                'rutas',
-                'gasoductos',
-                'ductos',
-              ]}
-              foco="areas_ypf"
-              etiqueta="Mapa de la cuenca neuquina con las áreas concesionadas en las que participa YPF"
-            />
-            <div>
-              <LeyendaMapa
-                capas={['areas_ypf', 'concesiones', 'ductos', 'gasoductos', 'rutas']}
-                puntos={['pozos', 'refinerias']}
+          <div className="mt-5 grid gap-4 lg:grid-cols-[26rem_minmax(0,1fr)]">
+            <div className="marquesina rounded-lg border border-borde bg-superficie p-4">
+              <Mapa
+                className="w-full"
+                capas={[
+                  'provincias',
+                  'rios',
+                  'cuenca',
+                  'concesiones',
+                  'areas_ypf',
+                  'rutas',
+                  'gasoductos',
+                  'ductos',
+                ]}
+                foco="areas_ypf"
+                etiqueta="Mapa de la cuenca neuquina con las áreas concesionadas en las que participa YPF"
               />
-              <ul className="mt-5 space-y-2 text-xs leading-relaxed text-texto-suave">
+              <div className="mt-4 border-t border-borde pt-4">
+                <LeyendaMapa
+                  capas={['areas_ypf', 'concesiones', 'ductos', 'gasoductos']}
+                  puntos={['pozos', 'refinerias']}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* La jerarquía territorial, con los números que ya existen:
+                  provincia y cuenca salen del ranking; el detalle por concesión
+                  y yacimiento se explora arriba cambiando la dimensión. */}
+              <div className="marquesina rounded-lg border border-borde bg-superficie p-4">
+                <h3 className="font-mono text-[0.66rem] uppercase tracking-[0.14em] text-texto-tenue">
+                  Por provincia
+                </h3>
+                <ul className="mt-3 space-y-2">
+                  {provincias.map((fila) => (
+                    <li key={fila.nombre}>
+                      <div className="flex items-baseline justify-between gap-3 text-xs">
+                        <span className="text-texto">{fila.nombre}</span>
+                        <span className="tabular text-texto-suave">
+                          {fmt.entero(fila.actual_bd)} boe/d ·{' '}
+                          {fmt.porcentaje(fila.participacion, 0)}
+                        </span>
+                      </div>
+                      <div
+                        className="mt-1 h-1 w-full overflow-hidden rounded-full bg-superficie-alta"
+                        role="presentation"
+                      >
+                        <span
+                          className="block h-full bg-azul"
+                          style={{ width: `${(fila.participacion ?? 0) * 100}%` }}
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="marquesina rounded-lg border border-borde bg-superficie p-4">
+                <h3 className="font-mono text-[0.66rem] uppercase tracking-[0.14em] text-texto-tenue">
+                  Por cuenca
+                </h3>
+                <ul className="mt-3 space-y-2">
+                  {cuencas.map((fila) => (
+                    <li key={fila.nombre}>
+                      <div className="flex items-baseline justify-between gap-3 text-xs">
+                        <span className="text-texto">{fila.nombre}</span>
+                        <span className="tabular text-texto-suave">
+                          {fmt.entero(fila.actual_bd)} boe/d ·{' '}
+                          {fmt.porcentaje(fila.participacion, 0)}
+                        </span>
+                      </div>
+                      <div
+                        className="mt-1 h-1 w-full overflow-hidden rounded-full bg-superficie-alta"
+                        role="presentation"
+                      >
+                        <span
+                          className="block h-full bg-oro"
+                          style={{ width: `${(fila.participacion ?? 0) * 100}%` }}
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-3 text-[0.7rem] leading-relaxed text-texto-tenue">
+                  El mapa es de la cuenca neuquina, de donde sale{' '}
+                  {fmt.porcentaje(neuquina?.participacion ?? null, 0)} de la producción. Lo del
+                  Golfo San Jorge, Cuyo y el Austral no se dibuja acá, pero sí está en el análisis:
+                  se ve eligiendo la dimensión cuenca o provincia.
+                </p>
+              </div>
+
+              <div className="marquesina rounded-lg border border-borde bg-superficie p-4">
+                <h3 className="font-mono text-[0.66rem] uppercase tracking-[0.14em] text-texto-tenue">
+                  La escala real
+                </h3>
+                <ul className="mt-3 space-y-2 text-xs leading-relaxed text-texto-suave">
+                  <li>
+                    La concesión que más produce es{' '}
+                    <span className="text-texto">{mejorConcesion?.nombre}</span>:{' '}
+                    {fmt.entero(mejorConcesion?.actual_bd ?? 0)} boe/d,{' '}
+                    {fmt.porcentaje(mejorConcesion?.participacion ?? null, 0)} de la compañía.
+                  </li>
+                  <li>
+                    Medido por pueblo más cercano, la producción se concentra alrededor de{' '}
+                    <span className="text-texto">{mejorLocalidad?.nombre}</span>:{' '}
+                    {fmt.porcentaje(mejorLocalidad?.participacion ?? null, 0)} del total. Un pueblo
+                    de la meseta detrás de una compañía que cotiza en Nueva York.
+                  </li>
+                  <li className="text-texto-tenue">{produccion.nota_localidad}</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ------------------------------------------------------------- */}
+        {/* Método                                                          */}
+        {/* ------------------------------------------------------------- */}
+        <section aria-labelledby="metodo" className="mt-12">
+          <h2 id="metodo" className="sr-only">
+            Cómo leer estos datos
+          </h2>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="marquesina rounded-lg border border-borde bg-superficie p-5">
+              <h3 className="text-sm font-medium text-texto-suave">Sobre el tiempo</h3>
+              <ul className="mt-4 space-y-2 text-xs leading-relaxed text-texto-suave">
                 <li>
-                  La concesión que más produce es{' '}
-                  <span className="text-texto">{mejorConcesion?.nombre}</span>, con{' '}
-                  {fmt.entero(mejorConcesion?.actual_bd ?? 0)} boe/d de promedio en los últimos doce
-                  meses: {fmt.porcentaje(mejorConcesion?.participacion ?? null, 0)} de todo lo que
-                  produce la compañía.
+                  La fuente es mensual. <span className="text-texto">No hay dato diario</span>: lo
+                  que el selector llama &ldquo;por día&rdquo; es el caudal promedio del período, que
+                  es el volumen dividido por los días que ese período tiene.
                 </li>
                 <li>
-                  Medido por pueblo más cercano, la producción se concentra alrededor de{' '}
-                  <span className="text-texto">{mejorLocalidad?.nombre}</span>:{' '}
-                  {fmt.porcentaje(mejorLocalidad?.participacion ?? null, 0)} del total. Es la escala
-                  real del asunto —un pueblo de la meseta y las áreas que lo rodean— detrás de una
-                  compañía que cotiza en Nueva York.
+                  Por eso el pipeline guarda volumen y no caudal. El volumen se suma para armar un
+                  trimestre o un año; promediar caudales de meses de distinta duración da un número
+                  que no es el de nadie.
                 </li>
                 <li>
-                  Fuera de la cuenca neuquina, YPF todavía produce en el Golfo San Jorge, en Cuyo y
-                  en el Austral. Esas áreas no están en este mapa, que es de la cuenca, pero sí en
-                  el gráfico: se ven eligiendo la dimensión cuenca o provincia.
+                  El crecimiento se mide contra el mismo período del año anterior y no contra el
+                  período previo: si no, la estacionalidad se lee como tendencia.
+                </li>
+              </ul>
+            </div>
+
+            <div className="marquesina rounded-lg border border-borde bg-superficie p-5">
+              <h3 className="text-sm font-medium text-texto-suave">Sobre el espacio</h3>
+              <ul className="mt-4 space-y-2 text-xs leading-relaxed text-texto-suave">
+                <li>
+                  Cuenca, provincia, concesión y yacimiento vienen declarados en la fuente. Una
+                  concesión puede tener varios yacimientos, y por eso los dos rankings no coinciden.
+                </li>
+                <li>
+                  La <span className="text-texto">localidad no viene en la fuente</span>: se asigna
+                  buscando el pueblo más cercano al centro de cada yacimiento. Es una referencia
+                  geográfica y no una jurisdicción; ninguna regalía se reparte así.
+                </li>
+                <li>
+                  Los yacimientos de fuera de la cuenca neuquina no tienen polígono en las capas del
+                  proyecto y quedan agrupados como tales, en vez de mezclarse con los ubicados.
                 </li>
               </ul>
             </div>
           </div>
-        </div>
-
-        <div className="mt-10 grid gap-6 lg:grid-cols-2">
-          <div className="marquesina rounded-lg border border-borde bg-superficie p-5">
-            <h3 className="text-sm font-medium text-texto-suave">Sobre el tiempo</h3>
-            <ul className="mt-4 space-y-2 text-xs leading-relaxed text-texto-suave">
-              <li>
-                La fuente es mensual. <span className="text-texto">No hay dato diario</span>: lo que
-                el selector llama &ldquo;por día&rdquo; es el caudal promedio del período, que es el
-                volumen dividido por los días que ese período tiene.
-              </li>
-              <li>
-                Por eso el pipeline guarda volumen y no caudal. El volumen se suma para armar un
-                trimestre o un año; promediar caudales de meses de distinta duración da un número
-                que no es el de nadie.
-              </li>
-              <li>
-                Un mes se mueve por cosas que no son la tendencia: una parada de planta, febrero,
-                un pozo nuevo que entra el día 20. El trimestre es la unidad en la que la compañía
-                reporta y el año es donde se ve si crece.
-              </li>
-            </ul>
-          </div>
-
-          <div className="marquesina rounded-lg border border-borde bg-superficie p-5">
-            <h3 className="text-sm font-medium text-texto-suave">Sobre el espacio</h3>
-            <ul className="mt-4 space-y-2 text-xs leading-relaxed text-texto-suave">
-              <li>
-                Cuenca, provincia, concesión y yacimiento vienen declarados en la fuente. Una
-                concesión puede tener varios yacimientos, y por eso los dos rankings no coinciden.
-              </li>
-              <li>
-                La <span className="text-texto">localidad no viene en la fuente</span>: se asigna
-                acá, buscando el pueblo más cercano al centro de cada yacimiento. Es una referencia
-                geográfica y no una jurisdicción; ninguna regalía se reparte así.
-              </li>
-              <li>
-                Los yacimientos de fuera de la cuenca neuquina no tienen polígono en las capas del
-                proyecto, así que quedan agrupados como tales en vez de mezclarse con los que sí
-                están ubicados.
-              </li>
-            </ul>
-          </div>
-        </div>
+        </section>
 
         <p className="mt-8 text-xs leading-relaxed text-texto-tenue">
           Fuente: {produccion.fuente}. El mismo dato para todos los operadores —y el ranking del
@@ -210,7 +328,7 @@ export default async function ModuloProduccion() {
           <a href="/ypf-project/operativo" className="text-azul-claro hover:underline">
             el módulo operativo
           </a>
-          ; las series completas de este módulo, en{' '}
+          ; las series de este módulo, en{' '}
           <a href="/data/ypf_produccion.json" className="text-azul-claro hover:underline">
             ypf_produccion.json
           </a>{' '}

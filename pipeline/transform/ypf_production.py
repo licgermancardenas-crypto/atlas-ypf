@@ -280,17 +280,34 @@ def ranking_de(df: pd.DataFrame, columna: str, fechas: pd.DatetimeIndex) -> list
     else:
         ventana, previa = fechas[-12:], fechas[-24:-12]
 
-    actual = df[df.fecha.isin(ventana)].groupby(columna).volumen.sum()
+    reciente = df[df.fecha.isin(ventana)]
+    actual = reciente.groupby(columna).volumen.sum()
     anterior = df[df.fecha.isin(previa)].groupby(columna).volumen.sum()
     dias_actual = sum(fecha.days_in_month for fecha in ventana) or 1
     dias_previo = sum(fecha.days_in_month for fecha in previa) or 1
     total = actual.sum() or 1.0
+
+    # La apertura del último año por fluido y por recurso. Va en el ranking y no
+    # en las series porque es lo que necesita una tabla o una ficha para decir
+    # qué clase de activo es cada uno, sin bajarse los doscientos meses.
+    por_fluido = reciente.pivot_table(
+        index=columna, columns="fluido", values="volumen", aggfunc="sum"
+    ).fillna(0.0)
+    por_recurso = reciente.pivot_table(
+        index=columna, columns="recurso", values="volumen", aggfunc="sum"
+    ).fillna(0.0)
+
+    def caudal(tabla: pd.DataFrame, nombre: str, clave: str) -> float:
+        if clave not in tabla.columns or nombre not in tabla.index:
+            return 0.0
+        return float(tabla.loc[nombre, clave]) / dias_actual
 
     filas = []
     for nombre, volumen_actual in actual.sort_values(ascending=False).items():
         volumen_previo = float(anterior.get(nombre, 0.0))
         caudal_actual = volumen_actual / dias_actual
         caudal_previo = volumen_previo / dias_previo
+        shale = caudal(por_recurso, nombre, "shale")
         filas.append(
             {
                 "nombre": nombre,
@@ -299,9 +316,65 @@ def ranking_de(df: pd.DataFrame, columna: str, fechas: pd.DatetimeIndex) -> list
                 "delta_bd": round(caudal_actual - caudal_previo, 1),
                 "crecimiento": round(caudal_actual / caudal_previo - 1, 4) if caudal_previo else None,
                 "participacion": round(volumen_actual / total, 4),
+                "oil_bd": round(caudal(por_fluido, nombre, "oil"), 1),
+                "gas_bd": round(caudal(por_fluido, nombre, "gas"), 1),
+                "shale_bd": round(shale, 1),
+                "convencional_bd": round(caudal(por_recurso, nombre, "convencional"), 1),
+                "tight_bd": round(caudal(por_recurso, nombre, "tight"), 1),
+                "shale_share": round(shale / caudal_actual, 4) if caudal_actual else None,
             }
         )
     return filas
+
+
+def metadatos(df: pd.DataFrame, ventana) -> dict[str, dict]:
+    """Dónde queda cada activo y de qué está hecho.
+
+    Son las mismas columnas de la fuente, pivoteadas para que la ficha de una
+    concesión pueda decir "Neuquén · Neuquina · 3 yacimientos" sin bajarse las
+    series. Cuando un miembro aparece en más de una provincia o cuenca —pasa con
+    algunas concesiones que cruzan el límite— se guarda la de mayor volumen y se
+    anota que hay más de una, en vez de elegir en silencio.
+    """
+    reciente = df[df.fecha.isin(ventana)]
+    if reciente.empty:
+        reciente = df
+
+    def dominante(grupo: pd.DataFrame, columna: str) -> tuple[str | None, int]:
+        if columna not in grupo.columns:
+            return None, 0
+        suma = grupo.groupby(columna).volumen.sum().sort_values(ascending=False)
+        suma = suma[suma > 0]
+        if suma.empty:
+            return None, 0
+        return str(suma.index[0]), int(len(suma))
+
+    salida: dict[str, dict] = {}
+    for id_dimension, columna in DIMENSIONES.items():
+        if id_dimension in ("cuenca", "provincia"):
+            continue
+        fichas: dict[str, dict] = {}
+        for nombre, grupo in reciente.groupby(columna):
+            provincia, provincias = dominante(grupo, "provincia")
+            cuenca, cuencas = dominante(grupo, "cuenca")
+            ficha: dict = {"provincia": provincia, "cuenca": cuenca}
+            if provincias > 1:
+                ficha["provincias"] = provincias
+            if cuencas > 1:
+                ficha["cuencas"] = cuencas
+            if id_dimension != "yacimiento":
+                ficha["yacimientos"] = int(grupo.areayacimiento.nunique())
+            if id_dimension != "concesion":
+                concesion, concesiones = dominante(grupo, "areapermisoconcesion")
+                ficha["concesion"] = concesion
+                if concesiones > 1:
+                    ficha["concesiones"] = concesiones
+            if id_dimension != "localidad":
+                localidad, _ = dominante(grupo, "localidad")
+                ficha["localidad"] = localidad
+            fichas[str(nombre)] = {k: v for k, v in ficha.items() if v is not None}
+        salida[id_dimension] = fichas
+    return salida
 
 
 def main() -> int:
@@ -432,6 +505,7 @@ def main() -> int:
         "total": totales,
         "resumen": resumen,
         "rankings": rankings,
+        "meta": metadatos(df, ultimos_doce),
         "localidades": {nombre: {"pueblo": p, "km": k} for nombre, (p, k) in cercanas.items()},
         "dimensiones_en": "data/processed/ypf_dimensiones.json",
     }
