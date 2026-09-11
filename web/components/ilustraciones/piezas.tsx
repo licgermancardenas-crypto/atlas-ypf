@@ -353,6 +353,231 @@ export function Agua({ y = 124 }: { y?: number }) {
   );
 }
 
+// --------------------------------------------------------------------------- //
+// Fondo: lo que da profundidad
+// --------------------------------------------------------------------------- //
+/** El cielo de la cuenca: un degradado tenue y algunas estrellas.
+ *
+ *  El sitio es oscuro y las escenas quedaban flotando sobre el fondo plano de
+ *  la tarjeta. Un cielo apenas más claro arriba ancla el dibujo sin competir
+ *  con nada: es el mismo truco de una acuarela, el papel se ve igual pero el
+ *  objeto deja de estar en el aire.
+ */
+export function Cielo({ id = 'cielo', estrellas = true }: { id?: string; estrellas?: boolean }) {
+  return (
+    <g>
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={TRAZO} stopOpacity={0.1} />
+          <stop offset="70%" stopColor={TRAZO} stopOpacity={0.02} />
+          <stop offset="100%" stopColor={TRAZO} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <rect x={0} y={0} width={240} height={122} fill={`url(#${id})`} />
+      {estrellas ? (
+        <g opacity={0.5}>
+          {[
+            [26, 22], [58, 14], [104, 26], [152, 16], [196, 28], [224, 18], [80, 34], [178, 40],
+          ].map(([x, y], indice) => (
+            <circle key={indice} cx={x} cy={y} r={indice % 3 === 0 ? 1.2 : 0.8} fill={TRAZO} />
+          ))}
+        </g>
+      ) : null}
+    </g>
+  );
+}
+
+/** Los cerros del fondo: dos capas, la de atrás más apagada que la de adelante. */
+export function Cerros({ opacidad = 1 }: { opacidad?: number }) {
+  return (
+    <g opacity={opacidad}>
+      <path
+        d="M-4 108 L28 84 L52 98 L76 78 L104 100 L128 88 L160 104 L188 86 L216 102 L244 92 V122 H-4 Z"
+        fill={SUAVE}
+        fillOpacity={0.1}
+        stroke={SUAVE}
+        strokeWidth={0.9}
+        strokeOpacity={0.35}
+      />
+      <path
+        d="M-4 116 L36 100 L62 110 L96 96 L124 110 L158 98 L196 112 L244 104 V124 H-4 Z"
+        fill={SUAVE}
+        fillOpacity={0.16}
+        stroke={SUAVE}
+        strokeWidth={1}
+        strokeOpacity={0.45}
+      />
+    </g>
+  );
+}
+
+// --------------------------------------------------------------------------- //
+// Más cosas del yacimiento
+// --------------------------------------------------------------------------- //
+/** Una pila de barriles: tres abajo, dos arriba. Es la imagen del stock. */
+export function PilaBarriles({ llenado = 0.7, ...pieza }: Pieza & { llenado?: number }) {
+  return (
+    <Ubicar {...pieza}>
+      <Barril x={-24} y={0} escala={0.78} llenado={llenado} />
+      <Barril x={0} y={0} escala={0.78} llenado={Math.max(0, llenado - 0.15)} />
+      <Barril x={24} y={0} escala={0.78} llenado={Math.max(0, llenado - 0.3)} />
+      <Barril x={-12} y={-27} escala={0.78} llenado={Math.min(1, llenado + 0.2)} opacidad={0.95} />
+      <Barril x={12} y={-27} escala={0.78} llenado={llenado} opacidad={0.95} />
+    </Ubicar>
+  );
+}
+
+/** El silo de arena: sin arena no hay fractura, y la arena viaja en estos. */
+export function SiloArena(pieza: Pieza) {
+  return (
+    <Ubicar {...pieza}>
+      <path d="M-11 0 V-30 h22 V0" stroke={TRAZO} strokeWidth={1.5} fill="none" />
+      <path d="M-11 -30 L0 -38 L11 -30" stroke={TRAZO} strokeWidth={1.3} fill="none" />
+      <path d="M-11 0 L-5 10 h10 L11 0" stroke={TRAZO} strokeWidth={1.3} fill="none" />
+      <path d="M-11 -18 h22" stroke={TRAZO} strokeWidth={0.9} opacity={0.55} />
+      <path d="M-4 10 v5 h8 v-5" stroke={ACENTO} strokeWidth={1.2} fill="none" />
+    </Ubicar>
+  );
+}
+
+/** La bomba de fractura: el camión que mete el agua a presión. */
+export function BombaFractura(pieza: Pieza) {
+  return (
+    <Ubicar {...pieza}>
+      <path d="M-26 0 h30 v-14 h-30 z" stroke={TRAZO} strokeWidth={1.4} fill="none" />
+      <path d="M-20 -14 v-6 h8 v6" stroke={TRAZO} strokeWidth={1.1} fill="none" />
+      <path d="M4 0 h8 v-10 h6 l4 10 h2" stroke={TRAZO} strokeWidth={1.3} fill="none" />
+      <path d="M-26 -7 h30" stroke={TRAZO} strokeWidth={0.8} opacity={0.5} />
+      <circle cx={-16} cy={3} r={3.4} stroke={TRAZO} strokeWidth={1.2} fill="none" />
+      <circle cx={14} cy={3} r={3.4} stroke={TRAZO} strokeWidth={1.2} fill="none" />
+      <path d="M-30 -4 h-8" stroke={ACENTO} strokeWidth={1.6} />
+    </Ubicar>
+  );
+}
+
+/** La pileta de agua: el otro insumo de la fractura, y el que se discute. */
+export function PiletaAgua(pieza: Pieza) {
+  return (
+    <Ubicar {...pieza}>
+      <path d="M-26 0 L-20 -12 H20 L26 0 Z" stroke={TRAZO} strokeWidth={1.3} fill={AGUA} fillOpacity={0.14} />
+      <path d="M-19 -6 q8 -3 16 0 t16 0" stroke={AGUA} strokeWidth={1} opacity={0.7} fill="none" />
+    </Ubicar>
+  );
+}
+
+// --------------------------------------------------------------------------- //
+// Gas
+// --------------------------------------------------------------------------- //
+/** El tanque esférico de GNL, con su estructura de patas. */
+export function DomoGNL({ llenado = 0.55, ...pieza }: Pieza & { llenado?: number }) {
+  const radio = 16;
+  const id = `domo-${pieza.x ?? 0}-${pieza.y ?? 0}`;
+  return (
+    <Ubicar {...pieza}>
+      <defs>
+        <clipPath id={id}>
+          <circle cx={0} cy={-radio - 6} r={radio} />
+        </clipPath>
+      </defs>
+      <g clipPath={`url(#${id})`}>
+        <rect
+          x={-radio}
+          y={-6 - 2 * radio * llenado}
+          width={radio * 2}
+          height={2 * radio * llenado}
+          fill={AGUA}
+          opacity={0.22}
+        />
+      </g>
+      <circle cx={0} cy={-radio - 6} r={radio} stroke={TRAZO} strokeWidth={1.5} fill="none" />
+      <path d={`M-11 -6 L-13 0 M11 -6 L13 0 M0 -6 V0`} stroke={TRAZO} strokeWidth={1.2} />
+      <path d="M-15 0 H15" stroke={TRAZO} strokeWidth={1.3} />
+      <path d={`M0 -${radio * 2 + 6} v-6`} stroke={ACENTO} strokeWidth={1.2} />
+    </Ubicar>
+  );
+}
+
+/** El tren de licuefacción: módulos, cañería y torre de proceso. */
+export function TrenGNL(pieza: Pieza) {
+  return (
+    <Ubicar {...pieza}>
+      <path d="M-34 0 V-22 h68 V0" stroke={TRAZO} strokeWidth={1.5} fill="none" />
+      <path d="M-34 -22 h68" stroke={TRAZO} strokeWidth={1} opacity={0.5} />
+      {[-24, -8, 8, 24].map((x) => (
+        <path key={x} d={`M${x} -22 V-34`} stroke={TRAZO} strokeWidth={1.1} opacity={0.8} />
+      ))}
+      <path d="M-28 -34 h56" stroke={TRAZO} strokeWidth={1.2} />
+      <path d="M-18 -34 V-46 M6 -34 V-52" stroke={TRAZO} strokeWidth={1.3} />
+      <path d="M-24 -46 h12 M0 -52 h12" stroke={TRAZO} strokeWidth={1.1} opacity={0.7} />
+      <path d="M-34 -10 h-10 M34 -10 h10" stroke={ACENTO} strokeWidth={1.6} />
+      <path d="M-14 0 v8 h28 v-8" stroke={TRAZO} strokeWidth={1.1} opacity={0.6} fill="none" />
+    </Ubicar>
+  );
+}
+
+// --------------------------------------------------------------------------- //
+// Papel y oficina
+// --------------------------------------------------------------------------- //
+/** El libro mayor, abierto: dos páginas, el lomo y las columnas. */
+export function LibroAbierto({ ...pieza }: Pieza) {
+  return (
+    <Ubicar {...pieza}>
+      {/* las dos hojas, con la curva del papel */}
+      <path
+        d="M-52 0 C -34 -10, -14 -10, 0 -4 C 14 -10, 34 -10, 52 0 L52 -44 C 34 -54, 14 -54, 0 -48 C -14 -54, -34 -54, -52 -44 Z"
+        stroke={TRAZO}
+        strokeWidth={1.5}
+        fill="var(--color-superficie-alta)"
+        fillOpacity={0.45}
+      />
+      <path d="M0 -48 V-4" stroke={TRAZO} strokeWidth={1.3} opacity={0.8} />
+      {/* renglones: a la izquierda el texto, a la derecha los números */}
+      {[-38, -30, -22, -14].map((y) => (
+        <path key={y} d={`M-44 ${y} h34`} stroke={TRAZO} strokeWidth={0.85} opacity={0.45} />
+      ))}
+      {[-38, -30, -22].map((y) => (
+        <path key={y} d={`M10 ${y} h24`} stroke={TRAZO} strokeWidth={0.85} opacity={0.45} />
+      ))}
+      <path d="M10 -14 h34" stroke={ACENTO} strokeWidth={1.3} />
+      <path d="M38 -38 h8 M38 -30 h8 M38 -22 h8" stroke={ACENTO} strokeWidth={0.85} opacity={0.7} />
+    </Ubicar>
+  );
+}
+
+/** Un organigrama: tres cajas y sus líneas. Dice "corporativo" mejor que un
+ *  edificio, que podría ser cualquier cosa. */
+export function Organigrama(pieza: Pieza) {
+  return (
+    <Ubicar {...pieza}>
+      <path d="M-14 -46 h28 v14 h-28 z" stroke={ACENTO} strokeWidth={1.4} fill={ACENTO} fillOpacity={0.12} />
+      <path d="M0 -32 V-22 M-30 -22 H30 M-30 -22 V-14 M0 -22 V-14 M30 -22 V-14" stroke={TRAZO} strokeWidth={1.1} />
+      {[-30, 0, 30].map((x) => (
+        <path
+          key={x}
+          d={`M${x - 12} -14 h24 v12 h-24 z`}
+          stroke={TRAZO}
+          strokeWidth={1.3}
+          fill="var(--color-superficie-alta)"
+          fillOpacity={0.4}
+        />
+      ))}
+    </Ubicar>
+  );
+}
+
+/** La marquesina de la estación: la única pieza de marca que se ve desde la
+ *  calle, y la que le da nombre al efecto de los paneles del sitio. */
+export function Marquesina(pieza: Pieza) {
+  return (
+    <Ubicar {...pieza}>
+      <path d="M-34 -26 h68 v10 h-68 z" stroke={TRAZO} strokeWidth={1.5} fill={TRAZO} fillOpacity={0.14} />
+      <path d="M-28 -16 V0 M28 -16 V0" stroke={TRAZO} strokeWidth={1.4} />
+      <path d="M-22 -23 h16" stroke={ACENTO} strokeWidth={2.2} />
+      <path d="M-22 -19.5 h10" stroke={AGUA} strokeWidth={1.6} opacity={0.9} />
+    </Ubicar>
+  );
+}
+
 /** El lienzo común: todas las escenas viven en 240 × 140. */
 export function Lienzo({
   children,
