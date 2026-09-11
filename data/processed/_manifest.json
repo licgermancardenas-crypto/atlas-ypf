@@ -186,7 +186,7 @@
     "operadores": 85
   },
   "catalogo": {
-    "generated_at": "2026-09-11T01:06:46+00:00",
+    "generated_at": "2026-09-11T05:44:17+00:00",
     "sources": [
       "data/raw/_manifest.json",
       "data/processed/_manifest.json"
@@ -297,13 +297,14 @@
     "note": "254 líneas, 26 trimestres, para el módulo del sitio"
   },
   "transform/mapa-web": {
-    "generated_at": "2026-09-11T00:46:06+00:00",
-    "rows": 272,
-    "bytes": 30883,
+    "generated_at": "2026-09-11T05:38:16+00:00",
+    "rows": 1327,
+    "bytes": 326936,
     "outputs": [
-      "data/processed/mapa_web.json"
+      "data/processed/mapa_web.json",
+      "data/processed/mapa_relieve.png"
     ],
     "source": "data/processed/geo",
-    "note": "trazos SVG de cuenca, ductos y rutas para las ilustraciones del sitio"
+    "note": "mapa liviano: cuenca, yacimientos, ductos, rutas y relieve sombreado"
   }
 }

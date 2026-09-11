@@ -297,24 +297,20 @@ export default async function ModuloOperativo() {
 
         <div className="marquesina mt-8 rounded-lg border border-borde bg-superficie p-5">
           <h3 className="text-sm font-medium text-texto-suave">Dónde pasa todo esto</h3>
-          <div className="mt-4 grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_15rem]">
-            <Mapa
-              className="w-full"
-              foco="ductos"
-              puntos={['pozos', 'terminales', 'refinerias']}
-              rotulos={['refinerias']}
-            />
+          <div className="mt-4 grid items-start gap-8 lg:grid-cols-[22rem_minmax(0,1fr)]">
+            <Mapa className="w-full" foco="ductos" />
             <div>
               <EscenaLogistica className="mb-5 hidden h-20 w-44 lg:block" />
               <LeyendaMapa />
               <p className="mt-5 text-xs leading-relaxed text-texto-tenue">
-                No es un dibujo: son las capas del IGN y de la Secretaría de Energía, simplificadas
-                hasta entrar en treinta kilobytes. Dicen dos cosas. Una, que la producción se
+                No es un dibujo: son las capas del IGN y de la Secretaría de Energía, con el
+                relieve del DEM de Copernicus sombreado desde el noroeste. Dicen dos cosas. Una, que la producción se
                 concentra en un puñado de áreas del centro de la cuenca y que ahí la red de
                 oleoductos es una maraña. Dos, que adentro del cuadro casi no hay refinación —Plaza
                 Huincul y poco más—: el crudo se va por caño hacia Luján de Cuyo y hacia el
                 Atlántico, los dos fuera del mapa. Las rutas importan tanto como los ductos, porque
-                la arena de fractura llega por camión.
+                la arena de fractura llega por camión. El tamaño de cada punto dorado es la
+                producción acumulada del racimo.
               </p>
             </div>
           </div>

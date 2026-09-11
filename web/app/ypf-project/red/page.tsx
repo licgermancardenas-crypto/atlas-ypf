@@ -165,8 +165,9 @@ export default async function ModuloRed() {
                   racimos de pozos, que se apilan en una fracción chica de esa superficie.
                 </p>
                 <p className="mt-3 text-xs leading-relaxed text-texto-tenue">
-                  Los polígonos salen del mismo archivo que el mapa navegable del caso, simplificados
-                  para que el dibujo pese treinta kilobytes en vez de un mega.
+                  Los polígonos salen del mismo archivo que el mapa navegable del caso, y el relieve
+                  del mismo DEM, simplificados los dos hasta que el dibujo entero pesa lo que pesaba
+                  una sola de esas capas.
                 </p>
               </div>
             </div>

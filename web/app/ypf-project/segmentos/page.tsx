@@ -158,12 +158,13 @@ export default async function ModuloSegmentosPagina() {
         <h2 className="mt-14 text-xl font-semibold text-texto">Dónde ocurre cada eslabón</h2>
         <p className="mt-3 max-w-3xl text-sm leading-relaxed text-texto-suave">
           Las ilustraciones de arriba son esquemas. Éste no: es la cuenca neuquina con su geometría
-          real —las áreas concesionadas, la red de oleoductos, los gasoductos troncales y las rutas
-          nacionales— y sirve para ver que los tres segmentos no están en el mismo lugar.
+          real —el relieve del DEM, los yacimientos, las áreas concesionadas, la red de oleoductos,
+          los gasoductos troncales y las rutas— y sirve para ver que los tres segmentos no están en
+          el mismo lugar.
         </p>
         <div className="marquesina mt-5 rounded-lg border border-borde bg-superficie p-5">
-          <div className="grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
-            <Mapa className="w-full" foco="ductos" puntos={['pozos', 'terminales', 'refinerias']} />
+          <div className="grid items-start gap-8 lg:grid-cols-[26rem_minmax(0,1fr)]">
+            <Mapa className="w-full" foco="ductos" />
             <div>
               <LeyendaMapa />
               <ul className="mt-5 space-y-2 text-xs leading-relaxed text-texto-suave">
@@ -177,10 +178,15 @@ export default async function ModuloSegmentosPagina() {
                   del cuadro —Luján de Cuyo, La Plata, Ensenada—, y ese viaje es costo.
                 </li>
                 <li>
-                  <span className="text-texto">Gas y Energía</span> es la línea celeste que se va
-                  para el este: los troncales que llevan el gas a Buenos Aires.
+                  <span className="text-texto">Gas y Energía</span> son las líneas celestes que se
+                  van del cuadro hacia el este: los troncales que llevan el gas a Buenos Aires.
                 </li>
               </ul>
+              <p className="mt-4 text-[0.7rem] leading-relaxed text-texto-tenue">
+                Concesiones, yacimientos, ductos y refinerías: Secretaría de Energía. Rutas, ríos y
+                localidades: IGN. Relieve sombreado: Copernicus DEM GLO-30 (ESA), el mismo modelo
+                que levanta el mapa 3D del caso.
+              </p>
             </div>
           </div>
         </div>
