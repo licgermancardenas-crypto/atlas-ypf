@@ -534,12 +534,19 @@ def main() -> int:
     def es_de_vaca_muerta(propiedades: dict) -> bool:
         return str(propiedades.get("vaca_muerta", "0")) not in ("0", "None", "")
 
+    def tiene_a_ypf(propiedades: dict) -> bool:
+        """Operada por YPF o con YPF en el título. El padrón trae las dos cosas."""
+        texto = f"{propiedades.get('operador', '')} {propiedades.get('participacion', '')}"
+        return "YPF" in texto.upper()
+
     capas = {
         "cuenca": [
             t for f in cuenca for t in a_trazos(f["geometry"], proyectar, TOLERANCIAS["basin"], caja)
         ],
         "provincias": capa_de_poligonos("provinces", proyectar, caja),
         "concesiones": capa_disuelta("concessions", proyectar, caja, pegado=0.012),
+        # Las áreas donde está YPF, para el módulo que mira solo a la compañía.
+        "areas_ypf": capa_disuelta("concessions", proyectar, caja, pegado=0.012, filtro=tiene_a_ypf),
         # Los yacimientos son el detalle fino adentro de la mancha: dónde está
         # de verdad la roca que se perfora. Los de Vaca Muerta van en su propia
         # capa porque son los que cuenta este caso.

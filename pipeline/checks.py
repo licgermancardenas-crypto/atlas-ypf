@@ -464,6 +464,58 @@ def chequear_segmentos(problemas: list[str]) -> None:
                 )
 
 
+def chequear_produccion_ypf(problemas: list[str]) -> None:
+    """Las cinco dimensiones de YPF tienen que sumar lo mismo entre sí.
+
+    Cuenca, provincia, concesión, yacimiento y localidad son cinco cortes del
+    mismo dato: cada uno reparte el total completo. Si uno suma distinto, o hay
+    filas duplicadas en la fuente o se perdió algo al agrupar. Es el error que
+    no se ve mirando el gráfico, porque cada corte por separado parece sano.
+
+    El cruce contra el país corre aparte: lo que YPF opera no puede ser más que
+    lo que produce la Argentina.
+    """
+    datos = leer("ypf_produccion.json")
+    if not datos:
+        return
+
+    totales = {}
+    for dimension, filas in (datos.get("rankings") or {}).items():
+        if filas:
+            totales[dimension] = sum(fila["actual_bd"] for fila in filas)
+    if len(totales) < 2:
+        return
+
+    referencia = totales.get("cuenca") or next(iter(totales.values()))
+    for dimension, total in totales.items():
+        if not cerca(total, referencia):
+            problemas.append(
+                f"ypf/{dimension}: suma {total:,.0f} bd contra {referencia:,.0f} bd de la "
+                "dimension cuenca; los cortes tienen que repartir el mismo total"
+            )
+
+    # La participación de cada dimensión, por definición, suma uno.
+    for dimension, filas in (datos.get("rankings") or {}).items():
+        if not filas:
+            continue
+        suma = sum(fila.get("participacion") or 0 for fila in filas)
+        if not cerca(suma, 1.0, 0.01):
+            problemas.append(
+                f"ypf/{dimension}: las participaciones suman {suma:.3f} y no 1"
+            )
+
+    pais = leer("country_production.json")
+    if pais and pais.get("pais"):
+        ultimo = pais["pais"][-1]
+        total_pais = (ultimo.get("oil_total") or 0) + (ultimo.get("gas_total") or 0)
+        total_ypf = (datos["resumen"]["petroleo_bd"] or 0) + (datos["resumen"]["gas_boed"] or 0)
+        if total_pais and total_ypf > total_pais:
+            problemas.append(
+                f"ypf: {total_ypf:,.0f} boe/d operados contra {total_pais:,.0f} boe/d del pais; "
+                "una sola compania no puede producir mas que la Argentina"
+            )
+
+
 CHEQUEOS = (
     ("produccion del pais", chequear_pais),
     ("rankings", chequear_rankings),
@@ -475,6 +527,7 @@ CHEQUEOS = (
     ("grafo de entidades", chequear_grafo),
     ("estados contables", chequear_estados),
     ("segmentos", chequear_segmentos),
+    ("produccion de ypf", chequear_produccion_ypf),
 )
 
 

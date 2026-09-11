@@ -17,7 +17,15 @@ import { BarraFiltros } from './estado/BarraFiltros';
 import { ProveedorFiltros } from './estado/filtros';
 import { Franja } from './ui';
 
-export type Modulo = 'caso' | 'finanzas' | 'libro' | 'segmentos' | 'operativo' | 'red' | 'datos';
+export type Modulo =
+  | 'caso'
+  | 'finanzas'
+  | 'libro'
+  | 'segmentos'
+  | 'produccion'
+  | 'operativo'
+  | 'red'
+  | 'datos';
 
 // Los módulos. El caso es la narrativa —se lee de arriba abajo y
 // defiende una tesis—; los otros tres son de consulta y se entra a buscar algo
@@ -44,10 +52,16 @@ const MODULOS: { id: Modulo; ruta: string; etiqueta: string; resumen: string }[]
     resumen: 'La cadena, negocio por negocio',
   },
   {
+    id: 'produccion',
+    ruta: '/ypf-project/produccion',
+    etiqueta: 'Producción',
+    resumen: 'Solo YPF, por área y por período',
+  },
+  {
     id: 'operativo',
     ruta: '/ypf-project/operativo',
     etiqueta: 'Operativo',
-    resumen: 'Producción, áreas y reservas',
+    resumen: 'El país: operadores y reservas',
   },
   {
     id: 'red',

@@ -32,6 +32,7 @@ export type CapaMapa =
   | 'yacimientos'
   | 'vaca_muerta'
   | 'concesiones'
+  | 'areas_ypf'
   | 'rutas_provinciales'
   | 'rutas'
   | 'ferrocarril'
@@ -92,6 +93,7 @@ const ESTILO: Record<CapaMapa, Trazo> = {
   yacimientos: { color: 'var(--color-azul-claro)', grosor: 0.35, opacidad: 0.35, relleno: 0.05 },
   vaca_muerta: { color: 'var(--color-oro)', grosor: 0.4, opacidad: 0.38, relleno: 0.12 },
   concesiones: { color: 'var(--color-azul-claro)', grosor: 0.7, opacidad: 0.45 },
+  areas_ypf: { color: 'var(--color-azul)', grosor: 1, opacidad: 0.95, relleno: 0.22 },
   rutas_provinciales: { color: 'var(--color-neutro)', grosor: 0.4, opacidad: 0.5 },
   rutas: { color: 'var(--color-texto-suave)', grosor: 0.8, opacidad: 0.8, filete: 2 },
   ferrocarril: { color: 'var(--color-neutro)', grosor: 0.6, opacidad: 0.7, punteado: '1 2.5' },
@@ -117,6 +119,7 @@ const ORDEN_CAPAS: CapaMapa[] = [
   'yacimientos',
   'vaca_muerta',
   'concesiones',
+  'areas_ypf',
   'rutas_provinciales',
   'rutas',
   'ferrocarril',
@@ -134,6 +137,7 @@ const NOMBRES: Record<CapaMapa | PuntosMapa, string> = {
   yacimientos: 'Yacimientos',
   vaca_muerta: 'Yacimientos de Vaca Muerta',
   concesiones: 'Áreas concesionadas',
+  areas_ypf: 'Áreas con YPF en el título',
   rutas_provinciales: 'Rutas provinciales',
   rutas: 'Rutas nacionales',
   ferrocarril: 'Ferrocarril',
@@ -169,12 +173,16 @@ export interface OpcionesMapa {
 
 const PUNTOS_POR_DEFECTO: PuntosMapa[] = ['pozos', 'localidades', 'terminales', 'refinerias'];
 
+// La capa de YPF queda afuera del mapa general: es una lectura de una sola
+// compañía y solo tiene sentido en el módulo que habla de ella.
+const CAPAS_POR_DEFECTO: CapaMapa[] = ORDEN_CAPAS.filter((capa) => capa !== 'areas_ypf');
+
 /** El dibujo en sí, ya con los datos en la mano. */
 export function Dibujo({
   mapa,
   className,
   etiqueta = 'Mapa de la cuenca neuquina: relieve, yacimientos, concesiones, oleoductos, gasoductos y rutas',
-  capas = ORDEN_CAPAS,
+  capas = CAPAS_POR_DEFECTO,
   puntos = PUNTOS_POR_DEFECTO,
   foco,
   corriente = true,

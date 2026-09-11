@@ -186,7 +186,7 @@
     "operadores": 85
   },
   "catalogo": {
-    "generated_at": "2026-09-11T05:44:17+00:00",
+    "generated_at": "2026-09-11T06:30:30+00:00",
     "sources": [
       "data/raw/_manifest.json",
       "data/processed/_manifest.json"
@@ -195,7 +195,7 @@
       "data/processed/catalogo.json"
     ],
     "datasets_crudos": 50,
-    "salidas_procesadas": 19
+    "salidas_procesadas": 20
   },
   "entity_graph": {
     "generated_at": "2026-09-10T05:09:47+00:00",
@@ -297,14 +297,25 @@
     "note": "254 líneas, 26 trimestres, para el módulo del sitio"
   },
   "transform/mapa-web": {
-    "generated_at": "2026-09-11T05:38:16+00:00",
-    "rows": 1327,
-    "bytes": 326936,
+    "generated_at": "2026-09-11T06:12:33+00:00",
+    "rows": 1339,
+    "bytes": 329974,
     "outputs": [
       "data/processed/mapa_web.json",
       "data/processed/mapa_relieve.png"
     ],
     "source": "data/processed/geo",
     "note": "mapa liviano: cuenca, yacimientos, ductos, rutas y relieve sombreado"
+  },
+  "transform/ypf-produccion": {
+    "generated_at": "2026-09-11T06:10:33+00:00",
+    "rows": 67845,
+    "bytes": 301691,
+    "outputs": [
+      "data/processed/ypf_produccion.json",
+      "data/processed/ypf_dimensiones.json"
+    ],
+    "source": "data/raw/production/sesco",
+    "note": "producción de YPF por cuenca, provincia, concesión, yacimiento y localidad"
   }
 }

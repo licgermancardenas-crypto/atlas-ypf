@@ -179,6 +179,14 @@ export default async function ModuloOperativo() {
           producción es bruta operada: incluye la parte de los socios, así que para cada compañía es
           mayor que la que consolida en su balance.
             </p>
+            <p className="mt-3 max-w-3xl text-xs leading-relaxed text-texto-tenue">
+              Acá está el país entero, con todos los operadores. Lo que produce YPF sola, abierto por
+              cuenca, provincia, concesión, yacimiento y localidad, tiene{' '}
+              <Link href="/ypf-project/produccion" className="text-azul-claro hover:underline">
+                módulo propio
+              </Link>
+              .
+            </p>
           </div>
           <EscenaCuenca className="hidden h-32 w-56 shrink-0 lg:block" />
         </div>

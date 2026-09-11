@@ -61,6 +61,9 @@ TRANSFORM_SCRIPTS: list[tuple[str, Path, list[str]]] = [
     ("transform/libro-web", TRANSFORM / "book_web.py", []),
     ("transform/production", TRANSFORM / "production_wells.py", []),
     ("transform/pais", TRANSFORM / "production_country.py", []),
+    # Despues de pais: sale de las mismas series SESCO que baja ese ingest, pero
+    # filtradas a una sola compania y abiertas por cinco dimensiones.
+    ("transform/ypf-produccion", TRANSFORM / "ypf_production.py", []),
     ("transform/reservas", TRANSFORM / "reserves.py", []),
     ("transform/decline", TRANSFORM / "decline_curves.py", []),
     ("transform/economics", TRANSFORM / "well_economics.py", []),
