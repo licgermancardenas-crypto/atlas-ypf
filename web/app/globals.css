@@ -199,6 +199,17 @@ h3 {
   50% { transform: translateX(6px); }
 }
 
+/* La corriente del ducto: el trazo es punteado y el punteado se desplaza, así
+   que la línea parece transportar algo. Es la única animación que corre sobre
+   el mapa y por eso es lenta: son mil kilómetros de caño. */
+@keyframes corriente {
+  to { stroke-dashoffset: -24; }
+}
+
+@keyframes trazado {
+  to { stroke-dashoffset: 0; }
+}
+
 @keyframes llenado {
   from { transform: scaleY(0.15); }
   to { transform: scaleY(1); }
@@ -210,6 +221,8 @@ h3 {
 .anima-goteo { animation: goteo 3.4s ease-in infinite; }
 .anima-oleaje { animation: oleaje 7s ease-in-out infinite; }
 .anima-llenado { animation: llenado 1.2s ease-out both; }
+.anima-corriente { stroke-dasharray: 4 8; animation: corriente 2.4s linear infinite; }
+.anima-trazado { animation: trazado 2.8s ease-out both; }
 
 /* ---------------------------------------------------------------------------
    Memo ejecutivo

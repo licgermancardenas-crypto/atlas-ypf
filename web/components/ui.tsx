@@ -21,23 +21,34 @@ export function Seccion({
   numero,
   titulo,
   bajada,
+  ilustracion,
   children,
 }: {
   id: string;
   numero: string;
   titulo: string;
   bajada?: ReactNode;
+  /** El dibujo de la sección, al costado del título. Se esconde en pantalla
+   *  chica: ahí el espacio es del texto. */
+  ilustracion?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section id={id} className="scroll-mt-20 border-t border-borde py-16">
       <div className="mx-auto max-w-6xl px-6">
-        <Franja />
-        <p className="mt-4 font-mono text-xs tracking-[0.2em] text-azul-claro">
-          {numero} <span className="text-texto-tenue">/ 07</span>
-        </p>
-        <h2 className="mt-2 text-2xl font-semibold sm:text-3xl">{titulo}</h2>
-        {bajada ? <div className="mt-3 max-w-3xl leading-relaxed text-texto-suave">{bajada}</div> : null}
+        <div className="flex items-start justify-between gap-10">
+          <div>
+            <Franja />
+            <p className="mt-4 font-mono text-xs tracking-[0.2em] text-azul-claro">
+              {numero} <span className="text-texto-tenue">/ 07</span>
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold sm:text-3xl">{titulo}</h2>
+            {bajada ? (
+              <div className="mt-3 max-w-3xl leading-relaxed text-texto-suave">{bajada}</div>
+            ) : null}
+          </div>
+          {ilustracion ? <div className="hidden shrink-0 lg:block">{ilustracion}</div> : null}
+        </div>
         <div className="mt-8">{children}</div>
       </div>
     </section>

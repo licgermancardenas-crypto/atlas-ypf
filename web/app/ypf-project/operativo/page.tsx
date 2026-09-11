@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
-import { EscenaCuenca } from '@/components/ilustraciones/escenas';
+import { EscenaCuenca, EscenaLogistica } from '@/components/ilustraciones/escenas';
+import { LeyendaMapa, Mapa } from '@/components/ilustraciones/mapa';
 import { Panel } from '@/components/Panel';
 import { Shell } from '@/components/Shell';
 import { TablaExcel, type FilaExcel } from '@/components/TablaExcel';
@@ -294,8 +295,33 @@ export default async function ModuloOperativo() {
           </Panel>
         </div>
 
+        <div className="marquesina mt-8 rounded-lg border border-borde bg-superficie p-5">
+          <h3 className="text-sm font-medium text-texto-suave">Dónde pasa todo esto</h3>
+          <div className="mt-4 grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_15rem]">
+            <Mapa
+              className="w-full"
+              foco="ductos"
+              puntos={['pozos', 'terminales', 'refinerias']}
+              rotulos={['refinerias']}
+            />
+            <div>
+              <EscenaLogistica className="mb-5 hidden h-20 w-44 lg:block" />
+              <LeyendaMapa />
+              <p className="mt-5 text-xs leading-relaxed text-texto-tenue">
+                No es un dibujo: son las capas del IGN y de la Secretaría de Energía, simplificadas
+                hasta entrar en treinta kilobytes. Dicen dos cosas. Una, que la producción se
+                concentra en un puñado de áreas del centro de la cuenca y que ahí la red de
+                oleoductos es una maraña. Dos, que adentro del cuadro casi no hay refinación —Plaza
+                Huincul y poco más—: el crudo se va por caño hacia Luján de Cuyo y hacia el
+                Atlántico, los dos fuera del mapa. Las rutas importan tanto como los ductos, porque
+                la arena de fractura llega por camión.
+              </p>
+            </div>
+          </div>
+        </div>
+
         <p className="mt-8 text-xs leading-relaxed text-texto-tenue">
-          El mapa con las {fmt.entero(produccion.cobertura.pozos)} ubicaciones, los ductos y las
+          El mapa navegable, con las {fmt.entero(produccion.cobertura.pozos)} ubicaciones y las
           concesiones está en{' '}
           <Link href="/ypf-project#activo" className="text-azul-claro hover:underline">
             la sección 04 del caso

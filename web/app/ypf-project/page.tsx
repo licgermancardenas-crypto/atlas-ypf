@@ -8,7 +8,7 @@ import {
   ReaccionBalances,
   ShaleYCostos,
 } from '@/components/charts';
-import { EscenaUpstream } from '@/components/ilustraciones/escenas';
+import { EscenaPozo, EscenaReservas, EscenaUpstream } from '@/components/ilustraciones/escenas';
 import { MapaLazy } from '@/components/mapa/MapaLazy';
 import { ExploradorProduccion, type ProduccionPais } from '@/components/ExploradorProduccion';
 import { Panel } from '@/components/Panel';
@@ -482,6 +482,7 @@ export default async function CasoYPF() {
         id="economia"
         numero="05"
         titulo="Cuánto vale perforar un pozo"
+        ilustracion={<EscenaPozo className="h-28 w-48" />}
         bajada={
           <>
             Se ajusta una curva de Arps a cada uno de los {fmt.entero(declive.pozos_ajustados)} pozos
@@ -574,6 +575,7 @@ export default async function CasoYPF() {
         </div>
 
         <div className="mt-6">
+          <EscenaReservas className="mb-4 hidden h-24 w-44 sm:block" />
           <Panel
             titulo="Reservas comprobadas y vida de reservas"
             archivo="atlas-ypf-reservas"

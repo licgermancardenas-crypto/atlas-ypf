@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { EscenaRed } from '@/components/ilustraciones/escenas';
+import { Mapa } from '@/components/ilustraciones/mapa';
 import { RedLazy } from '@/components/RedLazy';
 import { Shell } from '@/components/Shell';
 import { ProveedorEntidad } from '@/components/estado/entidad';
@@ -140,6 +141,34 @@ export default async function ModuloRed() {
                   hace dos años no se ve.
                 </li>
               </ul>
+            </div>
+          </div>
+
+          <div className="marquesina mt-6 rounded-lg border border-borde bg-superficie p-5">
+            <div className="grid items-center gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
+              <Mapa
+                className="w-full"
+                capas={['provincias', 'rios', 'cuenca', 'concesiones']}
+                puntos={['pozos']}
+                foco="concesiones"
+                corriente={false}
+                etiqueta="Las áreas concesionadas de la cuenca neuquina sobre el mapa"
+              />
+              <div>
+                <h3 className="text-sm font-medium text-texto-suave">El grafo no tiene geografía</h3>
+                <p className="mt-4 text-xs leading-relaxed text-texto-suave">
+                  Los nodos de arriba se acomodan por fuerzas, no por ubicación: dos áreas linderas
+                  pueden terminar en puntas opuestas de la pantalla, y eso es lo que hace legible la
+                  titularidad. El costo es que se pierde de vista dónde queda cada cosa. Éste es el
+                  mismo padrón —las {fmt.entero(cuenta('concesion'))} concesiones— puesto sobre el
+                  terreno: la mancha azul es todo lo concesionado y los puntos dorados son los
+                  racimos de pozos, que se apilan en una fracción chica de esa superficie.
+                </p>
+                <p className="mt-3 text-xs leading-relaxed text-texto-tenue">
+                  Los polígonos salen del mismo archivo que el mapa navegable del caso, simplificados
+                  para que el dibujo pese treinta kilobytes en vez de un mega.
+                </p>
+              </div>
             </div>
           </div>
 

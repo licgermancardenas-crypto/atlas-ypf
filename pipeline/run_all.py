@@ -68,6 +68,10 @@ TRANSFORM_SCRIPTS: list[tuple[str, Path, list[str]]] = [
     ("transform/market", TRANSFORM / "market_reaction.py", []),
     ("transform/scenario", TRANSFORM / "scenario_engine.py", []),
     ("transform/geo", TRANSFORM / "geo_layers.py", []),
+    # Los trazos SVG del mapa salen de las capas de arriba, pero corren siempre:
+    # son segundos y las capas quedan versionadas aunque el refresh semanal las
+    # saltee.
+    ("transform/mapa", TRANSFORM / "map_svg.py", []),
     # Despues de geo: la titularidad sale del padron de concesiones que baja
     # ingest/geo_layers.py, y las metricas del panel de produccion.
     ("transform/grafo", TRANSFORM / "entity_graph.py", []),

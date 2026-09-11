@@ -186,7 +186,7 @@
     "operadores": 85
   },
   "catalogo": {
-    "generated_at": "2026-09-10T23:11:55+00:00",
+    "generated_at": "2026-09-11T01:06:46+00:00",
     "sources": [
       "data/raw/_manifest.json",
       "data/processed/_manifest.json"
@@ -195,7 +195,7 @@
       "data/processed/catalogo.json"
     ],
     "datasets_crudos": 50,
-    "salidas_procesadas": 18
+    "salidas_procesadas": 19
   },
   "entity_graph": {
     "generated_at": "2026-09-10T05:09:47+00:00",
@@ -295,5 +295,15 @@
     ],
     "source": "data/processed/statements_ypf.parquet",
     "note": "254 líneas, 26 trimestres, para el módulo del sitio"
+  },
+  "transform/mapa-web": {
+    "generated_at": "2026-09-11T00:46:06+00:00",
+    "rows": 272,
+    "bytes": 30883,
+    "outputs": [
+      "data/processed/mapa_web.json"
+    ],
+    "source": "data/processed/geo",
+    "note": "trazos SVG de cuenca, ductos y rutas para las ilustraciones del sitio"
   }
 }

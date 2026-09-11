@@ -1,6 +1,7 @@
 import { MedidorBarriles } from '@/components/ilustraciones/MedidorBarriles';
 import { Shell } from '@/components/Shell';
 import { IlustracionSegmento } from '@/components/ilustraciones/escenas';
+import { LeyendaMapa, Mapa } from '@/components/ilustraciones/mapa';
 import { ModuloSegmentos } from '@/components/segmentos/ModuloSegmentos';
 import { QUE_HACE } from '@/components/segmentos/negocios';
 import { Dato, Franja } from '@/components/ui';
@@ -149,6 +150,39 @@ export default async function ModuloSegmentosPagina() {
               </div>
             );
           })}
+        </div>
+
+        {/* ------------------------------------------------------------- */}
+        {/* Los mismos negocios, pero en el terreno                         */}
+        {/* ------------------------------------------------------------- */}
+        <h2 className="mt-14 text-xl font-semibold text-texto">Dónde ocurre cada eslabón</h2>
+        <p className="mt-3 max-w-3xl text-sm leading-relaxed text-texto-suave">
+          Las ilustraciones de arriba son esquemas. Éste no: es la cuenca neuquina con su geometría
+          real —las áreas concesionadas, la red de oleoductos, los gasoductos troncales y las rutas
+          nacionales— y sirve para ver que los tres segmentos no están en el mismo lugar.
+        </p>
+        <div className="marquesina mt-5 rounded-lg border border-borde bg-superficie p-5">
+          <div className="grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
+            <Mapa className="w-full" foco="ductos" puntos={['pozos', 'terminales', 'refinerias']} />
+            <div>
+              <LeyendaMapa />
+              <ul className="mt-5 space-y-2 text-xs leading-relaxed text-texto-suave">
+                <li>
+                  <span className="text-texto">Upstream</span> es la mancha: las concesiones y los
+                  racimos de pozos, apretados en el centro de la cuenca.
+                </li>
+                <li>
+                  <span className="text-texto">Midstream y Downstream</span> son las líneas: el crudo
+                  sale por caño y el combustible vuelve por ruta. La refinación de escala está fuera
+                  del cuadro —Luján de Cuyo, La Plata, Ensenada—, y ese viaje es costo.
+                </li>
+                <li>
+                  <span className="text-texto">Gas y Energía</span> es la línea celeste que se va
+                  para el este: los troncales que llevan el gas a Buenos Aires.
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
 
         <div className="mt-10 grid gap-6 lg:grid-cols-2">
