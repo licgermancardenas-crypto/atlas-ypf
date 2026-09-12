@@ -21,7 +21,7 @@
 // escribe con replaceState y no con el router para no forzar el render del lado
 // del cliente de una página que se prerenderiza entera.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { fmt } from '@/lib/data';
 import {
@@ -44,6 +44,7 @@ import {
 } from '@/lib/produccion';
 import { useFiltros } from '../estado/filtros';
 import { Esqueleto } from '../Panel';
+import { useProduccionUI } from './contexto';
 import { Controles, type EstadoControles } from './Controles';
 import { Grafico, Leyenda } from './Grafico';
 import { PanelActivo, type ActivoSeleccionado } from './PanelActivo';
@@ -72,6 +73,7 @@ const CLAVES = {
   vista: 'vista',
   modo: 'modo',
   seleccionado: 'activo',
+  foco: 'dentro',
 } as const;
 
 function leerDeUrl(): {
@@ -79,6 +81,7 @@ function leerDeUrl(): {
   vista?: IdVista;
   modo?: 'grafico' | 'tabla';
   seleccionado?: string;
+  foco?: string;
 } {
   const params = new URLSearchParams(window.location.search);
   const estado: Partial<EstadoControles> = {};
@@ -102,12 +105,14 @@ function leerDeUrl(): {
   const vista = params.get(CLAVES.vista);
   const modo = params.get(CLAVES.modo);
   const seleccionado = params.get(CLAVES.seleccionado);
+  const foco = params.get(CLAVES.foco);
 
   return {
     estado,
     vista: VISTAS.some((item) => item.id === vista) ? (vista as IdVista) : undefined,
     modo: modo === 'tabla' ? 'tabla' : undefined,
     seleccionado: seleccionado ?? undefined,
+    foco: foco ?? undefined,
   };
 }
 
@@ -133,6 +138,12 @@ export function ModuloProduccion({
   const [modo, setModo] = useState<'grafico' | 'tabla'>('grafico');
   const [avanzados, setAvanzados] = useState(false);
   const [seleccionado, setSeleccionado] = useState<string | null>(null);
+  // El drill-down: cuando se mira "los yacimientos de Loma Campana", acá está
+  // Loma Campana. Solo tiene sentido con la dimensión en yacimiento, que es el
+  // único nivel que cuelga de una concesión.
+  const [foco, setFoco] = useState<string | null>(null);
+  const seccion = useRef<HTMLElement>(null);
+  const { pedido } = useProduccionUI();
   const [dimensiones, setDimensiones] = useState<Record<string, { miembros: MiembroYPF[] }> | null>(
     null,
   );
@@ -146,6 +157,7 @@ export function ModuloProduccion({
     if (leido.vista) setVista(leido.vista);
     if (leido.modo) setModo(leido.modo);
     if (leido.seleccionado) setSeleccionado(leido.seleccionado);
+    if (leido.foco) setFoco(leido.foco);
   }, []);
 
   // Y se escribe en cada cambio: lo que se ve es lo que se comparte.
@@ -164,6 +176,7 @@ export function ModuloProduccion({
     poner(CLAVES.vista, vista, 'produccion');
     poner(CLAVES.modo, modo, 'grafico');
     poner(CLAVES.seleccionado, seleccionado, '');
+    poner(CLAVES.foco, foco, '');
 
     const consulta = params.toString();
     window.history.replaceState(
@@ -171,7 +184,20 @@ export function ModuloProduccion({
       '',
       `${window.location.pathname}${consulta ? `?${consulta}` : ''}${window.location.hash}`,
     );
-  }, [estado, vista, modo, seleccionado]);
+  }, [estado, vista, modo, seleccionado, foco]);
+
+  // El pedido que llega del explorador territorial: "abrí esto acá arriba".
+  // Cambia el corte, abre la ficha y sube la pantalla hasta el gráfico, porque
+  // un cambio que ocurre fuera de la vista es un cambio que no ocurrió.
+  useEffect(() => {
+    if (!pedido) return;
+    setEstado((previo) => ({ ...previo, dimension: pedido.dimension }));
+    setFoco(pedido.dentroDe);
+    setSeleccionado(pedido.nombre);
+    setModo('grafico');
+    if (!pedido.nombre) setVista('produccion');
+    seccion.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [pedido]);
 
   // Las series mensuales son 250 KB y no hacen falta para leer los números de
   // arriba: se bajan cuando este bloque se monta, no con la página.
@@ -193,11 +219,24 @@ export function ModuloProduccion({
   const cambiar = useCallback((cambio: Partial<EstadoControles>) => {
     setEstado((previo) => ({ ...previo, ...cambio }));
     // Cambiar de dimensión cambia el universo de activos: el que estaba
-    // seleccionado ya no existe en el nuevo corte.
-    if (cambio.dimension) setSeleccionado(null);
+    // seleccionado ya no existe en el nuevo corte, y el drill-down tampoco
+    // —solo los yacimientos cuelgan de una concesión—.
+    if (cambio.dimension) {
+      setSeleccionado(null);
+      if (cambio.dimension !== 'yacimiento') setFoco(null);
+    }
   }, []);
 
-  const miembros = dimensiones?.[estado.dimension]?.miembros;
+  // El drill-down filtra por la concesión dominante que ya trae la ficha de
+  // cada yacimiento: no hace falta un cruce nuevo ni un dato nuevo, solo mirar
+  // una rama del padrón que el pipeline ya publicó.
+  const dentroDe = estado.dimension === 'yacimiento' ? foco : null;
+  const miembrosBase = dimensiones?.[estado.dimension]?.miembros;
+  const miembros = useMemo(() => {
+    if (!miembrosBase || !dentroDe) return miembrosBase;
+    const fichas = datos.meta?.yacimiento ?? {};
+    return miembrosBase.filter((miembro) => fichas[miembro.nombre]?.concesion === dentroDe);
+  }, [miembrosBase, dentroDe, datos.meta]);
   const claves = useMemo(
     () => clavesDe(estado.fluido, estado.recurso),
     [estado.fluido, estado.recurso],
@@ -250,7 +289,12 @@ export function ModuloProduccion({
     return mapa;
   }, [armadas.series]);
 
-  const rankingCompleto = datos.rankings[estado.dimension] ?? [];
+  const rankingCompleto = useMemo(() => {
+    const base = datos.rankings[estado.dimension] ?? [];
+    if (!dentroDe) return base;
+    const fichas = datos.meta?.yacimiento ?? {};
+    return base.filter((fila) => fichas[fila.nombre]?.concesion === dentroDe);
+  }, [datos.rankings, datos.meta, estado.dimension, dentroDe]);
   const medida = medidaDelRanking(estado.fluido, estado.recurso);
   const rankingVista = useMemo(() => {
     if (medida.clave) {
@@ -311,16 +355,35 @@ export function ModuloProduccion({
 
   return (
     <>
-      <section aria-labelledby="analisis" className="mt-10">
+      <section ref={seccion} aria-labelledby="analisis" className="mt-10 scroll-mt-6">
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
           <div>
             <h2 id="analisis" className="text-xl font-semibold text-texto">
               Producción operada por {etiquetaDimension.etiqueta.toLowerCase()}
+              {dentroDe ? (
+                <span className="text-texto-suave"> de {dentroDe}</span>
+              ) : null}
             </h2>
             <p className="mt-1 text-xs text-texto-tenue">
               Evolución temporal · {filtros.desde}–{filtros.hasta} · {datos.cobertura.desde} a{' '}
               {datos.cobertura.hasta} disponibles
             </p>
+            {/* La marca del drill-down. Va acá y no adentro de los filtros
+                porque no es un filtro más: cambia de qué universo habla toda la
+                sección, y tiene que poder deshacerse de un clic. */}
+            {dentroDe ? (
+              <p className="mt-2">
+                <button
+                  type="button"
+                  onClick={() => setFoco(null)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-azul-claro/50 bg-superficie-alta px-2.5 py-1 text-[0.7rem] text-azul-claro transition-colors hover:border-azul-claro focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-azul-claro"
+                >
+                  Dentro de {dentroDe}
+                  <span aria-hidden>✕</span>
+                  <span className="sr-only">Volver a todos los yacimientos</span>
+                </button>
+              </p>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -373,6 +436,17 @@ export function ModuloProduccion({
             alternarAvanzados={() => setAvanzados((previo) => !previo)}
             anios={{ desde: filtros.desde, hasta: filtros.hasta }}
             alCambiarAnios={(cambio) => aplicar(cambio)}
+            alRestablecer={
+              (Object.keys(INICIAL) as (keyof EstadoControles)[]).some(
+                (clave) => estado[clave] !== INICIAL[clave],
+              ) || dentroDe
+                ? () => {
+                    setEstado(INICIAL);
+                    setFoco(null);
+                    setSeleccionado(null);
+                  }
+                : undefined
+            }
             extra={
               modo === 'grafico' && vista !== 'ranking' && ultimoIndice >= 0 ? (
                 <p className="text-right text-xs text-texto-tenue">
@@ -415,9 +489,19 @@ export function ModuloProduccion({
                   Sin producción para este cruce
                 </p>
                 <p className="max-w-sm text-xs leading-relaxed text-texto-suave">
-                  No hay {etiquetaDimension.plural} con producción de este tipo en el rango elegido.
-                  Probá con otro tipo de roca o ampliá los años.
+                  No hay {etiquetaDimension.plural}
+                  {dentroDe ? ` de ${dentroDe}` : ''} con producción de este tipo en el rango
+                  elegido. Probá con otro tipo de roca o ampliá los años.
                 </p>
+                {dentroDe ? (
+                  <button
+                    type="button"
+                    onClick={() => setFoco(null)}
+                    className="text-xs text-azul-claro underline-offset-2 hover:underline"
+                  >
+                    Salir de {dentroDe}
+                  </button>
+                ) : null}
               </div>
             ) : (
               <>
@@ -491,11 +575,23 @@ export function ModuloProduccion({
                 onClick={() => setSeleccionado(null)}
                 aria-hidden
               />
-              <div className="fixed inset-x-0 bottom-0 z-40 p-3 lg:static lg:z-auto lg:p-0">
+              <div className="hoja fixed inset-x-0 bottom-0 z-40 p-3 lg:static lg:z-auto lg:p-0">
                 <PanelActivo
                   activo={activo}
                   unidad={unidad}
                   alCerrar={() => setSeleccionado(null)}
+                  alAbrirYacimientos={
+                    // El drill-down desde la ficha: de la concesión a los
+                    // yacimientos que tiene adentro, sin salir de la pantalla.
+                    estado.dimension === 'concesion' && (activo.ficha?.yacimientos ?? 0) > 1
+                      ? () => {
+                          const nombre = activo.nombre;
+                          setEstado((previo) => ({ ...previo, dimension: 'yacimiento' }));
+                          setFoco(nombre);
+                          setSeleccionado(null);
+                        }
+                      : undefined
+                  }
                 />
               </div>
             </>

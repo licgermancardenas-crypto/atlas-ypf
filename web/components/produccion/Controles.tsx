@@ -53,7 +53,7 @@ function Campo({
 }) {
   const id = useId();
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex shrink-0 flex-col gap-1">
       <label
         htmlFor={id}
         className="font-mono text-[0.62rem] uppercase tracking-[0.14em] text-texto-tenue"
@@ -84,6 +84,7 @@ export function Controles({
   anios,
   alCambiarAnios,
   extra,
+  alRestablecer,
 }: {
   estado: EstadoControles;
   alCambiar: (cambio: Partial<EstadoControles>) => void;
@@ -94,6 +95,9 @@ export function Controles({
   /** Lo que la pantalla quiera meter a la derecha: el total del período, casi
    *  siempre. */
   extra?: ReactNode;
+  /** Aparece solo cuando hay algo que deshacer. Un botón de "restablecer"
+   *  siempre visible es un botón que la mayor parte del tiempo no hace nada. */
+  alRestablecer?: () => void;
 }) {
   const listaAnios = Array.from(
     { length: RANGO_ANIOS.max - RANGO_ANIOS.min + 1 },
@@ -102,7 +106,11 @@ export function Controles({
 
   return (
     <div className="rounded-lg border border-borde bg-superficie/40 p-3">
-      <div className="flex flex-wrap items-end gap-x-3 gap-y-3">
+      {/* En un teléfono cinco selectores apilados empujan el gráfico fuera de
+          la pantalla: la fila se desliza de costado y el gráfico queda a la
+          vista. De sm para arriba entran todos y vuelve a ser una fila que
+          envuelve. */}
+      <div className="flex items-end gap-x-3 gap-y-3 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-x-visible sm:pb-0">
         <Campo
           etiqueta="Dimensión"
           valor={estado.dimension}
@@ -142,13 +150,27 @@ export function Controles({
           type="button"
           onClick={alternarAvanzados}
           aria-expanded={avanzados}
-          className="rounded-md border border-borde px-2.5 py-1.5 text-xs text-texto-suave transition-colors hover:border-azul-claro hover:text-azul-claro focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-azul-claro"
+          className="shrink-0 rounded-md border border-borde px-2.5 py-1.5 text-xs text-texto-suave transition-colors hover:border-azul-claro hover:text-azul-claro focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-azul-claro"
         >
           {avanzados ? '− Menos filtros' : '+ Más filtros'}
         </button>
 
-        {extra ? <div className="ml-auto">{extra}</div> : null}
+        {alRestablecer ? (
+          <button
+            type="button"
+            onClick={alRestablecer}
+            className="shrink-0 rounded-md px-2 py-1.5 text-xs text-texto-tenue underline-offset-2 transition-colors hover:text-azul-claro hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-azul-claro"
+          >
+            Restablecer
+          </button>
+        ) : null}
+
+        {extra ? <div className="ml-auto hidden shrink-0 sm:block">{extra}</div> : null}
       </div>
+
+      {/* En pantalla angosta el total baja debajo de la fila deslizable, porque
+          adentro se lo lleva el scroll horizontal y deja de estar a la vista. */}
+      {extra ? <div className="mt-2 border-t border-borde pt-2 sm:hidden">{extra}</div> : null}
 
       {avanzados ? (
         <div className="mt-3 flex flex-wrap items-end gap-x-3 gap-y-3 border-t border-borde pt-3">

@@ -45,10 +45,15 @@ export function PanelActivo({
   activo,
   unidad,
   alCerrar,
+  alAbrirYacimientos,
 }: {
   activo: ActivoSeleccionado;
   unidad: string;
   alCerrar: () => void;
+  /** Bajar un nivel: de la concesión a sus yacimientos, en el mismo gráfico.
+   *  Se ofrece solo cuando hay más de uno; con uno solo el drill-down devuelve
+   *  la misma curva con otro nombre. */
+  alAbrirYacimientos?: () => void;
 }) {
   const contenedor = useRef<HTMLDivElement>(null);
 
@@ -207,6 +212,18 @@ export function PanelActivo({
               ; arriba figura la de mayor volumen.
             </p>
           ) : null}
+        </div>
+      ) : null}
+
+      {alAbrirYacimientos ? (
+        <div className="mt-4 border-t border-borde pt-4">
+          <button
+            type="button"
+            onClick={alAbrirYacimientos}
+            className="w-full rounded-md border border-azul-claro/50 bg-superficie-alta px-2.5 py-2 text-xs text-azul-claro transition-colors hover:border-azul-claro focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-azul-claro"
+          >
+            Abrir sus {activo.ficha?.yacimientos} yacimientos en el gráfico →
+          </button>
         </div>
       ) : null}
 

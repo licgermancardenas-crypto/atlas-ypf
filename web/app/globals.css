@@ -343,3 +343,53 @@ h3 {
     color: #000;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   La hoja
+
+   En pantalla angosta la ficha del activo no es una columna sino algo que sube
+   desde el borde de abajo. Que suba —y no que aparezca— es lo que dice de dónde
+   vino y hacia dónde se va cuando se cierra: sin ese gesto, media pantalla
+   cambia de golpe y hay que releerla para entender qué pasó.
+--------------------------------------------------------------------------- */
+@keyframes hoja-sube {
+  from {
+    transform: translateY(12%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.hoja {
+  animation: hoja-sube 180ms ease-out;
+}
+@media (min-width: 1024px) {
+  /* De escritorio para arriba es una columna al costado y no una hoja: el
+     gráfico se angosta, nada se superpone y no hay nada que anunciar. */
+  .hoja {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Movimiento reducido
+
+   Las transiciones de esta interfaz son informativas —una barra que crece, una
+   hoja que sube—, así que se pueden apagar sin perder ningún dato. Quien pidió
+   menos movimiento en su sistema tiene un motivo, y casi siempre es médico.
+--------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

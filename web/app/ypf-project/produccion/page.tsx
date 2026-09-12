@@ -1,12 +1,15 @@
 import { LeyendaMapa, Mapa } from '@/components/ilustraciones/mapa';
 import { Kpis } from '@/components/produccion/Kpis';
+import { ProveedorProduccion } from '@/components/produccion/contexto';
 import { ModuloProduccion, type EnlacesActivo } from '@/components/produccion/Modulo';
 import { SenalEjecutiva } from '@/components/produccion/SenalEjecutiva';
+import { Territorio } from '@/components/produccion/Territorio';
 import { Shell } from '@/components/Shell';
 import { Franja } from '@/components/ui';
 import { fmt, type Economia, type Financieros } from '@/lib/data';
 import type { ProduccionYPF } from '@/lib/produccion';
 import { cargar } from '@/lib/server-data';
+import { armarTerritorio } from '@/lib/territorio';
 
 // El módulo de la compañía sola.
 //
@@ -95,8 +98,10 @@ export default async function ModuloProduccionPagina() {
   const enlaces = await enlacesDeEntidades(produccion);
 
   const { resumen, cobertura } = produccion;
-  const provincias = produccion.rankings.provincia ?? [];
   const cuencas = produccion.rankings.cuenca ?? [];
+  // El árbol se arma en el build: el navegador recibe la rama ya cruzada y no
+  // vuelve a mezclar 52 concesiones con 111 yacimientos en cada render.
+  const territorio = armarTerritorio(produccion);
   const neuquina = cuencas.find((fila) => fila.nombre === 'Neuquina');
   const mejorConcesion = produccion.rankings.concesion?.[0];
   const mejorLocalidad = produccion.rankings.localidad?.[0];
@@ -142,136 +147,92 @@ export default async function ModuloProduccionPagina() {
           <Kpis datos={produccion} />
         </div>
 
-        <ModuloProduccion datos={produccion} enlaces={enlaces} />
+        {/* El análisis y el territorio comparten un contexto: bajar por el
+            mapa hasta una concesión y abrirla en el gráfico de arriba es un
+            solo recorrido, no dos pantallas. */}
+        <ProveedorProduccion>
+          <ModuloProduccion datos={produccion} enlaces={enlaces} />
 
-        {/* ------------------------------------------------------------- */}
-        {/* Territorio                                                     */}
-        {/* ------------------------------------------------------------- */}
-        <section id="donde" aria-labelledby="titulo-donde" className="mt-14 scroll-mt-24">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-            <h2 id="titulo-donde" className="text-xl font-semibold text-texto">
-              Dónde produce YPF
-            </h2>
-            <p className="text-xs text-texto-tenue">
-              {resumen.concesiones} concesiones · {resumen.yacimientos} yacimientos ·{' '}
-              {resumen.provincias} provincias · {resumen.cuencas} cuencas
+          {/* ------------------------------------------------------------- */}
+          {/* Territorio                                                     */}
+          {/* ------------------------------------------------------------- */}
+          <section id="donde" aria-labelledby="titulo-donde" className="mt-14 scroll-mt-6">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+              <h2 id="titulo-donde" className="text-xl font-semibold text-texto">
+                Dónde produce YPF
+              </h2>
+              <p className="text-xs text-texto-tenue">
+                {resumen.provincias} provincias · {resumen.cuencas} cuencas ·{' '}
+                {resumen.concesiones} concesiones · {resumen.yacimientos} yacimientos
+              </p>
+            </div>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-texto-suave">
+              La misma producción, mirada como territorio. Se baja un nivel por vez —provincia,
+              cuenca, concesión, yacimiento— y desde cualquier activo se vuelve al gráfico de
+              arriba con la ficha abierta.
             </p>
-          </div>
 
-          <div className="mt-5 grid gap-4 lg:grid-cols-[26rem_minmax(0,1fr)]">
-            <div className="marquesina rounded-lg border border-borde bg-superficie p-4">
-              <Mapa
-                className="w-full"
-                capas={[
-                  'provincias',
-                  'rios',
-                  'cuenca',
-                  'concesiones',
-                  'areas_ypf',
-                  'rutas',
-                  'gasoductos',
-                  'ductos',
-                ]}
-                foco="areas_ypf"
-                etiqueta="Mapa de la cuenca neuquina con las áreas concesionadas en las que participa YPF"
+            <div className="mt-5 grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_23rem]">
+              <Territorio
+                raiz={territorio}
+                nota="Cada nivel suma las concesiones que cuelgan de él, y una concesión que cruza el límite de una provincia o de una cuenca cuenta entera en la de mayor volumen: por eso las ramas cierran exactas contra el total de la compañía, pero un límite jurisdiccional puede correrse unos pocos boe/d."
               />
-              <div className="mt-4 border-t border-borde pt-4">
-                <LeyendaMapa
-                  capas={['areas_ypf', 'concesiones', 'ductos', 'gasoductos']}
-                  puntos={['pozos', 'refinerias']}
-                />
+
+              <div className="space-y-4">
+                <div className="marquesina rounded-lg border border-borde bg-superficie p-4">
+                  <Mapa
+                    className="w-full"
+                    capas={[
+                      'provincias',
+                      'rios',
+                      'cuenca',
+                      'concesiones',
+                      'areas_ypf',
+                      'rutas',
+                      'gasoductos',
+                      'ductos',
+                    ]}
+                    foco="areas_ypf"
+                    etiqueta="Mapa de la cuenca neuquina con las áreas concesionadas en las que participa YPF"
+                  />
+                  <div className="mt-4 border-t border-borde pt-4">
+                    <LeyendaMapa
+                      capas={['areas_ypf', 'concesiones', 'ductos', 'gasoductos']}
+                      puntos={['pozos', 'refinerias']}
+                    />
+                  </div>
+                  <p className="mt-3 border-t border-borde pt-3 text-[0.7rem] leading-relaxed text-texto-tenue">
+                    El mapa es de la cuenca neuquina, de donde sale{' '}
+                    {fmt.porcentaje(neuquina?.participacion ?? null, 0)} de la producción. El Golfo
+                    San Jorge y el Austral no se dibujan acá, pero sí se exploran en el árbol de al
+                    lado.
+                  </p>
+                </div>
+
+                <div className="marquesina rounded-lg border border-borde bg-superficie p-4">
+                  <h3 className="font-mono text-[0.66rem] uppercase tracking-[0.14em] text-texto-tenue">
+                    La escala real
+                  </h3>
+                  <ul className="mt-3 space-y-2 text-xs leading-relaxed text-texto-suave">
+                    <li>
+                      La concesión que más produce es{' '}
+                      <span className="text-texto">{mejorConcesion?.nombre}</span>:{' '}
+                      {fmt.entero(mejorConcesion?.actual_bd ?? 0)} boe/d,{' '}
+                      {fmt.porcentaje(mejorConcesion?.participacion ?? null, 0)} de la compañía.
+                    </li>
+                    <li>
+                      Medido por pueblo más cercano, la producción se concentra alrededor de{' '}
+                      <span className="text-texto">{mejorLocalidad?.nombre}</span>:{' '}
+                      {fmt.porcentaje(mejorLocalidad?.participacion ?? null, 0)} del total. Un
+                      pueblo de la meseta detrás de una compañía que cotiza en Nueva York.
+                    </li>
+                    <li className="text-texto-tenue">{produccion.nota_localidad}</li>
+                  </ul>
+                </div>
               </div>
             </div>
-
-            <div className="space-y-4">
-              {/* La jerarquía territorial, con los números que ya existen:
-                  provincia y cuenca salen del ranking; el detalle por concesión
-                  y yacimiento se explora arriba cambiando la dimensión. */}
-              <div className="marquesina rounded-lg border border-borde bg-superficie p-4">
-                <h3 className="font-mono text-[0.66rem] uppercase tracking-[0.14em] text-texto-tenue">
-                  Por provincia
-                </h3>
-                <ul className="mt-3 space-y-2">
-                  {provincias.map((fila) => (
-                    <li key={fila.nombre}>
-                      <div className="flex items-baseline justify-between gap-3 text-xs">
-                        <span className="text-texto">{fila.nombre}</span>
-                        <span className="tabular text-texto-suave">
-                          {fmt.entero(fila.actual_bd)} boe/d ·{' '}
-                          {fmt.porcentaje(fila.participacion, 0)}
-                        </span>
-                      </div>
-                      <div
-                        className="mt-1 h-1 w-full overflow-hidden rounded-full bg-superficie-alta"
-                        role="presentation"
-                      >
-                        <span
-                          className="block h-full bg-azul"
-                          style={{ width: `${(fila.participacion ?? 0) * 100}%` }}
-                        />
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="marquesina rounded-lg border border-borde bg-superficie p-4">
-                <h3 className="font-mono text-[0.66rem] uppercase tracking-[0.14em] text-texto-tenue">
-                  Por cuenca
-                </h3>
-                <ul className="mt-3 space-y-2">
-                  {cuencas.map((fila) => (
-                    <li key={fila.nombre}>
-                      <div className="flex items-baseline justify-between gap-3 text-xs">
-                        <span className="text-texto">{fila.nombre}</span>
-                        <span className="tabular text-texto-suave">
-                          {fmt.entero(fila.actual_bd)} boe/d ·{' '}
-                          {fmt.porcentaje(fila.participacion, 0)}
-                        </span>
-                      </div>
-                      <div
-                        className="mt-1 h-1 w-full overflow-hidden rounded-full bg-superficie-alta"
-                        role="presentation"
-                      >
-                        <span
-                          className="block h-full bg-oro"
-                          style={{ width: `${(fila.participacion ?? 0) * 100}%` }}
-                        />
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-3 text-[0.7rem] leading-relaxed text-texto-tenue">
-                  El mapa es de la cuenca neuquina, de donde sale{' '}
-                  {fmt.porcentaje(neuquina?.participacion ?? null, 0)} de la producción. Lo del
-                  Golfo San Jorge, Cuyo y el Austral no se dibuja acá, pero sí está en el análisis:
-                  se ve eligiendo la dimensión cuenca o provincia.
-                </p>
-              </div>
-
-              <div className="marquesina rounded-lg border border-borde bg-superficie p-4">
-                <h3 className="font-mono text-[0.66rem] uppercase tracking-[0.14em] text-texto-tenue">
-                  La escala real
-                </h3>
-                <ul className="mt-3 space-y-2 text-xs leading-relaxed text-texto-suave">
-                  <li>
-                    La concesión que más produce es{' '}
-                    <span className="text-texto">{mejorConcesion?.nombre}</span>:{' '}
-                    {fmt.entero(mejorConcesion?.actual_bd ?? 0)} boe/d,{' '}
-                    {fmt.porcentaje(mejorConcesion?.participacion ?? null, 0)} de la compañía.
-                  </li>
-                  <li>
-                    Medido por pueblo más cercano, la producción se concentra alrededor de{' '}
-                    <span className="text-texto">{mejorLocalidad?.nombre}</span>:{' '}
-                    {fmt.porcentaje(mejorLocalidad?.participacion ?? null, 0)} del total. Un pueblo
-                    de la meseta detrás de una compañía que cotiza en Nueva York.
-                  </li>
-                  <li className="text-texto-tenue">{produccion.nota_localidad}</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </section>
+          </section>
+        </ProveedorProduccion>
 
         {/* ------------------------------------------------------------- */}
         {/* Método                                                          */}
