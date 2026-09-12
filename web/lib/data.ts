@@ -201,6 +201,12 @@ export interface AgregadoEconomico {
   payback_meses_mediano: number;
   breakeven_brent_mediano: number;
   eur_bbl_mediana: number;
+  /** Qué proporción de los pozos del grupo da NPV positivo. */
+  pozos_con_npv_positivo?: number;
+  /** Sobre cuántos pozos se calculó la mediana del breakeven. Cuando es menos
+   *  que el total, a los que faltan no les cierra a ningún precio y la mediana
+   *  es la de los que sí cierran: hay que decirlo donde se muestre. */
+  pozos_con_breakeven?: number;
 }
 
 export interface Economia {
@@ -217,6 +223,9 @@ export interface Economia {
   };
   por_operador: AgregadoEconomico[];
   por_vintage: AgregadoEconomico[];
+  /** Solo los yacimientos con al menos diez pozos ajustados: el núcleo no
+   *  convencional, que es donde hay curvas de las que colgar una economía. */
+  por_yacimiento: AgregadoEconomico[];
   sensibilidad_brent_capex: {
     brent: number;
     capex_musd: number;

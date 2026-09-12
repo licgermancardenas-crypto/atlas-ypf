@@ -302,8 +302,17 @@ def ranking_de(df: pd.DataFrame, columna: str, fechas: pd.DatetimeIndex) -> list
             return 0.0
         return float(tabla.loc[nombre, clave]) / dias_actual
 
+    # La union de las dos ventanas y no solo la actual. Un area que YPF entrego
+    # produce en la ventana previa y no en la actual: si se la saltea, el total
+    # previo del ranking queda corto y todo lo que se sume a partir de estas
+    # filas —una provincia, una cuenca, la compania entera— muestra un
+    # crecimiento que no existio. Con la union, esa area aparece con caudal cero
+    # y -100%, que es exactamente lo que paso desde el punto de vista de YPF, y
+    # los agregados cierran contra la serie total.
+    universo = actual.reindex(actual.index.union(anterior.index), fill_value=0.0)
+
     filas = []
-    for nombre, volumen_actual in actual.sort_values(ascending=False).items():
+    for nombre, volumen_actual in universo.sort_values(ascending=False).items():
         volumen_previo = float(anterior.get(nombre, 0.0))
         caudal_actual = volumen_actual / dias_actual
         caudal_previo = volumen_previo / dias_previo
@@ -329,6 +338,11 @@ def ranking_de(df: pd.DataFrame, columna: str, fechas: pd.DatetimeIndex) -> list
 
 def metadatos(df: pd.DataFrame, ventana) -> dict[str, dict]:
     """Dónde queda cada activo y de qué está hecho.
+
+    La ventana que se le pasa cubre las dos que compara el ranking —los últimos
+    doce meses y los doce previos— y no solo la última: un área entregada a otro
+    operador sigue teniendo una fila en el ranking, y sin ficha quedaría sin
+    provincia ni cuenca, que en el árbol territorial es caer en "Sin declarar".
 
     Son las mismas columnas de la fuente, pivoteadas para que la ficha de una
     concesión pueda decir "Neuquén · Neuquina · 3 yacimientos" sin bajarse las
@@ -374,6 +388,124 @@ def metadatos(df: pd.DataFrame, ventana) -> dict[str, dict]:
                 ficha["localidad"] = localidad
             fichas[str(nombre)] = {k: v for k, v in ficha.items() if v is not None}
         salida[id_dimension] = fichas
+    return salida
+
+
+COHORTES = [
+    (2014, "2010-2014"),
+    (2018, "2015-2018"),
+    (2021, "2019-2021"),
+    (9999, "2022 en adelante"),
+]
+
+ORDEN_COHORTES = ["Ya producía en 2009", *[etiqueta for _, etiqueta in COHORTES]]
+
+
+def cohorte_por_yacimiento(df: pd.DataFrame, fechas: pd.DatetimeIndex) -> pd.Series:
+    """A que epoca pertenece cada yacimiento, por su primer mes con produccion.
+
+    La tesis del caso es que el shale compensa el declino del convencional. Eso
+    se afirma con un porcentaje; esta apertura lo muestra: cuanto del caudal de
+    hoy sale de algo que ya producia hace quince anios y cuanto de algo que
+    arranco anteayer.
+
+    Se calcula aca y no en el frontend por una razon de fondo: el archivo de
+    series solo publica los dieciseis miembros mas grandes y agrupa la cola en
+    "Otros", asi que una cohorte armada en el navegador tomaria diecisiete
+    series en vez de ciento once, y "Otros" entero caeria en la cohorte mas
+    vieja. El pipeline si tiene los ciento once.
+    """
+    con_volumen = df[df.volumen > 0]
+    primero = con_volumen.groupby("areayacimiento").fecha.min()
+    inicio = fechas[0]
+
+    def etiqueta(fecha) -> str:
+        # Lo que ya producia en el primer mes del archivo esta censurado por la
+        # izquierda: no sabemos cuando arranco, y se lo nombra por lo que se
+        # sabe en vez de ponerle una fecha que la fuente no dice.
+        if fecha <= inicio:
+            return ORDEN_COHORTES[0]
+        anio = int(fecha.year)
+        for hasta, nombre in COHORTES:
+            if anio <= hasta:
+                return nombre
+        return COHORTES[-1][1]
+
+    return primero.map(etiqueta)
+
+
+def traspasos(df: pd.DataFrame, fechas: pd.DatetimeIndex) -> list[dict]:
+    """Las areas que dejaron de figurar como operadas por YPF.
+
+    Una serie que cae a cero y se queda en cero no siempre es un derrumbe: casi
+    siempre es un cambio de operador. La diferencia importa porque la pantalla
+    la leeria como una caida del 100% y diria algo falso.
+
+    Para saber cual de las dos cosas es se cruza contra el archivo del pais, que
+    tiene la misma fuente sin filtrar por operador: si el area sigue produciendo
+    ahi despues del ultimo mes de YPF, entonces no dejo de producir, dejo de ser
+    de YPF. Si el archivo del pais no esta o no la tiene, se dice lo unico que
+    se sabe —que YPF no declara produccion desde tal mes— y no se afirma la
+    causa.
+    """
+    if len(fechas) < 4:
+        return []
+
+    pais = {}
+    archivo = PROCESSED / "country_dimensions.json"
+    if archivo.exists():
+        try:
+            crudo = json.loads(archivo.read_text(encoding="utf-8"))
+            for miembro in crudo.get("dimensiones", {}).get("yacimiento", {}).get("miembros", []):
+                # Solo los dos totales: el archivo del pais publica ademas la
+                # apertura por recurso, y sumar todas las listas contaria cada
+                # barril dos veces.
+                series = [
+                    v for k, v in miembro.items() if k in ("oil_total", "gas_total") and isinstance(v, list)
+                ]
+                if series:
+                    pais[normalizar(miembro["nombre"])] = [sum(x) for x in zip(*series)]
+        except (ValueError, OSError):
+            pais = {}
+
+    ultimos = list(fechas[-3:])
+    salida: list[dict] = []
+    for id_dimension in ("yacimiento", "concesion"):
+        columna = DIMENSIONES[id_dimension]
+        por_mes = (
+            df.pivot_table(index=columna, columns="fecha", values="volumen", aggfunc="sum")
+            .reindex(columns=fechas)
+            .fillna(0.0)
+        )
+        for nombre, fila in por_mes.iterrows():
+            if fila[ultimos].sum() > 0:
+                continue
+            previos = fila[fila.index < ultimos[0]]
+            if previos.empty or previos.tail(3).sum() <= 0:
+                continue
+
+            activos = fila[fila > 0]
+            ultimo_mes = activos.index[-1]
+            dias_previos = sum(f.days_in_month for f in activos.index[-3:]) or 1
+            registro = {
+                "dimension": id_dimension,
+                "nombre": nombre,
+                "ultimo_mes": ultimo_mes.strftime("%Y-%m"),
+                "bd_previo": round(float(activos.tail(3).sum()) / dias_previos, 1),
+            }
+
+            serie_pais = pais.get(normalizar(str(nombre)))
+            if serie_pais and len(serie_pais) >= len(fechas):
+                cola = serie_pais[len(fechas) - 3 : len(fechas)]
+                dias_cola = sum(f.days_in_month for f in ultimos) or 1
+                if sum(cola) > 0:
+                    registro["sigue_en_el_pais"] = True
+                    # El archivo del pais publica caudal diario, no volumen: se
+                    # promedia y no se divide por dias.
+                    registro["bd_pais"] = round(float(sum(cola)) / 3, 1)
+            salida.append(registro)
+
+    salida.sort(key=lambda fila: -fila["bd_previo"])
     return salida
 
 
@@ -449,6 +581,31 @@ def main() -> int:
         dimensiones[id_dimension] = {"miembros": miembros}
         log(f"  {id_dimension}: {len(ranking)} miembros, {len(miembros)} con serie")
 
+    # La sexta dimension no es un corte del padron sino del tiempo: cada
+    # yacimiento entra en la cohorte del anio en que empezo a producir. Viaja
+    # con las demas para que el frontend la dibuje con el mismo codigo, sin un
+    # caso especial que se pueda desincronizar del grafico principal.
+    df["cohorte"] = df.areayacimiento.map(cohorte_por_yacimiento(df, fechas))
+    dimensiones["cohorte"] = {
+        "miembros": serie_columnar(df, "cohorte", fechas, ORDEN_COHORTES)
+    }
+    cuenta = df.groupby("cohorte").areayacimiento.nunique().to_dict()
+    log(
+        "  cohorte: "
+        + ", ".join(f"{cuenta.get(nombre, 0)} en {nombre}" for nombre in ORDEN_COHORTES)
+    )
+
+    movidas = traspasos(df, fechas)
+    if movidas:
+        log(
+            "  traspasos detectados: "
+            + ", ".join(
+                f"{fila['nombre']} (ultimo {fila['ultimo_mes']}"
+                + (", sigue en el pais)" if fila.get("sigue_en_el_pais") else ")")
+                for fila in movidas
+            )
+        )
+
     ultimos_doce = fechas[-12:]
     ventana = df[df.fecha.isin(ultimos_doce)]
     dias_doce = sum(fecha.days_in_month for fecha in ultimos_doce) or 1
@@ -505,7 +662,9 @@ def main() -> int:
         "total": totales,
         "resumen": resumen,
         "rankings": rankings,
-        "meta": metadatos(df, ultimos_doce),
+        "meta": metadatos(df, fechas[-24:]),
+        "traspasos": movidas,
+        "cohortes": ORDEN_COHORTES,
         "localidades": {nombre: {"pueblo": p, "km": k} for nombre, (p, k) in cercanas.items()},
         "dimensiones_en": "data/processed/ypf_dimensiones.json",
     }

@@ -220,6 +220,16 @@ def sensibilidad(fits: pd.DataFrame, sup: dict, muestra: int = 400) -> list[dict
 
 
 def _agregado(econ: pd.DataFrame, por: str, min_pozos: int = 5) -> list[dict]:
+    """Las medianas del grupo, con el tamaño de la muestra de cada una.
+
+    El breakeven es NaN cuando el pozo no da positivo a ningún precio —ni a
+    US$ 250—, y una mediana saltea los NaN. Sin declararlo, un yacimiento donde
+    la mitad de los pozos no cierra nunca muestra un breakeven cómodo al lado de
+    un NPV mediano negativo, que es una contradicción que el lector no puede
+    resolver porque le falta el dato. Por eso sale también cuántos pozos entran
+    en esa mediana: cuando son menos que el total, el número es de los que
+    cierran y hay que decirlo.
+    """
     g = econ.groupby(por).agg(
         pozos=("pozo_id", "size"),
         npv_musd_mediano=("npv_usd", lambda s: round(float(s.median()) / 1e6, 2)),
@@ -227,6 +237,8 @@ def _agregado(econ: pd.DataFrame, por: str, min_pozos: int = 5) -> list[dict]:
         payback_meses_mediano=("payback_meses", "median"),
         breakeven_brent_mediano=("breakeven_brent", "median"),
         eur_bbl_mediana=("eur_bbl", "median"),
+        pozos_con_npv_positivo=("npv_usd", lambda s: round(float((s > 0).mean()), 3)),
+        pozos_con_breakeven=("breakeven_brent", "count"),
     )
     g = g[g.pozos >= min_pozos].sort_values("pozos", ascending=False).round(3).reset_index()
     g[por] = g[por].astype(str)

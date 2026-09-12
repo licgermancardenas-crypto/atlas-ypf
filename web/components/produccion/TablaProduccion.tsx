@@ -88,12 +88,17 @@ export function TablaProduccion({
   meta,
   seleccionado,
   alSeleccionar,
+  traspasadas,
 }: {
   dimension: IdDimension;
   ranking: FilaRankingYPF[];
   meta: Record<string, FichaActivo> | undefined;
   seleccionado: string | null;
   alSeleccionar: (nombre: string) => void;
+  /** Las áreas que dejaron de declarar producción operada: siguen en la tabla
+   *  porque produjeron de verdad en la ventana, pero con un asterisco, que es
+   *  la marca de "este número no significa lo mismo que los de al lado". */
+  traspasadas?: Set<string>;
 }) {
   const [busqueda, setBusqueda] = useState('');
   const [orden, setOrden] = useState<{ clave: Clave; descendente: boolean }>({
@@ -310,6 +315,14 @@ export function TablaProduccion({
                       }`}
                     >
                       {aTexto(fila, columna.clave)}
+                      {columna.clave === 'nombre' && traspasadas?.has(fila.nombre) ? (
+                        <span
+                          className="ml-1 text-oro"
+                          title="Sin producción declarada en los últimos meses: ver la ficha"
+                        >
+                          *
+                        </span>
+                      ) : null}
                     </td>
                   ))}
                 </tr>
@@ -325,6 +338,14 @@ export function TablaProduccion({
           </tbody>
         </table>
       </div>
+
+      {traspasadas && visibles.some((fila) => traspasadas.has(fila.nombre)) ? (
+        <p className="mt-2 text-[0.7rem] leading-relaxed text-texto-tenue">
+          * Sin producción declarada como operada por YPF en los últimos meses del archivo. El
+          caudal de la fila es el promedio de los últimos doce meses e incluye los meses en que ya
+          no declara: la ficha del activo dice desde cuándo.
+        </p>
+      ) : null}
 
       {paginas > 1 ? (
         <div className="mt-3 flex items-center justify-end gap-2 text-[0.7rem] text-texto-tenue">

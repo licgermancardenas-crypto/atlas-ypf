@@ -1,13 +1,18 @@
 import { LeyendaMapa, Mapa } from '@/components/ilustraciones/mapa';
 import { Kpis } from '@/components/produccion/Kpis';
+import type { Reservas } from '@/components/Reservas';
 import { ProveedorProduccion } from '@/components/produccion/contexto';
-import { ModuloProduccion, type EnlacesActivo } from '@/components/produccion/Modulo';
+import {
+  ModuloProduccion,
+  type EconomiaPorActivo,
+  type EnlacesActivo,
+} from '@/components/produccion/Modulo';
 import { SenalEjecutiva } from '@/components/produccion/SenalEjecutiva';
 import { Territorio } from '@/components/produccion/Territorio';
 import { Shell } from '@/components/Shell';
 import { Franja } from '@/components/ui';
 import { fmt, type Economia, type Financieros } from '@/lib/data';
-import type { ProduccionYPF } from '@/lib/produccion';
+import { normalizarNombre, type ProduccionYPF } from '@/lib/produccion';
 import { cargar } from '@/lib/server-data';
 import { armarTerritorio } from '@/lib/territorio';
 
@@ -89,13 +94,55 @@ async function enlacesDeEntidades(datos: ProduccionYPF): Promise<EnlacesActivo> 
   }
 }
 
+/** La economía de pozo, indexada por nombre normalizado de yacimiento.
+ *
+ *  El pipeline la calcula donde hay al menos diez pozos con curva ajustada: 25
+ *  yacimientos de los 111 que producen, que son la mayor parte del volumen no
+ *  convencional. Los otros no llevan un número estimado ni un guion que parezca
+ *  un error de carga: la ficha simplemente no muestra el bloque.
+ *
+ *  El cruce se hace normalizado porque el padrón de pozos escribe los nombres en
+ *  mayúsculas y sin tildes, y el de producción no. */
+function economiaPorYacimiento(economia: Economia): EconomiaPorActivo {
+  const porYacimiento: EconomiaPorActivo['porYacimiento'] = {};
+  for (const fila of economia.por_yacimiento ?? []) {
+    if (fila.yacimiento) porYacimiento[normalizarNombre(fila.yacimiento)] = fila;
+  }
+  return {
+    porYacimiento,
+    supuestos: {
+      capex_usd: Number(economia.supuestos.capex_usd ?? 0),
+      opex_usd_bbl: Number(economia.supuestos.opex_usd_bbl ?? 0),
+      diferencial_usd_bbl: Number(economia.supuestos.diferencial_usd_bbl ?? 0),
+      wacc_anual: Number(economia.supuestos.wacc_anual ?? 0),
+      brent_base: Number(economia.supuestos.brent_base ?? 0),
+      advertencia: economia.advertencia,
+    },
+  };
+}
+
+/** La última declaración de reservas de YPF.
+ *
+ *  Es de la Secretaría de Energía y no del 20-F: son las comprobadas hasta el
+ *  fin de la concesión vigente, que es otra definición y da otro número. Va
+ *  igual porque contesta la pregunta que la producción sola no puede contestar
+ *  —cuánto tiempo puede sostenerse este caudal— y porque el año de corte, dos
+ *  atrás del último mes de producción, se declara al lado. */
+function ultimaFilaDeYPF(reservas: Reservas) {
+  const filas = (reservas.por_operador ?? []).filter((fila) => fila.operador === 'YPF');
+  return filas.length ? filas[filas.length - 1] : null;
+}
+
 export default async function ModuloProduccionPagina() {
-  const [produccion, financieros, economia] = await Promise.all([
+  const [produccion, financieros, economia, reservas] = await Promise.all([
     cargar<ProduccionYPF>('ypf_produccion.json'),
     cargar<Financieros>('financials_ypf.json'),
     cargar<Economia>('well_economics.json'),
+    cargar<Reservas>('reserves.json'),
   ]);
   const enlaces = await enlacesDeEntidades(produccion);
+  const economiaDeActivos = economiaPorYacimiento(economia);
+  const reservasYPF = ultimaFilaDeYPF(reservas);
 
   const { resumen, cobertura } = produccion;
   const cuencas = produccion.rankings.cuenca ?? [];
@@ -151,7 +198,11 @@ export default async function ModuloProduccionPagina() {
             mapa hasta una concesión y abrirla en el gráfico de arriba es un
             solo recorrido, no dos pantallas. */}
         <ProveedorProduccion>
-          <ModuloProduccion datos={produccion} enlaces={enlaces} />
+          <ModuloProduccion
+            datos={produccion}
+            enlaces={enlaces}
+            economia={economiaDeActivos}
+          />
 
           {/* ------------------------------------------------------------- */}
           {/* Territorio                                                     */}
@@ -208,6 +259,53 @@ export default async function ModuloProduccionPagina() {
                     lado.
                   </p>
                 </div>
+
+                {reservasYPF ? (
+                  <div className="marquesina rounded-lg border border-borde bg-superficie p-4">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <h3 className="font-mono text-[0.66rem] uppercase tracking-[0.14em] text-texto-tenue">
+                        Cuánto puede durar
+                      </h3>
+                      <span className="font-mono text-[0.62rem] text-texto-tenue">
+                        {reservasYPF.anio}
+                      </span>
+                    </div>
+                    <p className="tabular mt-3 text-2xl font-semibold leading-none text-texto">
+                      {fmt.numero(reservasYPF.vida_reservas, 1)}{' '}
+                      <span className="text-xs font-normal text-texto-suave">
+                        años de vida de reservas
+                      </span>
+                    </p>
+                    <ul className="mt-3 space-y-1 text-xs text-texto-suave">
+                      <li className="flex items-baseline justify-between gap-3">
+                        <span>Comprobadas</span>
+                        <span className="tabular text-texto">
+                          {fmt.entero(reservasYPF.comprobadas_mboe / 1000)} MMboe
+                        </span>
+                      </li>
+                      <li className="flex items-baseline justify-between gap-3">
+                        <span>No convencional</span>
+                        <span className="tabular" style={{ color: 'var(--color-shale)' }}>
+                          {fmt.porcentaje(reservasYPF.share_no_convencional, 0)}
+                        </span>
+                      </li>
+                      <li className="flex items-baseline justify-between gap-3">
+                        <span>Producción del año</span>
+                        <span className="tabular text-texto">
+                          {fmt.entero((reservasYPF.produccion_mboe ?? 0) / 1000)} MMboe
+                        </span>
+                      </li>
+                    </ul>
+                    <p className="mt-3 text-[0.7rem] leading-relaxed text-texto-tenue">
+                      Reservas comprobadas hasta el fin de la concesión vigente, declaradas por el
+                      operador a la Secretaría de Energía. No son las certificadas del 20-F, que se
+                      calculan con otra definición y dan otro número, y el corte es{' '}
+                      {reservasYPF.anio}: dos años antes que el último mes de producción de esta
+                      pantalla. La fuente no las abre por concesión, así que este dato es de la
+                      compañía entera y no baja al árbol de al lado.
+                    </p>
+                  </div>
+                ) : null}
 
                 <div className="marquesina rounded-lg border border-borde bg-superficie p-4">
                   <h3 className="font-mono text-[0.66rem] uppercase tracking-[0.14em] text-texto-tenue">

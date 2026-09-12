@@ -22,6 +22,8 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Line,
+  LineChart,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -34,8 +36,10 @@ import {
   COLOR,
   COLOR_OTROS,
   NOMBRE_OTROS,
+  RAMPA,
   interanual,
   medir,
+  type CurvaActivo,
   type FilaRankingYPF,
   type IdMetrica,
   type IdPeriodo,
@@ -73,6 +77,7 @@ export function Grafico({
   periodo,
   ranking,
   alcanceRanking,
+  curvas = [],
   seleccionado,
   alSeleccionar,
   alto = 400,
@@ -84,6 +89,8 @@ export function Grafico({
   periodo: IdPeriodo;
   ranking: { nombre: string; valor: number; delta: number | null }[];
   alcanceRanking: 'completo' | 'principales';
+  /** Las curvas a comparar, cada una desde su propio debut. */
+  curvas?: CurvaActivo[];
   seleccionado: string | null;
   alSeleccionar: (nombre: string | null) => void;
   alto?: number;
@@ -169,6 +176,113 @@ export function Grafico({
       },
     [armadas.etiquetas, armadas.series, colores, filas, participacion, shalePorPeriodo, unidad],
   );
+
+  if (vista === 'curvas') {
+    // Cada curva arranca en su propio mes uno. Se cortan a seis anios porque
+    // despues ya no se compara el arranque de dos activos sino la cola del mas
+    // viejo, y porque un eje de doscientos meses aplasta justo el tramo que
+    // importa, que son los primeros veinticuatro.
+    const TOPE = 72;
+    const largo = Math.min(TOPE, Math.max(0, ...curvas.map((curva) => curva.valores.length)));
+    const filasCurvas = Array.from({ length: largo }, (_, indice) => {
+      const fila: Record<string, number | null> = { mes: indice + 1 };
+      for (const curva of curvas) {
+        fila[curva.nombre] =
+          indice < curva.valores.length ? Math.round(curva.valores[indice]) : null;
+      }
+      return fila;
+    });
+
+    if (!curvas.length || !largo) {
+      return (
+        <div className="flex min-h-[280px] items-center justify-center rounded-md border border-dashed border-borde px-6 text-center">
+          <p className="max-w-sm text-xs leading-relaxed text-texto-suave">
+            Elegi al menos un activo arriba para ver su curva desde el primer mes en que produjo.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        <ResponsiveContainer width="100%" height={alto}>
+          <LineChart data={filasCurvas} margin={{ top: 8, right: 8, left: 0, bottom: 16 }}>
+            <CartesianGrid stroke="var(--color-borde)" strokeDasharray="2 4" vertical={false} />
+            <XAxis
+              dataKey="mes"
+              {...EJE}
+              minTickGap={24}
+              label={{
+                value: 'meses desde el arranque',
+                position: 'insideBottom',
+                offset: -10,
+                fill: 'var(--color-texto-tenue)',
+                fontSize: 11,
+              }}
+            />
+            <YAxis {...EJE} width={58} tickFormatter={(valor: number) => compacto(Number(valor))} />
+            <Tooltip
+              cursor={{ stroke: 'var(--color-borde-vivo)', strokeWidth: 1 }}
+              contentStyle={{
+                background: 'var(--color-superficie-alta)',
+                border: '1px solid var(--color-borde)',
+                borderRadius: '0.5rem',
+                fontSize: '0.75rem',
+                fontFamily: 'var(--font-mono)',
+              }}
+              labelFormatter={(valor: unknown) => `Mes ${valor}`}
+              formatter={(valor: unknown, nombre: unknown) => [
+                `${fmt.entero(Number(valor))} ${unidad}`,
+                String(nombre),
+              ]}
+            />
+            {curvas.map((curva, indice) => (
+              <Line
+                key={curva.nombre}
+                type="monotone"
+                dataKey={curva.nombre}
+                stroke={RAMPA[indice % RAMPA.length]}
+                strokeWidth={1.8}
+                dot={false}
+                connectNulls={false}
+                isAnimationActive={false}
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+
+        <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[0.7rem]">
+          {curvas.map((curva, indice) => (
+            <li key={curva.nombre} className="flex items-center gap-1.5">
+              <span
+                aria-hidden
+                className="h-2 w-2 rounded-[2px]"
+                style={{ background: RAMPA[indice % RAMPA.length] }}
+              />
+              <span className="text-texto">{curva.nombre}</span>
+              <span className="text-texto-tenue">
+                arranca {curva.desde ?? '-'}
+                {curva.primerMes && curva.primerMes !== curva.desde
+                  ? ` (primer barril ${curva.primerMes})`
+                  : ''}{' '}
+                &middot; pico <span className="tabular">{fmt.entero(curva.pico)}</span> {unidad}
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <p className="mt-2 text-[0.7rem] leading-relaxed text-texto-tenue">
+          Cada activo alineado a su propio mes uno, en caudal promedio mensual. En el eje del
+          calendario el ranking ya dice cuál produce más hoy; alineados al arranque se ve otra
+          cosa: con qué caudal empezó cada uno y qué tan rápido cayó después. El mes uno es el
+          primero en que el activo alcanza el 10% de su propio pico y no el del primer barril: un
+          pozo exploratorio ocho años antes del desarrollo desplazaría toda la curva y dejaría el
+          tramo que importa fuera del gráfico. Un activo que ya producía en el primer mes de la
+          serie empieza en la mitad de su curva, porque la fuente no llega más atrás.
+        </p>
+      </div>
+    );
+  }
 
   if (vista === 'ranking') {
     const filasRanking = ranking.slice(0, 14);
@@ -339,6 +453,7 @@ export function Leyenda({
   alSeleccionar,
   valores,
   unidad,
+  interactiva = true,
 }: {
   series: { nombre: string }[];
   colores: Record<string, string>;
@@ -347,12 +462,30 @@ export function Leyenda({
   /** Valor del último período, para que el chip diga algo además del nombre. */
   valores: Record<string, number>;
   unidad: string;
+  /** Las cohortes no se seleccionan: no son activos y no tienen ficha. Ahí la
+   *  leyenda vuelve a ser una leyenda y deja de ser un control. */
+  interactiva?: boolean;
 }) {
   return (
     <ul className="flex flex-wrap gap-1.5">
       {series.map((serie) => {
         const activo = seleccionado === serie.nombre;
         const color = colores[serie.nombre] ?? COLOR_OTROS;
+        if (!interactiva) {
+          return (
+            <li
+              key={serie.nombre}
+              className="flex items-center gap-1.5 rounded-md border border-borde px-2 py-1 text-[0.72rem] text-texto-suave"
+            >
+              <span aria-hidden className="h-2 w-2 rounded-[2px]" style={{ background: color }} />
+              <span>{serie.nombre}</span>
+              <span className="tabular text-texto-tenue">
+                {fmt.entero(valores[serie.nombre] ?? 0)}
+              </span>
+            </li>
+          );
+        }
+
         return (
           <li key={serie.nombre}>
             <button

@@ -472,6 +472,10 @@ def chequear_produccion_ypf(problemas: list[str]) -> None:
     filas duplicadas en la fuente o se perdió algo al agrupar. Es el error que
     no se ve mirando el gráfico, porque cada corte por separado parece sano.
 
+    Se verifican las dos ventanas y no solo la última: el error que este
+    chequeo vino a atrapar vivía justamente en la previa. Y las cohortes, que
+    son el sexto corte, se verifican mes a mes contra la serie total.
+
     El cruce contra el país corre aparte: lo que YPF opera no puede ser más que
     lo que produce la Argentina.
     """
@@ -502,6 +506,84 @@ def chequear_produccion_ypf(problemas: list[str]) -> None:
         if not cerca(suma, 1.0, 0.01):
             problemas.append(
                 f"ypf/{dimension}: las participaciones suman {suma:.3f} y no 1"
+            )
+
+    # La ventana previa tiene que repartir el mismo total que la actual, y las
+    # dos tienen que coincidir con la serie de la compania.
+    #
+    # Este chequeo existe por un error concreto: el ranking solo listaba los
+    # miembros con produccion en los ultimos doce meses, asi que un area
+    # entregada a otro operador desaparecia de la ventana previa y el total
+    # previo quedaba corto. Todo lo que se sumara a partir de esas filas —una
+    # provincia, el arbol territorial, la compania— mostraba un crecimiento que
+    # no existio: +5,3% contra el +0,2% real. Cada corte por separado parecia
+    # sano, que es lo que hace que un error asi viva meses.
+    fechas = datos.get("fechas") or []
+    dias = datos.get("dias") or []
+    series = datos.get("total") or {}
+    if len(fechas) >= 24 and len(dias) == len(fechas):
+
+        def caudal(desde: int, hasta: int) -> float:
+            volumen = sum(
+                serie[indice]
+                for serie in series.values()
+                for indice in range(desde, hasta)
+                if indice < len(serie)
+            )
+            jornadas = sum(dias[desde:hasta]) or 1
+            return volumen / jornadas
+
+        ventanas = {
+            "actual_bd": caudal(len(fechas) - 12, len(fechas)),
+            "previo_bd": caudal(len(fechas) - 24, len(fechas) - 12),
+        }
+        for clave, esperado in ventanas.items():
+            for dimension, filas in (datos.get("rankings") or {}).items():
+                if not filas:
+                    continue
+                suma = sum(fila.get(clave) or 0 for fila in filas)
+                if not cerca(suma, esperado):
+                    problemas.append(
+                        f"ypf/{dimension}: {clave} suma {suma:,.0f} bd contra {esperado:,.0f} bd "
+                        "de la serie de la compania en esa ventana"
+                    )
+
+    # Las cohortes son un sexto corte —por epoca y no por geografia— y tienen
+    # que repartir el mismo total, mes a mes y no solo en la ventana.
+    dimensiones = leer("ypf_dimensiones.json")
+    cohortes = ((dimensiones or {}).get("dimensiones") or {}).get("cohorte")
+    if cohortes and series:
+        miembros = cohortes.get("miembros") or []
+        for indice in range(len(fechas)):
+            de_cohortes = sum(
+                valores[indice]
+                for miembro in miembros
+                for clave, valores in miembro.items()
+                if isinstance(valores, list) and indice < len(valores)
+            )
+            del_total = sum(
+                serie[indice] for serie in series.values() if indice < len(serie)
+            )
+            if not cerca(de_cohortes, del_total, 0.001):
+                problemas.append(
+                    f"ypf/cohorte: {fechas[indice]} suma {de_cohortes:,.0f} contra "
+                    f"{del_total:,.0f} de la serie total"
+                )
+                break
+
+    # Un traspaso que la pantalla no puede ubicar es un aviso huerfano: tiene que
+    # existir como fila del ranking de su dimension y tener ficha territorial.
+    for fila in datos.get("traspasos") or []:
+        dimension, nombre = fila.get("dimension"), fila.get("nombre")
+        ranking = (datos.get("rankings") or {}).get(dimension) or []
+        if not any(item["nombre"] == nombre for item in ranking):
+            problemas.append(
+                f"ypf/traspasos: {nombre} no figura en el ranking de {dimension}"
+            )
+        elif nombre not in ((datos.get("meta") or {}).get(dimension) or {}):
+            problemas.append(
+                f"ypf/traspasos: {nombre} no tiene ficha en meta/{dimension}, "
+                "asi que el arbol territorial lo manda a 'Sin declarar'"
             )
 
     pais = leer("country_production.json")

@@ -14,8 +14,14 @@
 
 import { useEffect, useRef } from 'react';
 
-import { fmt } from '@/lib/data';
-import { COLOR, type FichaActivo, type FilaRankingYPF, type IdDimension } from '@/lib/produccion';
+import { fmt, type AgregadoEconomico } from '@/lib/data';
+import {
+  COLOR,
+  type FichaActivo,
+  type FilaRankingYPF,
+  type IdDimension,
+  type Traspaso,
+} from '@/lib/produccion';
 import { Chispa, Composicion } from './Chispa';
 
 export interface ActivoSeleccionado {
@@ -28,6 +34,21 @@ export interface ActivoSeleccionado {
   /** Enlaces que existen de verdad: si el activo no está en el grafo, no va. */
   enlaceEntidad: string | null;
   enlaceMapa: string | null;
+  /** La economía de pozo del yacimiento, cuando el pipeline la calculó. */
+  economia: AgregadoEconomico | null;
+  /** Si el área dejó de declarar producción operada por YPF. */
+  traspaso: Traspaso | null;
+}
+
+/** Los supuestos con los que se calculó esa economía. Van siempre al lado del
+ *  número: un breakeven sin el capex que lo produjo no se puede discutir. */
+export interface SupuestosEconomia {
+  capex_usd: number;
+  opex_usd_bbl: number;
+  diferencial_usd_bbl: number;
+  wacc_anual: number;
+  brent_base: number;
+  advertencia: string;
 }
 
 function Campo({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
@@ -46,10 +67,12 @@ export function PanelActivo({
   unidad,
   alCerrar,
   alAbrirYacimientos,
+  supuestos,
 }: {
   activo: ActivoSeleccionado;
   unidad: string;
   alCerrar: () => void;
+  supuestos?: SupuestosEconomia;
   /** Bajar un nivel: de la concesión a sus yacimientos, en el mismo gráfico.
    *  Se ofrece solo cuando hay más de uno; con uno solo el drill-down devuelve
    *  la misma curva con otro nombre. */
@@ -106,6 +129,22 @@ export function PanelActivo({
           ✕
         </button>
       </div>
+
+      {/* El aviso va antes que los números y no al pie, porque cambia cómo se
+          leen: el caudal de los últimos doce meses de un área traspasada está
+          promediando meses en los que el área ya no era de YPF. */}
+      {activo.traspaso ? (
+        <p className="mt-3 rounded-md border border-oro/40 bg-oro/5 px-3 py-2 text-[0.72rem] leading-relaxed text-texto-suave">
+          <span className="font-medium text-oro">Sin producción declarada desde{' '}
+          {activo.traspaso.ultimo_mes}.</span>{' '}
+          {activo.traspaso.sigue_en_el_pais
+            ? `El área sigue produciendo en el archivo del país —${fmt.entero(
+                activo.traspaso.bd_pais ?? 0,
+              )} boe/d— así que cambió de operador y no dejó de producir.`
+            : 'La fuente no dice por qué, y el archivo del país no publica esta área por separado, así que no se puede verificar si sigue produciendo bajo otro operador.'}{' '}
+          Los números de abajo son de los últimos doce meses e incluyen los que ya no declara.
+        </p>
+      ) : null}
 
       {fila ? (
         <>
@@ -210,6 +249,109 @@ export function PanelActivo({
                 .filter(Boolean)
                 .join(' y más de una ')}
               ; arriba figura la de mayor volumen.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* La economía del activo. No se calcula acá: sale del módulo de pozo del
+          pipeline, que ajusta una curva de Arps por pozo y la descuenta. Solo
+          existe para los yacimientos con al menos diez pozos ajustados, así que
+          la mayoría de los activos convencionales no la tienen —y que no la
+          tengan también dice algo: hace años que nadie perfora ahí—. */}
+      {activo.economia ? (
+        <div className="mt-4 border-t border-borde pt-4">
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="font-mono text-[0.62rem] uppercase tracking-[0.12em] text-texto-tenue">
+              Economía de pozo
+            </p>
+            <p className="text-[0.66rem] text-texto-tenue">
+              {fmt.entero(activo.economia.pozos)} pozos ajustados
+            </p>
+          </div>
+
+          <div className="mt-2.5 grid grid-cols-2 gap-3">
+            <Campo etiqueta="Breakeven Brent">
+              <span className="tabular text-texto">
+                {activo.economia.breakeven_brent_mediano !== null &&
+                activo.economia.breakeven_brent_mediano !== undefined
+                  ? `US$ ${fmt.numero(activo.economia.breakeven_brent_mediano, 0)}`
+                  : '—'}
+              </span>{' '}
+              <span className="text-xs text-texto-suave">/bbl</span>
+            </Campo>
+            <Campo etiqueta="NPV mediano">
+              <span
+                className={`tabular ${activo.economia.npv_musd_mediano >= 0 ? 'text-alza' : 'text-baja'}`}
+              >
+                US$ {fmt.numero(activo.economia.npv_musd_mediano, 1)}M
+              </span>
+            </Campo>
+            <Campo etiqueta="TIR mediana">
+              <span
+                className={`tabular ${(activo.economia.irr_mediana ?? 0) >= 0 ? 'text-alza' : 'text-baja'}`}
+              >
+                {fmt.porcentaje(activo.economia.irr_mediana, 0)}
+              </span>
+            </Campo>
+            <Campo etiqueta="EUR mediana">
+              <span className="tabular text-texto">
+                {activo.economia.eur_bbl_mediana
+                  ? `${fmt.entero(activo.economia.eur_bbl_mediana / 1000)} kbbl`
+                  : '—'}
+              </span>
+            </Campo>
+          </div>
+
+          {/* Lo que hace honesta a la mediana: sobre cuántos pozos se calculó.
+              El breakeven no existe para el pozo que no llega a NPV cero a
+              ningún precio, y sin este renglón un yacimiento donde la mitad de
+              los pozos no cierra nunca muestra un breakeven cómodo al lado de un
+              NPV negativo, que parece un error y no lo es. */}
+          {activo.economia.pozos_con_breakeven !== undefined &&
+          activo.economia.pozos_con_breakeven < activo.economia.pozos ? (
+            <p className="mt-2 text-[0.7rem] leading-relaxed text-texto-tenue">
+              El breakeven es la mediana de los{' '}
+              <span className="tabular">{activo.economia.pozos_con_breakeven}</span> pozos que
+              alguna vez cierran; a los{' '}
+              <span className="tabular">
+                {activo.economia.pozos - activo.economia.pozos_con_breakeven}
+              </span>{' '}
+              restantes no les da positivo a ningún precio de Brent.
+            </p>
+          ) : null}
+
+          {activo.economia.pozos_con_npv_positivo !== undefined ? (
+            <div className="mt-2">
+              <div className="flex items-baseline justify-between text-[0.7rem]">
+                <span className="text-texto-tenue">Pozos con NPV positivo</span>
+                <span className="tabular text-texto-suave">
+                  {fmt.porcentaje(activo.economia.pozos_con_npv_positivo, 0)}
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-superficie-alta">
+                <span
+                  className="block h-full bg-alza"
+                  style={{ width: `${activo.economia.pozos_con_npv_positivo * 100}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {supuestos ? (
+            <p className="mt-2.5 text-[0.68rem] leading-relaxed text-texto-tenue">
+              Con capex de US$ {fmt.numero(supuestos.capex_usd / 1e6, 0)}M por pozo, opex US${' '}
+              {fmt.numero(supuestos.opex_usd_bbl, 0)}/bbl, diferencial US${' '}
+              {fmt.numero(supuestos.diferencial_usd_bbl, 0)}/bbl, WACC{' '}
+              {fmt.porcentaje(supuestos.wacc_anual, 0)} y Brent US${' '}
+              {fmt.numero(supuestos.brent_base, 1)}. {supuestos.advertencia}{' '}
+              <a
+                href="/ypf-project#economia"
+                className="text-azul-claro underline-offset-2 hover:underline"
+              >
+                Ver el módulo de economía de pozo
+              </a>
+              .
             </p>
           ) : null}
         </div>

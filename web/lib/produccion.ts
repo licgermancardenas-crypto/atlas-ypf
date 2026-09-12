@@ -20,7 +20,13 @@ export type IdFluido = 'oil' | 'gas' | 'boe';
 export type IdRecurso = 'todo' | 'convencional' | 'shale' | 'tight';
 export type IdPeriodo = 'mes' | 'trimestre' | 'anio';
 export type IdMetrica = 'caudal' | 'volumen';
-export type IdVista = 'produccion' | 'crecimiento' | 'participacion' | 'ranking';
+export type IdVista =
+  | 'produccion'
+  | 'crecimiento'
+  | 'participacion'
+  | 'ranking'
+  | 'cohortes'
+  | 'curvas';
 
 export interface MiembroYPF {
   nombre: string;
@@ -45,6 +51,19 @@ export interface FilaRankingYPF {
   convencional_bd?: number;
   tight_bd?: number;
   shale_share?: number | null;
+}
+
+export interface Traspaso {
+  dimension: IdDimension;
+  nombre: string;
+  /** Último mes en que el área declaró producción operada por YPF. */
+  ultimo_mes: string;
+  /** Caudal de los últimos tres meses en que declaró. */
+  bd_previo: number;
+  /** true si el archivo del país muestra el área todavía produciendo después
+   *  de ese mes: entonces no dejó de producir, dejó de ser de YPF. */
+  sigue_en_el_pais?: boolean;
+  bd_pais?: number;
 }
 
 export interface FichaActivo {
@@ -82,6 +101,10 @@ export interface ProduccionYPF {
   };
   rankings: Record<string, FilaRankingYPF[]>;
   meta: Record<string, Record<string, FichaActivo>>;
+  /** Las áreas que dejaron de declarar producción operada por YPF. */
+  traspasos?: Traspaso[];
+  /** Los nombres de las cohortes, en orden, tal como los publica el pipeline. */
+  cohortes?: string[];
   localidades: Record<string, { pueblo: string; km: number }>;
   dimensiones_en: string;
 }
@@ -563,7 +586,10 @@ export function senales(datos: ProduccionYPF, dimension: IdDimension): Senal[] {
     });
   }
 
-  const concesiones = datos.rankings.concesion ?? [];
+  // Solo las que producen: el ranking trae además las áreas que produjeron en la
+  // ventana previa y ya no, para que los agregados cierren, y contarlas acá
+  // diría "sobre 73 concesiones en producción" cuando son 52.
+  const concesiones = (datos.rankings.concesion ?? []).filter((fila) => fila.actual_bd > 0);
   if (concesiones.length >= 5) {
     const cinco = concesiones.slice(0, 5).reduce((suma, fila) => suma + (fila.participacion ?? 0), 0);
     salida.push({
@@ -588,6 +614,29 @@ export function senales(datos: ProduccionYPF, dimension: IdDimension): Senal[] {
         `${primera.nombre} concentra el ${((primera.participacion ?? 0) * 100).toFixed(0)}% de la ` +
         `producción operada, repartida en ${provincias.length} provincias.`,
       periodo: `${comparacion.desdeActual} – ${comparacion.hastaActual}`,
+    });
+  }
+
+  // Las áreas que cambiaron de operador. Es la señal que más se parece a una
+  // noticia, y la única de este bloque que sale de un cruce contra otra fuente
+  // —el archivo del país— en vez de una cuenta sobre las series propias.
+  const movidas = (datos.traspasos ?? []).filter((fila) => fila.dimension === 'concesion');
+  if (movidas.length) {
+    const total = movidas.reduce((suma, fila) => suma + fila.bd_previo, 0);
+    const mes = movidas[0].ultimo_mes;
+    const confirmadas = movidas.filter((fila) => fila.sigue_en_el_pais);
+    salida.push({
+      id: 'traspaso',
+      tipo: 'atencion',
+      titulo: movidas.length === 1 ? 'Un área dejó de declarar' : 'Áreas que dejaron de declarar',
+      cuerpo:
+        `${movidas.length === 1 ? '1 concesión' : `${movidas.length} concesiones`} con ` +
+        `${miles(total)} boe/d no declaran producción operada por YPF después de ${mes}` +
+        (confirmadas.length
+          ? `, y ${confirmadas.length === 1 ? 'la que se puede verificar sigue' : 'las que se pueden verificar siguen'} ` +
+            `produciendo en el archivo del país: es un cambio de operador y no una caída.`
+          : '. La fuente no dice por qué; el archivo del país no publica esas áreas por separado.'),
+      periodo: `hasta ${mes}`,
     });
   }
 
@@ -741,4 +790,226 @@ export function medidaDelRanking(
     return { clave: claves[recurso], alcance: 'completo' };
   }
   return { clave: null, alcance: 'principales' };
+}
+
+// ---------------------------------------------------------------------------
+// Economía de pozo
+//
+// El módulo de producción contestaba cuánto sale de cada activo y no si eso
+// conviene. El pipeline ya calcula lo segundo —NPV, TIR, payback y Brent de
+// breakeven pozo por pozo, sobre las curvas de Arps ajustadas— pero por
+// yacimiento y solo donde hay al menos diez pozos ajustados, que es el núcleo
+// no convencional. Son 25 yacimientos contra los 111 que producen: pocos en
+// número y la mayor parte del volumen.
+//
+// Nada de esto se recalcula acá. Lo único que hace el frontend es cruzar los
+// nombres y mostrar lo que el pipeline publicó, con sus supuestos al lado: un
+// breakeven sin el capex y el diferencial que lo produjeron es un número que no
+// se puede discutir, y un número que no se puede discutir no sirve.
+// ---------------------------------------------------------------------------
+
+/** Los nombres del padrón de pozos y los de las series de producción no siempre
+ *  coinciden en tildes ni en mayúsculas. Se comparan normalizados, que es el
+ *  mismo criterio con el que la página cruza el grafo de entidades. */
+export function normalizarNombre(texto: string): string {
+  return texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}
+
+// ---------------------------------------------------------------------------
+// Cohortes: de qué época es la producción de hoy
+//
+// La tesis del caso es que el shale compensa el declino del convencional. Eso
+// hoy se afirma en texto y se deduce de un porcentaje; acá se ve. Cada activo
+// entra en la cohorte del año en que empezó a producir, y el apilado muestra
+// qué parte del caudal de hoy viene de algo que arrancó hace quince años y qué
+// parte de algo que arrancó anteayer.
+//
+// La serie empieza en 2009, así que de lo que ya producía en el primer mes no
+// sabemos cuándo arrancó: están censurados por la izquierda y se los nombra por
+// lo que se sabe —"ya producía en 2009"— y no por una fecha inventada.
+// ---------------------------------------------------------------------------
+
+/** La serie de una clave, o undefined si el miembro no la tiene. Existe para no
+ *  castear el miembro a un Record en cada recorrido: la clave ya es un keyof. */
+function serieDe(miembro: MiembroYPF, clave: ClaveSerie): number[] | undefined {
+  return miembro[clave];
+}
+
+/** El primer mes con producción de un miembro, en índice de la grilla. Devuelve
+ *  -1 si no produjo nunca con las claves pedidas. */
+export function debutDe(miembro: MiembroYPF, claves: ClaveSerie[]): number {
+  let primero = -1;
+  for (const clave of claves) {
+    const serie = serieDe(miembro, clave);
+    if (!serie) continue;
+    for (let indice = 0; indice < serie.length; indice += 1) {
+      if (serie[indice] > 0) {
+        if (primero < 0 || indice < primero) primero = indice;
+        break;
+      }
+    }
+  }
+  return primero;
+}
+
+/** El color de cada cohorte: de lo viejo apagado a lo nuevo encendido. Acá el
+ *  color es la lectura del gráfico y no una forma de distinguir series, así que
+ *  no usa la rampa de activos. */
+export const COLOR_COHORTE: Record<string, string> = {
+  'Ya producía en 2009': '#41546f',
+  '2010-2014': '#5f7099',
+  '2015-2018': '#75aadb',
+  '2019-2021': '#0054eb',
+  '2022 en adelante': '#4d90ff',
+};
+
+// ---------------------------------------------------------------------------
+// Curvas comparadas: cada activo desde su propio mes uno
+// ---------------------------------------------------------------------------
+
+export interface CurvaActivo {
+  nombre: string;
+  /** Caudal mensual desde el arranque efectivo del activo. */
+  valores: number[];
+  /** Con qué mes del calendario empieza la curva, para poder decirlo. */
+  desde: string | null;
+  /** El primer mes con producción, que puede ser bastante anterior. */
+  primerMes: string | null;
+  pico: number;
+}
+
+/** Desde dónde vale la pena mirar una curva: el primer mes en que el activo
+ *  llegó a la décima parte de su propio pico. */
+const UMBRAL_ARRANQUE = 0.1;
+
+/** La curva de un activo alineada a su arranque.
+ *
+ *  Comparar dos activos en el eje del calendario contesta cuál produce más hoy,
+ *  que ya contesta el ranking. Alineados al arranque contestan otra cosa: si el
+ *  que empezó después empieza más arriba y cae más rápido, que es la pregunta de
+ *  fondo de un no convencional.
+ *
+ *  El arranque no es el primer barril. La Amarga Chica registra 39 boe/d en
+ *  2011 —un pozo exploratorio— y recién despega en 2019: alineada por el primer
+ *  barril, la curva son siete años de nada y después el tramo que importa queda
+ *  fuera del gráfico. Por eso la curva empieza en el primer mes que alcanza el
+ *  10% de su propio pico, y el mes del primer barril se muestra igual, al lado,
+ *  porque el recorte es una decisión y no un dato de la fuente. */
+export function curvaDesdeDebut(
+  miembro: MiembroYPF,
+  claves: ClaveSerie[],
+  dias: number[],
+  fechas: string[],
+): CurvaActivo {
+  const debut = debutDe(miembro, claves);
+  const caudales: number[] = [];
+  if (debut >= 0) {
+    for (let indice = debut; indice < dias.length; indice += 1) {
+      let volumen = 0;
+      for (const clave of claves) {
+        volumen += serieDe(miembro, clave)?.[indice] ?? 0;
+      }
+      caudales.push(volumen / (dias[indice] || 30));
+    }
+  }
+
+  const pico = caudales.length ? Math.max(...caudales) : 0;
+  const corte = caudales.findIndex((valor) => valor >= pico * UMBRAL_ARRANQUE);
+  const desdeIndice = corte > 0 ? debut + corte : debut;
+
+  return {
+    nombre: miembro.nombre,
+    valores: corte > 0 ? caudales.slice(corte) : caudales,
+    desde: desdeIndice >= 0 ? (fechas[desdeIndice] ?? null) : null,
+    primerMes: debut >= 0 ? (fechas[debut] ?? null) : null,
+    pico,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Quiebres: qué se movió de golpe
+// ---------------------------------------------------------------------------
+
+/** El activo con el mayor salto o caída reciente.
+ *
+ *  El delta de doce meses contra doce meses que usan los KPI promedia y tapa lo
+ *  que pasó de un mes para el otro: un activo que se cayó a la mitad en marzo
+ *  puede seguir mostrando un interanual positivo. Esta cuenta compara el
+ *  promedio de los últimos tres meses contra los tres anteriores, que es lo más
+ *  corto que se puede mirar sin que el ruido mensual mande.
+ *
+ *  Pide un piso de tamaño porque un pozo chico que duplica no es una noticia, y
+ *  un piso de variación porque si lo más grande que pasó fue un 6%, entonces no
+ *  pasó nada y la señal no se muestra. */
+export function quiebreReciente(
+  miembros: MiembroYPF[],
+  fechas: string[],
+  dias: number[],
+  claves: ClaveSerie[],
+  etiquetaDimension: string,
+  /** Las áreas que cambiaron de operador. Su serie cae a cero y sin excluirlas
+   *  esta función anunciaría una caída del 100% que no ocurrió: el área sigue
+   *  produciendo, pero ya no la opera YPF. Eso lo cuenta otra señal. */
+  excluidos: Set<string> = new Set(),
+): Senal | null {
+  const meses = fechas.length;
+  if (meses < 6 || !miembros.length) return null;
+
+  const caudal = (miembro: MiembroYPF, desde: number, hasta: number) => {
+    let volumen = 0;
+    let diasDelTramo = 0;
+    for (let indice = desde; indice < hasta; indice += 1) {
+      for (const clave of claves) {
+        volumen += serieDe(miembro, clave)?.[indice] ?? 0;
+      }
+      diasDelTramo += dias[indice] ?? 30;
+    }
+    return diasDelTramo > 0 ? volumen / diasDelTramo : 0;
+  };
+
+  let mayor: { nombre: string; antes: number; ahora: number; cambio: number } | null = null;
+  for (const miembro of miembros) {
+    if (excluidos.has(miembro.nombre)) continue;
+    const antes = caudal(miembro, meses - 6, meses - 3);
+    const ahora = caudal(miembro, meses - 3, meses);
+    if (antes < 1500) continue;
+    const cambio = ahora / antes - 1;
+    if (Math.abs(cambio) < 0.2) continue;
+    if (!mayor || Math.abs(cambio) > Math.abs(mayor.cambio)) {
+      mayor = { nombre: miembro.nombre, antes, ahora, cambio };
+    }
+  }
+  if (!mayor) return null;
+
+  return {
+    id: 'quiebre',
+    tipo: mayor.cambio >= 0 ? 'alza' : 'atencion',
+    titulo: mayor.cambio >= 0 ? 'Salto reciente' : 'Caída reciente',
+    cuerpo:
+      'Por ' +
+      etiquetaDimension +
+      ', ' +
+      mayor.nombre +
+      ' pasó de ' +
+      miles(mayor.antes) +
+      ' a ' +
+      miles(mayor.ahora) +
+      ' boe/d entre los dos últimos trimestres móviles (' +
+      porcentaje(mayor.cambio) +
+      '). Es el movimiento más brusco del período y no se ve en la variación ' +
+      'interanual, que lo promedia con los meses previos.',
+    periodo:
+      fechas[meses - 3] +
+      ' – ' +
+      fechas[meses - 1] +
+      ' contra ' +
+      fechas[meses - 6] +
+      ' – ' +
+      fechas[meses - 4],
+  };
 }

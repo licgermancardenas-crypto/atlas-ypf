@@ -23,16 +23,21 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { fmt } from '@/lib/data';
+import { fmt, type AgregadoEconomico } from '@/lib/data';
+import type { Traspaso } from '@/lib/produccion';
 import {
   agrupar,
   armarSeries,
   clavesDe,
+  COLOR_COHORTE,
   COLOR_OTROS,
+  curvaDesdeDebut,
   DIMENSIONES,
   medidaDelRanking,
   medir,
   NOMBRE_OTROS,
+  normalizarNombre,
+  quiebreReciente,
   RAMPA,
   rankingDeSeries,
   senales as calcularSenales,
@@ -47,7 +52,7 @@ import { Esqueleto } from '../Panel';
 import { useProduccionUI } from './contexto';
 import { Controles, type EstadoControles } from './Controles';
 import { Grafico, Leyenda } from './Grafico';
-import { PanelActivo, type ActivoSeleccionado } from './PanelActivo';
+import { PanelActivo, type ActivoSeleccionado, type SupuestosEconomia } from './PanelActivo';
 import { Senales } from './Senales';
 import { TablaProduccion } from './TablaProduccion';
 
@@ -56,11 +61,24 @@ const VISTAS: { id: IdVista; etiqueta: string; ayuda: string }[] = [
   { id: 'crecimiento', etiqueta: 'Crecimiento', ayuda: 'Variación contra el mismo período del año anterior.' },
   { id: 'participacion', etiqueta: 'Participación', ayuda: 'Quién le gana lugar a quién.' },
   { id: 'ranking', etiqueta: 'Ranking', ayuda: 'El último año, activo por activo.' },
+  { id: 'cohortes', etiqueta: 'Cohortes', ayuda: 'De qué época es la producción de hoy.' },
+  { id: 'curvas', etiqueta: 'Curvas', ayuda: 'Dos o tres activos alineados a su propio mes uno.' },
 ];
+
+/** Cuántos activos se pueden comparar a la vez en la vista de curvas. Tres
+ *  curvas todavía se distinguen de un vistazo; cinco ya son una madeja. */
+const MAX_COMPARADOS = 3;
 
 export interface EnlacesActivo {
   /** id del grafo de entidades, por dimensión y nombre. Solo los que existen. */
   entidades: Record<string, Record<string, string>>;
+}
+
+export interface EconomiaPorActivo {
+  /** Por nombre normalizado: el padrón de pozos y el de producción no escriben
+   *  igual al mismo yacimiento. */
+  porYacimiento: Record<string, AgregadoEconomico>;
+  supuestos: SupuestosEconomia;
 }
 
 const CLAVES = {
@@ -128,9 +146,11 @@ const INICIAL: EstadoControles = {
 export function ModuloProduccion({
   datos,
   enlaces,
+  economia,
 }: {
   datos: ProduccionYPF;
   enlaces: EnlacesActivo;
+  economia: EconomiaPorActivo;
 }) {
   const { filtros, aplicar } = useFiltros();
   const [estado, setEstado] = useState<EstadoControles>(INICIAL);
@@ -142,6 +162,9 @@ export function ModuloProduccion({
   // Loma Campana. Solo tiene sentido con la dimensión en yacimiento, que es el
   // único nivel que cuelga de una concesión.
   const [foco, setFoco] = useState<string | null>(null);
+  // Los activos que se comparan en la vista de curvas. Vacío quiere decir "los
+  // que el ranking pone primero", que es lo que alguien quiere ver sin elegir.
+  const [comparados, setComparados] = useState<string[]>([]);
   const seccion = useRef<HTMLElement>(null);
   const { pedido } = useProduccionUI();
   const [dimensiones, setDimensiones] = useState<Record<string, { miembros: MiembroYPF[] }> | null>(
@@ -246,17 +269,36 @@ export function ModuloProduccion({
     [datos.fechas, datos.dias, estado.periodo],
   );
 
+  // Las cohortes vienen armadas del pipeline como una dimensión más, con los
+  // 274 yacimientos del archivo adentro. Calcularlas acá habría tomado los
+  // dieciséis miembros que el archivo publica con serie propia y metido toda la
+  // cola en la cohorte más vieja, que es exactamente la conclusión equivocada.
+  const cohortes = vista === 'cohortes' ? (dimensiones?.cohorte?.miembros ?? []) : null;
+
+  // Las áreas que cambiaron de operador, por nombre: el gráfico las sigue
+  // mostrando —produjeron de verdad hasta ese mes— pero la ficha lo avisa y la
+  // señal de quiebre no las confunde con un derrumbe.
+  const traspasadas = useMemo(() => {
+    const mapa = new Map<string, Traspaso>();
+    for (const fila of datos.traspasos ?? []) {
+      if (fila.dimension === estado.dimension) mapa.set(fila.nombre, fila);
+    }
+    return mapa;
+  }, [datos.traspasos, estado.dimension]);
+
   const armadas = useMemo(
     () =>
       armarSeries({
-        miembros: miembros ?? [],
+        miembros: cohortes ?? miembros ?? [],
         claves,
         grupos,
-        top: estado.top,
+        // Las cohortes son cinco y ninguna es cola larga: agruparlas en "Otros"
+        // sería esconder justamente la que interesa, que es la más nueva.
+        top: cohortes ? 0 : estado.top,
         desde: filtros.desde,
         hasta: filtros.hasta,
       }),
-    [miembros, claves, grupos, estado.top, filtros.desde, filtros.hasta],
+    [cohortes, miembros, claves, grupos, estado.top, filtros.desde, filtros.hasta],
   );
 
   // La participación del shale por período: se calcula aparte porque el tooltip
@@ -284,13 +326,23 @@ export function ModuloProduccion({
   const colores = useMemo(() => {
     const mapa: Record<string, string> = {};
     armadas.series.forEach((serie, indice) => {
-      mapa[serie.nombre] = serie.nombre === NOMBRE_OTROS ? COLOR_OTROS : RAMPA[indice % RAMPA.length];
+      mapa[serie.nombre] = cohortes
+        ? (COLOR_COHORTE[serie.nombre] ?? COLOR_OTROS)
+        : serie.nombre === NOMBRE_OTROS
+          ? COLOR_OTROS
+          : RAMPA[indice % RAMPA.length];
     });
     return mapa;
-  }, [armadas.series]);
+  }, [armadas.series, cohortes]);
 
   const rankingCompleto = useMemo(() => {
-    const base = datos.rankings[estado.dimension] ?? [];
+    // El ranking del pipeline trae también las áreas que produjeron en la
+    // ventana previa y ya no producen: están para que los agregados del árbol
+    // territorial cierren contra la serie de la compañía. Acá arriba el corte
+    // son los últimos doce meses, así que las filas en cero no entran: el
+    // encabezado de la página cuenta 52 concesiones y la tabla tiene que contar
+    // las mismas.
+    const base = (datos.rankings[estado.dimension] ?? []).filter((fila) => fila.actual_bd > 0);
     if (!dentroDe) return base;
     const fichas = datos.meta?.yacimiento ?? {};
     return base.filter((fila) => fichas[fila.nombre]?.concesion === dentroDe);
@@ -310,11 +362,40 @@ export function ModuloProduccion({
     return rankingDeSeries(miembros ?? [], claves, datos.dias);
   }, [medida.clave, rankingCompleto, miembros, claves, datos.dias]);
 
-  const unidad = unidadDe(estado.fluido, estado.metrica);
-  const señales = useMemo(
-    () => calcularSenales(datos, estado.dimension),
-    [datos, estado.dimension],
+  // Los activos que se comparan: los elegidos, o el podio del ranking mientras
+  // nadie elija. El candidato tiene que existir como serie propia, así que
+  // "Otros" queda afuera: no es un activo.
+  const candidatos = useMemo(
+    () => rankingVista.map((fila) => fila.nombre).filter((nombre) => nombre !== NOMBRE_OTROS),
+    [rankingVista],
   );
+  const elegidos = comparados.length ? comparados : candidatos.slice(0, MAX_COMPARADOS);
+  const curvas = useMemo(() => {
+    if (vista !== 'curvas' || !miembros) return [];
+    return elegidos
+      .map((nombre) => miembros.find((miembro) => miembro.nombre === nombre))
+      .filter((miembro): miembro is MiembroYPF => Boolean(miembro))
+      .map((miembro) => curvaDesdeDebut(miembro, claves, datos.dias, datos.fechas));
+  }, [vista, miembros, elegidos, claves, datos.dias, datos.fechas]);
+
+  const unidad = unidadDe(estado.fluido, estado.metrica);
+  const señales = useMemo(() => {
+    const base = calcularSenales(datos, estado.dimension);
+    // El quiebre necesita las series mensuales, que llegan después que la
+    // página: mientras no estén, la sección muestra las otras cuatro señales y
+    // esta aparece cuando se puede calcular. Nunca un placeholder.
+    const quiebre = miembros
+      ? quiebreReciente(
+          miembros,
+          datos.fechas,
+          datos.dias,
+          claves,
+          DIMENSIONES.find((item) => item.id === estado.dimension)!.etiqueta.toLowerCase(),
+          new Set(traspasadas.keys()),
+        )
+      : null;
+    return quiebre ? [...base, quiebre] : base;
+  }, [datos, estado.dimension, miembros, claves, traspasadas]);
 
   const ultimoIndice = armadas.etiquetas.length - 1;
   const valoresUltimos = useMemo(() => {
@@ -347,8 +428,27 @@ export function ModuloProduccion({
         ubicable && seleccionado !== NOMBRE_OTROS
           ? `/ypf-project?zona=${encodeURIComponent(seleccionado)}#activo`
           : null,
+      // La economía existe por yacimiento y solo donde hay pozos ajustados.
+      // Para una concesión o una provincia no se muestra nada: sumar medianas
+      // de pozo de yacimientos distintos no da la mediana de nada.
+      economia:
+        estado.dimension === 'yacimiento'
+          ? (economia.porYacimiento[normalizarNombre(seleccionado)] ?? null)
+          : null,
+      traspaso: traspasadas.get(seleccionado) ?? null,
     };
-  }, [seleccionado, miembros, enlaces.entidades, estado.dimension, datos.meta, datos.dias, rankingCompleto, claves]);
+  }, [
+    seleccionado,
+    miembros,
+    enlaces.entidades,
+    estado.dimension,
+    datos.meta,
+    datos.dias,
+    rankingCompleto,
+    claves,
+    economia.porYacimiento,
+    traspasadas,
+  ]);
 
   const etiquetaDimension = DIMENSIONES.find((item) => item.id === estado.dimension)!;
   const cargando = dimensiones === null;
@@ -448,7 +548,7 @@ export function ModuloProduccion({
                 : undefined
             }
             extra={
-              modo === 'grafico' && vista !== 'ranking' && ultimoIndice >= 0 ? (
+              modo === 'grafico' && vista !== 'ranking' && vista !== 'curvas' && ultimoIndice >= 0 ? (
                 <p className="text-right text-xs text-texto-tenue">
                   <span className="font-mono text-[0.62rem] uppercase tracking-[0.12em]">
                     {armadas.etiquetas[ultimoIndice]}
@@ -482,6 +582,7 @@ export function ModuloProduccion({
                 meta={datos.meta[estado.dimension]}
                 seleccionado={seleccionado}
                 alSeleccionar={setSeleccionado}
+                traspasadas={new Set(traspasadas.keys())}
               />
             ) : !armadas.series.length ? (
               <div className="flex min-h-[280px] flex-col items-center justify-center gap-2 rounded-md border border-dashed border-borde px-6 text-center">
@@ -505,7 +606,48 @@ export function ModuloProduccion({
               </div>
             ) : (
               <>
-                {vista !== 'ranking' ? (
+                {vista === 'curvas' ? (
+                  /* El selector de comparación. Es una lista de chips y no un
+                     multiselect: con tres activos como tope, ver los candidatos
+                     y lo elegido en el mismo lugar cuesta menos que abrir un
+                     menú, elegir y cerrarlo. */
+                  <div className="mb-3">
+                    <p className="font-mono text-[0.62rem] uppercase tracking-[0.14em] text-texto-tenue">
+                      Comparar hasta {MAX_COMPARADOS} {etiquetaDimension.plural}
+                    </p>
+                    <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                      {candidatos.slice(0, 14).map((nombre) => {
+                        const puesto = elegidos.includes(nombre);
+                        const lleno = !puesto && elegidos.length >= MAX_COMPARADOS;
+                        return (
+                          <li key={nombre}>
+                            <button
+                              type="button"
+                              aria-pressed={puesto}
+                              disabled={lleno}
+                              onClick={() =>
+                                setComparados(
+                                  puesto
+                                    ? elegidos.filter((item) => item !== nombre)
+                                    : [...elegidos, nombre],
+                                )
+                              }
+                              className={`rounded-md border px-2 py-1 text-[0.72rem] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-azul-claro ${
+                                puesto
+                                  ? 'border-azul-claro bg-superficie-alta text-texto'
+                                  : lleno
+                                    ? 'cursor-not-allowed border-borde/60 text-texto-tenue/60'
+                                    : 'border-borde text-texto-suave hover:border-borde-vivo hover:text-texto'
+                              }`}
+                            >
+                              <span className="max-w-[11rem] truncate">{nombre}</span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ) : vista !== 'ranking' ? (
                   <div className="mb-3">
                     <Leyenda
                       series={armadas.series}
@@ -514,8 +656,17 @@ export function ModuloProduccion({
                       alSeleccionar={setSeleccionado}
                       valores={valoresUltimos}
                       unidad={unidad}
+                      interactiva={!cohortes}
                     />
-                    {armadas.agrupados > 0 ? (
+                    {cohortes ? (
+                      <p className="mt-2 text-[0.7rem] leading-relaxed text-texto-tenue">
+                        Cada yacimiento entra en la cohorte del año en que empezó a producir, y las
+                        cohortes se arman sobre los 274 yacimientos del archivo, no sobre los que
+                        tienen serie propia en el gráfico. De lo que ya producía en el primer mes
+                        de la serie no sabemos cuándo arrancó: se lo nombra por lo que se sabe. La
+                        dimensión elegida arriba no cambia este corte.
+                      </p>
+                    ) : armadas.agrupados > 0 ? (
                       <p className="mt-2 text-[0.7rem] text-texto-tenue">
                         &ldquo;{NOMBRE_OTROS}&rdquo; junta {armadas.agrupados}{' '}
                         {etiquetaDimension.plural} más
@@ -551,8 +702,11 @@ export function ModuloProduccion({
                   periodo={estado.periodo}
                   ranking={rankingVista}
                   alcanceRanking={medida.alcance}
+                  curvas={curvas}
                   seleccionado={seleccionado}
-                  alSeleccionar={setSeleccionado}
+                  // Una cohorte no es un activo y no tiene ficha: en esa vista
+                  // el gráfico se mira, no se selecciona.
+                  alSeleccionar={cohortes ? () => {} : setSeleccionado}
                 />
 
                 <p className="mt-3 text-[0.7rem] leading-relaxed text-texto-tenue">
@@ -580,6 +734,7 @@ export function ModuloProduccion({
                   activo={activo}
                   unidad={unidad}
                   alCerrar={() => setSeleccionado(null)}
+                  supuestos={economia.supuestos}
                   alAbrirYacimientos={
                     // El drill-down desde la ficha: de la concesión a los
                     // yacimientos que tiene adentro, sin salir de la pantalla.

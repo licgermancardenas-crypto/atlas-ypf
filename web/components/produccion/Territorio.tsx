@@ -56,14 +56,19 @@ function Fila({
   alEntrar: (nodo: NodoTerritorio) => void;
 }) {
   const abre = nodo.hijos.length > 0;
+  const detenido = nodo.actual_bd === 0 || Boolean(nodo.sinDeclararDesde);
   const subtitulo =
-    nodo.nivel === 'concesion'
+    nodo.sinDeclararDesde
+      ? `sin declarar desde ${nodo.sinDeclararDesde}`
+      : nodo.actual_bd === 0
+        ? 'sin producción en los últimos doce meses'
+        : nodo.nivel === 'concesion'
       ? `${nodo.hijos.length} ${nodo.hijos.length === 1 ? 'yacimiento' : 'yacimientos'}`
-      : nodo.nivel === 'yacimiento'
-        ? (nodo.localidad ?? '')
-        : nodo.cuenta.concesiones
-          ? `${nodo.cuenta.concesiones} concesiones · ${nodo.cuenta.yacimientos} yacimientos`
-          : '';
+        : nodo.nivel === 'yacimiento'
+          ? (nodo.localidad ?? '')
+          : nodo.cuenta.concesiones
+            ? `${nodo.cuenta.concesiones} concesiones · ${nodo.cuenta.yacimientos} yacimientos`
+            : '';
 
   return (
     <li>
@@ -78,7 +83,11 @@ function Fila({
               {nodo.nombre}
             </span>
             {subtitulo ? (
-              <span className="hidden shrink-0 text-[0.7rem] text-texto-tenue sm:inline">
+              <span
+                className={`hidden shrink-0 text-[0.7rem] sm:inline ${
+                  detenido ? 'text-oro' : 'text-texto-tenue'
+                }`}
+              >
                 {subtitulo}
               </span>
             ) : null}
@@ -99,7 +108,9 @@ function Fila({
         </div>
         <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-superficie-alta">
           <span
-            className="block h-full bg-azul transition-[width] duration-300 group-hover:bg-azul-claro"
+            className={`block h-full transition-[width] duration-300 ${
+              detenido ? 'bg-borde-vivo' : 'bg-azul group-hover:bg-azul-claro'
+            }`}
             style={{ width: `${Math.max(nodo.peso * 100, 0.6)}%` }}
           />
         </div>
@@ -218,6 +229,13 @@ export function Territorio({ raiz, nota }: { raiz: NodoTerritorio; nota: string 
             <p className="mt-1 truncate text-lg font-semibold leading-tight text-texto">
               {actual.nombre}
             </p>
+            {actual.sinDeclararDesde ? (
+              <p className="mt-1 text-[0.72rem] text-oro">
+                Sin producción declarada como operada por YPF desde{' '}
+                {actual.sinDeclararDesde}. Los números son de los últimos doce meses e incluyen los
+                que ya no declara.
+              </p>
+            ) : null}
           </div>
           <div className="flex items-baseline gap-4">
             <p className="tabular text-2xl font-semibold leading-none text-texto">

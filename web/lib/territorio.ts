@@ -50,6 +50,11 @@ export interface NodoTerritorio {
   /** La dimensión del módulo de análisis que corresponde a este nodo, cuando
    *  existe: es lo que permite saltar del territorio a la ficha del activo. */
   dimension: IdDimension | null;
+  /** Último mes con producción declarada, si el área dejó de declararla. Un
+   *  nodo en cero no es un error de cruce: es un área que YPF ya no opera, y
+   *  sigue sumando en la ventana previa —por eso el crecimiento del padre es el
+   *  que es—. */
+  sinDeclararDesde: string | null;
   localidad: string | null;
   /** Cuántos activos de cada clase cuelgan de acá abajo. Para el subtítulo. */
   cuenta: { concesiones: number; yacimientos: number };
@@ -90,6 +95,7 @@ function vacio(id: string, nombre: string, nivel: NivelTerritorio): NodoTerritor
     participacion: 0,
     peso: 0,
     dimension: null,
+    sinDeclararDesde: null,
     localidad: null,
     cuenta: { concesiones: 0, yacimientos: 0 },
     hijos: [],
@@ -129,9 +135,20 @@ function cerrar(nodo: NodoTerritorio, totalCompania: number) {
     hijo.peso = nodo.actual_bd > 0 ? hijo.actual_bd / nodo.actual_bd : 0;
     cerrar(hijo, totalCompania);
     // La cuenta sube desde abajo: una provincia no sabe cuántos yacimientos
-    // tiene, sus concesiones sí.
-    nodo.cuenta.concesiones += hijo.nivel === 'concesion' ? 1 : hijo.cuenta.concesiones;
-    nodo.cuenta.yacimientos += hijo.nivel === 'yacimiento' ? 1 : hijo.cuenta.yacimientos;
+    // tiene, sus concesiones sí. Cuenta las que producen hoy y no las que
+    // figuran: las que dejaron de declarar siguen en el árbol —su producción
+    // previa es parte del crecimiento del padre— pero no engrosan un "52
+    // concesiones" que el encabezado de la página calcula de otra manera.
+    if (hijo.nivel === 'concesion') {
+      if (hijo.actual_bd > 0) nodo.cuenta.concesiones += 1;
+    } else {
+      nodo.cuenta.concesiones += hijo.cuenta.concesiones;
+    }
+    if (hijo.nivel === 'yacimiento') {
+      if (hijo.actual_bd > 0) nodo.cuenta.yacimientos += 1;
+    } else {
+      nodo.cuenta.yacimientos += hijo.cuenta.yacimientos;
+    }
   }
 }
 
@@ -145,6 +162,10 @@ export function armarTerritorio(datos: ProduccionYPF): NodoTerritorio {
   const yacimientos = datos.rankings.yacimiento ?? [];
   const fichaConcesion = datos.meta?.concesion ?? {};
   const fichaYacimiento = datos.meta?.yacimiento ?? {};
+  const traspasos = new Map<string, string>();
+  for (const fila of datos.traspasos ?? []) {
+    traspasos.set(`${fila.dimension}/${fila.nombre}`, fila.ultimo_mes);
+  }
 
   // Los yacimientos cuelgan de su concesión dominante, que es la que la ficha
   // ya eligió por volumen. Los que no la declaran quedan aparte y se ven: no se
@@ -176,16 +197,17 @@ export function armarTerritorio(datos: ProduccionYPF): NodoTerritorio {
     }
 
     const nodo = desdeFila(fila, ficha, `${cuenca.id}/${fila.nombre}`, 'concesion', 'concesion');
+    nodo.sinDeclararDesde = traspasos.get(`concesion/${fila.nombre}`) ?? null;
     for (const hijo of porConcesion.get(fila.nombre) ?? []) {
-      nodo.hijos.push(
-        desdeFila(
-          hijo,
-          fichaYacimiento[hijo.nombre],
-          `${nodo.id}/${hijo.nombre}`,
-          'yacimiento',
-          'yacimiento',
-        ),
+      const nodoHijo = desdeFila(
+        hijo,
+        fichaYacimiento[hijo.nombre],
+        `${nodo.id}/${hijo.nombre}`,
+        'yacimiento',
+        'yacimiento',
       );
+      nodoHijo.sinDeclararDesde = traspasos.get(`yacimiento/${hijo.nombre}`) ?? null;
+      nodo.hijos.push(nodoHijo);
     }
 
     cuenca.hijos.push(nodo);
