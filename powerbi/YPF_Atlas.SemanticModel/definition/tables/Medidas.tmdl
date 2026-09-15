@@ -1,0 +1,676 @@
+table Medidas
+	lineageTag: acf650c8-e84e-5558-9994-3037d278e5d2
+
+	measure '_Orden elegido' =
+			VAR o = SELECTEDVALUE(Trimestres[Orden])
+			RETURN
+			    IF(ISBLANK(o), MAX(Trimestres[Orden]), o)
+		formatString: 0
+		isHidden
+		displayFolder: Contexto
+		lineageTag: a5c0e625-69a0-5dab-bae4-be4c5faf5d89
+
+	measure _Desfase =
+			SELECTEDVALUE(Desfase[N], 0)
+		formatString: 0
+		isHidden
+		displayFolder: Contexto
+		lineageTag: 336adff0-1b11-51c7-a89d-46ac09a8b964
+
+	measure _Orden =
+			VAR base = IF(ISINSCOPE(Eje[Etiqueta]), SELECTEDVALUE(Eje[Orden]), [_Orden elegido])
+			RETURN
+			    base - [_Desfase]
+		formatString: 0
+		isHidden
+		displayFolder: Contexto
+		lineageTag: b7e9ba33-7fff-50c3-b0cc-9ddf7553bb48
+
+	measure _Segmento =
+			SELECTEDVALUE(Segmento[Segmento], "Consolidado")
+		isHidden
+		displayFolder: Contexto
+		lineageTag: 78c8fd73-2425-54d0-9692-86ae083eb4e5
+
+	measure _Consolidado =
+			[_Segmento] = "Consolidado"
+		isHidden
+		displayFolder: Contexto
+		lineageTag: ca8d5838-da68-5fa1-bb97-c165ee0a872c
+
+	measure '_Trimestres comparación' =
+			SELECTEDVALUE(Comparacion[Trimestres], 4)
+		formatString: 0
+		isHidden
+		displayFolder: Contexto
+		lineageTag: 24513dda-810e-583f-8e43-4e98a5d4339c
+
+	measure '_Trimestre del año' =
+			LOOKUPVALUE(Trimestres[NTrim], Trimestres[Orden], [_Orden elegido])
+		formatString: 0
+		isHidden
+		displayFolder: Contexto
+		lineageTag: 175f26fb-9eec-5260-bb3e-87fc56fcd0b5
+
+	measure 'Trimestre elegido' =
+			LOOKUPVALUE(Trimestres[Etiqueta], Trimestres[Orden], [_Orden elegido])
+		displayFolder: Textos
+		lineageTag: 9a224a01-a8eb-583f-b739-2dbc3eede582
+
+	measure 'Trimestre de comparación' =
+			LOOKUPVALUE(Trimestres[Etiqueta], Trimestres[Orden], [_Orden elegido] - [_Trimestres comparación])
+		displayFolder: Textos
+		lineageTag: fdf8bf67-4ac6-5202-aece-b9b640ad5f20
+
+	measure '_Ingresos estados' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(SUM(Estados[ValorMUSD]), Estados[Clave] = "revenues", Estados[Orden] = o)
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		isHidden
+		displayFolder: Base
+		lineageTag: 3883d677-fc00-55ef-b3d6-11dc9e9f66b4
+
+	measure '_Resultado operativo estados' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(SUM(Estados[ValorMUSD]), Estados[Clave] = "operating profit", Estados[Orden] = o)
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		isHidden
+		displayFolder: Base
+		lineageTag: f23c04b9-1835-52f3-a24c-f877548b7df0
+
+	measure '_Resultado bruto estados' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(SUM(Estados[ValorMUSD]), Estados[Clave] = "gross profit", Estados[Orden] = o)
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		isHidden
+		displayFolder: Base
+		lineageTag: 8f45b673-c4d7-5f6f-85e8-6002577faa85
+
+	measure '_Resultado neto estados' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(SUM(Estados[ValorMUSD]), Estados[Clave] = "net profit", Estados[Orden] = o)
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		isHidden
+		displayFolder: Base
+		lineageTag: 5ee13e67-5bdd-534a-813a-f51797e9816e
+
+	measure '_Flujo operativo estados' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(SUM(Estados[ValorMUSD]), Estados[Clave] = "net cash flows from operating activities", Estados[Orden] = o)
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		isHidden
+		displayFolder: Base
+		lineageTag: 1bc1e9b5-97f4-5152-8fab-b21ff4c34328
+
+	measure '_Capex estados' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(SUM(Estados[ValorMUSD]), Estados[Clave] = "acquisition of property plant and equipment and intangible assets | net cash flows used in investing activities", Estados[Orden] = o)
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		isHidden
+		displayFolder: Base
+		lineageTag: ab48d18e-1431-5203-9dd7-9ca00b980820
+
+	measure '_DA estados' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(SUM(Estados[ValorMUSD]), Estados[Clave] IN {"depreciation of property plant and equipment | net cash flows from operating activities", "amortization of intangible assets | net cash flows from operating activities", "depreciation of right of use assets | net cash flows from operating activities"}, Estados[Orden] = o)
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		isHidden
+		displayFolder: Base
+		lineageTag: d57dfb0d-2dcd-562a-9775-5d1c865aded9
+
+	measure '_Ingresos segmento' =
+			VAR o = [_Orden]
+			VAR s = [_Segmento]
+			RETURN
+			    CALCULATE(SUM(Segmentos[ValorMUSD]), Segmentos[Concepto] = "ingresos_totales", Segmentos[Segmento] = s, Segmentos[Orden] = o)
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		isHidden
+		displayFolder: Base
+		lineageTag: 0100becc-d911-5de9-ab05-90b11a6d2ca2
+
+	measure '_Resultado operativo segmento' =
+			VAR o = [_Orden]
+			VAR s = [_Segmento]
+			RETURN
+			    CALCULATE(SUM(Segmentos[ValorMUSD]), Segmentos[Concepto] = "resultado_operativo", Segmentos[Segmento] = s, Segmentos[Orden] = o)
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		isHidden
+		displayFolder: Base
+		lineageTag: 495a6b79-250e-5ef7-b6d6-2ba64d9dc8cf
+
+	measure '_Capex segmento' =
+			VAR o = [_Orden]
+			VAR s = [_Segmento]
+			RETURN
+			    CALCULATE(SUM(Segmentos[ValorMUSD]), Segmentos[Concepto] = "capex_ppe", Segmentos[Segmento] = s, Segmentos[Orden] = o)
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		isHidden
+		displayFolder: Base
+		lineageTag: 3370e706-2282-5b6c-b7c8-995902d0336f
+
+	measure '_Depreciación segmento' =
+			VAR o = [_Orden]
+			VAR s = [_Segmento]
+			RETURN
+			    CALCULATE(SUM(Segmentos[ValorMUSD]), Segmentos[Concepto] = "depreciacion_ppe", Segmentos[Segmento] = s, Segmentos[Orden] = o)
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		isHidden
+		displayFolder: Base
+		lineageTag: 1f2a90b6-631f-5a89-a0d6-2815bd8032f9
+
+	measure '_EBITDA ajustado release' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(SUM(Release[Valor]), Release[Campo] = "adj_ebitda_musd", Release[Orden] = o)
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		isHidden
+		displayFolder: Base
+		lineageTag: bc3f6a75-04ac-5789-a0af-307815084113
+
+	measure '_Capex release' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(SUM(Release[Valor]), Release[Campo] = "capex_musd", Release[Orden] = o)
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		isHidden
+		displayFolder: Base
+		lineageTag: 467818f5-003d-5d2b-9725-ef1d2b7e2b6a
+
+	measure '_FCF release' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(SUM(Release[Valor]), Release[Campo] = "fcf_musd", Release[Orden] = o)
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		isHidden
+		displayFolder: Base
+		lineageTag: 0742b364-fe61-5300-9e3d-b55db6472402
+
+	measure '_Apalancamiento release' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(SUM(Release[Valor]), Release[Campo] = "net_leverage_x", Release[Orden] = o)
+		formatString: "0.0""x"""
+		isHidden
+		displayFolder: Base
+		lineageTag: 9cf9f7fa-aebf-5490-90fa-df36ece70c74
+
+	measure Ingresos =
+			IF([_Consolidado], [_Ingresos estados], [_Ingresos segmento])
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Métricas
+		lineageTag: 456ceda4-4fc7-5f9f-a752-1cbbbd0d1a89
+
+	measure 'EBITDA ajustado' =
+			IF([_Consolidado], [_EBITDA ajustado release], [_Resultado operativo segmento] + [_Depreciación segmento])
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Métricas
+		lineageTag: 7de02d9f-1506-5397-a6d8-ef4b0897e350
+
+	measure 'EBITDA de los estados' =
+			[_Resultado operativo estados] + [_DA estados]
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Métricas
+		lineageTag: 5eb2b2c5-dd55-5220-9f6f-5bdc4e0e2a51
+
+	measure 'Resultado operativo' =
+			IF([_Consolidado], [_Resultado operativo estados], [_Resultado operativo segmento])
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Métricas
+		lineageTag: 5116c7c3-d186-53b9-a123-420d16840134
+
+	measure Capex =
+			IF([_Consolidado], -[_Capex estados], [_Capex segmento])
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Métricas
+		lineageTag: 5d3e5e1b-69b1-5d5a-9b08-fb5ce5340ff9
+
+	measure 'Flujo operativo' =
+			IF([_Consolidado], [_Flujo operativo estados])
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Métricas
+		lineageTag: 062fee7c-1d9c-5797-ae33-1960391a57ba
+
+	measure 'Flujo de caja libre' =
+			IF([_Consolidado], [_Flujo operativo estados] + [_Capex estados])
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Métricas
+		lineageTag: b7a8752a-10bb-518e-9188-6e1cd857ed9f
+
+	measure 'Resultado neto' =
+			IF([_Consolidado], [_Resultado neto estados])
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Métricas
+		lineageTag: 6999c6c0-0c0d-58c2-b421-9cdd16327696
+
+	measure 'Margen EBITDA' =
+			DIVIDE([EBITDA ajustado], [Ingresos])
+		formatString: 0.0%;−0.0%
+		displayFolder: Métricas
+		lineageTag: e1c3dbd3-e932-5d74-abf2-1cfd6c544053
+
+	measure 'Capex pagado' =
+			-[_Capex estados]
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Lecturas del capex
+		lineageTag: 7e8f12ca-7fc5-5278-8898-0e9039ac6fac
+
+	measure 'Capex devengado' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(SUM(Segmentos[ValorMUSD]), Segmentos[Concepto] = "capex_ppe", Segmentos[Segmento] = "Total", Segmentos[Orden] = o)
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Lecturas del capex
+		lineageTag: 7c1c21db-863e-599a-87f4-06d7e1ea7331
+
+	measure 'Capex publicado' =
+			[_Capex release]
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Lecturas del capex
+		lineageTag: fc50e4d8-b7f1-550a-ab12-71af90c0e30a
+
+	measure 'Flujo libre publicado' =
+			[_FCF release]
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Lecturas del capex
+		lineageTag: 586828e5-f422-53c3-ab60-5768f0d34a67
+
+	measure 'Flujo libre calculado' =
+			[_Flujo operativo estados] + [_Capex estados]
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Lecturas del capex
+		lineageTag: d5375ccd-56f3-5ba7-8e86-a20f77f0fc7d
+
+	measure 'Deuda neta / EBITDA' =
+			[_Apalancamiento release]
+		formatString: "0.0""x"""
+		displayFolder: Métricas
+		lineageTag: b11fcdad-aec2-5aa9-8be9-26bdcdf150a0
+
+	measure 'Valor métrica' =
+			SWITCH(SELECTEDVALUE(Metrica[Orden], 1), 1, [Ingresos], 2, [EBITDA ajustado], 3, [Resultado operativo], 4, [Capex], 5, [Flujo operativo], 6, [Flujo de caja libre], 7, [Resultado neto])
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Métricas
+		lineageTag: 7eb3c9ad-e503-5b68-9947-23061243f128
+
+	measure 'EBITDA ajustado comparación' =
+			CALCULATE([EBITDA ajustado], TREATAS({[_Trimestres comparación]}, Desfase[N]))
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Comparación
+		lineageTag: 107d205c-87f2-540d-b5aa-ac55cceefe80
+
+	measure 'Variación EBITDA' =
+			VAR a = [EBITDA ajustado]
+			VAR b = [EBITDA ajustado comparación]
+			RETURN
+			    IF(NOT ISBLANK(b) && b <> 0, (a - b) / ABS(b))
+		formatString: """▲ ""0.0%;""▼ ""0.0%;""–"""
+		displayFolder: Comparación
+		lineageTag: 668bb50f-89b6-5ecd-82df-e5c0be5ebcfc
+
+	measure 'Serie métrica' =
+			VAR o = SELECTEDVALUE(Eje[Orden])
+			VAR s = [_Orden elegido]
+			RETURN
+			    IF(o <= s && o > s - 12, [Valor métrica])
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Serie
+		lineageTag: f451f9e6-9556-5376-a66f-110cda597def
+
+	measure 'Serie EBITDA ajustado' =
+			VAR o = SELECTEDVALUE(Eje[Orden])
+			VAR s = [_Orden elegido]
+			RETURN
+			    IF(o <= s && o > s - 12, [EBITDA ajustado])
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Serie
+		lineageTag: 88ac6823-f246-564f-877d-8d22a88a9d11
+
+	measure 'Serie flujo operativo' =
+			VAR o = SELECTEDVALUE(Eje[Orden])
+			VAR s = [_Orden elegido]
+			RETURN
+			    IF(o <= s && o > s - 12, [Flujo operativo])
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Serie
+		lineageTag: 4c1aa01c-6551-5b2b-8d83-1973b880d3a8
+
+	measure 'Color serie' =
+			IF(SELECTEDVALUE(Eje[Orden]) > [_Orden elegido] - 3, "#22d3ee", "#27405f")
+		isHidden
+		displayFolder: Serie
+		lineageTag: ec39a4a8-6316-53d0-afcb-1d75d07da3d4
+
+	measure 'Métrica últimos doce meses' =
+			SUMX(FILTER(ALL(Desfase), Desfase[N] < 4), CALCULATE([Valor métrica]))
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Serie
+		lineageTag: f29b5e3e-c7f0-5d09-919c-9a18be0f4c62
+
+	measure _Margen =
+			VAR ingresos = [_Ingresos estados]
+			RETURN
+			    SWITCH(SELECTEDVALUE(Margen[Orden]),
+			        1, DIVIDE([_Resultado bruto estados], ingresos),
+			        2, DIVIDE([_Resultado operativo estados], ingresos),
+			        3, DIVIDE([_EBITDA ajustado release], ingresos),
+			        4, DIVIDE([_Resultado neto estados], ingresos),
+			        5, DIVIDE([_Flujo operativo estados], ingresos))
+		formatString: 0.0%;−0.0%
+		isHidden
+		displayFolder: Márgenes
+		lineageTag: 1e42fe77-45a9-58f3-9938-7dbcb950e961
+
+	measure 'Margen elegido' =
+			[_Margen]
+		formatString: 0.0%;−0.0%
+		displayFolder: Márgenes
+		lineageTag: dcd554e0-c3d4-5116-9600-2da51f5050e9
+
+	measure 'Margen comparación' =
+			CALCULATE([_Margen], TREATAS({[_Trimestres comparación]}, Desfase[N]))
+		formatString: 0.0%;−0.0%
+		displayFolder: Márgenes
+		lineageTag: da24521e-6558-522e-878b-86c656764630
+
+	measure '_Concepto acumulado' =
+			SWITCH(SELECTEDVALUE(Acumulado[Orden]), 1, [Ingresos], 2, [EBITDA ajustado], 3, [Flujo operativo], 4, [Capex])
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		isHidden
+		displayFolder: Acumulado
+		lineageTag: af92466d-331b-5008-a79a-f20f5fefef09
+
+	measure 'Acumulado del año' =
+			VAR n = [_Trimestre del año]
+			RETURN
+			    SUMX(FILTER(ALL(Desfase), Desfase[N] < n), CALCULATE([_Concepto acumulado]))
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Acumulado
+		lineageTag: a5a76dbf-617e-55db-9777-5eba4d69ace8
+
+	measure 'Acumulado del año anterior' =
+			VAR n = [_Trimestre del año]
+			RETURN
+			    SUMX(FILTER(ALL(Desfase), Desfase[N] >= 4 && Desfase[N] < 4 + n), CALCULATE([_Concepto acumulado]))
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Acumulado
+		lineageTag: d30692b6-4add-52f0-b365-d67246009825
+
+	measure 'Título tablero' =
+			"Trimestre " & [Trimestre elegido] & " · " & [_Segmento]
+		displayFolder: Textos
+		lineageTag: dc928629-c744-5be6-8dd4-be69961912a8
+
+	measure 'Título EBITDA' =
+			IF([_Consolidado], "EBITDA ajustado · ", "EBITDA del segmento · ") & [Trimestre elegido]
+		displayFolder: Textos
+		lineageTag: bad94bd9-2ef3-5e6f-9982-a675ea1a12dd
+
+	measure 'Título variación' =
+			"EBITDA contra " & [Trimestre de comparación]
+		displayFolder: Textos
+		lineageTag: 92a619c2-54fb-51da-b266-12d29e082788
+
+	measure 'Título serie' =
+			SELECTEDVALUE(Metrica[Metrica], "Ingresos") & " · doce trimestres hasta " & [Trimestre elegido]
+		displayFolder: Textos
+		lineageTag: cb025e00-4149-5955-8ade-21860a4b3d42
+
+	measure 'Título márgenes' =
+			"Márgenes consolidados: " & [Trimestre elegido] & " contra " & [Trimestre de comparación]
+		displayFolder: Textos
+		lineageTag: 9bbd63c2-4913-5bf9-90bc-10c7e4084fcd
+
+	measure 'Título acumulado' =
+			VAR n = [_Trimestre del año]
+			VAR tramo = SWITCH(n, 1, "1T", 2, "1S", 3, "9M", "FY")
+			VAR anio = LOOKUPVALUE(Trimestres[Anio], Trimestres[Orden], [_Orden elegido])
+			RETURN
+			    "Lo que va del año: " & tramo & RIGHT(anio, 2) & " contra " & tramo & RIGHT(anio - 1, 2)
+		displayFolder: Textos
+		lineageTag: 9f45b947-94f3-5ffc-8b23-f5b82027bdf9
+
+	measure 'Título operativo' =
+			"Precio o volumen: doce trimestres hasta " & [Trimestre elegido] & " (consolidado, release)"
+		displayFolder: Textos
+		lineageTag: 2b28ddca-7bfb-5e7b-8e9f-a53541d35d11
+
+	measure 'Título mapa' =
+			"Vaca Muerta: dónde produce YPF · shale operado, boe/d brutos · " & [Trimestre elegido] & " contra " & [Trimestre de comparación]
+		displayFolder: Textos
+		lineageTag: 04732c28-faf0-5b9e-9624-2bcc4f6b6359
+
+	measure 'Título mercado' =
+			VAR f = [_Fecha del reporte]
+			RETURN
+			    "Cómo reaccionó el mercado · " & IF(ISBLANK(f), "sin estudio de evento para " & [Trimestre elegido], "balance de " & [Trimestre elegido] & ", presentado el " & RIGHT(f, 2) & "/" & MID(f, 6, 2) & "/" & LEFT(f, 4))
+		displayFolder: Textos
+		lineageTag: ca73d313-9067-5568-814b-69b0622e695f
+
+	measure 'Producción total' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(SUM(Release[Valor]), Release[Campo] = "produccion_kboed", Release[Orden] = o)
+		formatString: #,##0.0
+		displayFolder: Operativo
+		lineageTag: f9b33082-6065-5ae4-9182-ea5d2dab810a
+
+	measure 'Variación producción total' =
+			VAR a = [Producción total]
+			VAR b = CALCULATE([Producción total], TREATAS({[_Trimestres comparación]}, Desfase[N]))
+			RETURN
+			    IF(NOT ISBLANK(a) && NOT ISBLANK(b) && b <> 0, (a - b) / ABS(b))
+		formatString: """▲ ""0.0%;""▼ ""0.0%;""–"""
+		displayFolder: Operativo
+		lineageTag: b201f805-563c-5fb4-8862-89238777a1ac
+
+	measure 'Petróleo shale' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(SUM(Release[Valor]), Release[Campo] = "shale_oil_kbbld", Release[Orden] = o)
+		formatString: #,##0.0
+		displayFolder: Operativo
+		lineageTag: 485ca556-c82f-5f3f-af7a-861d4a897d03
+
+	measure 'Variación petróleo shale' =
+			VAR a = [Petróleo shale]
+			VAR b = CALCULATE([Petróleo shale], TREATAS({[_Trimestres comparación]}, Desfase[N]))
+			RETURN
+			    IF(NOT ISBLANK(a) && NOT ISBLANK(b) && b <> 0, (a - b) / ABS(b))
+		formatString: """▲ ""0.0%;""▼ ""0.0%;""–"""
+		displayFolder: Operativo
+		lineageTag: 3fe3ef41-7c21-53aa-8d5a-6391f0b6c9cf
+
+	measure 'Precio del crudo' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(SUM(Release[Valor]), Release[Campo] = "precio_crudo_usd_bbl", Release[Orden] = o)
+		formatString: #,##0.0
+		displayFolder: Operativo
+		lineageTag: dda68bcf-1976-5cfe-b262-93accd1dd3f1
+
+	measure 'Variación precio del crudo' =
+			VAR a = [Precio del crudo]
+			VAR b = CALCULATE([Precio del crudo], TREATAS({[_Trimestres comparación]}, Desfase[N]))
+			RETURN
+			    IF(NOT ISBLANK(a) && NOT ISBLANK(b) && b <> 0, (a - b) / ABS(b))
+		formatString: """▲ ""0.0%;""▼ ""0.0%;""–"""
+		displayFolder: Operativo
+		lineageTag: bc69a495-d30a-54fa-a6c9-e40b25aa5e94
+
+	measure 'Lifting cost' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(SUM(Release[Valor]), Release[Campo] = "lifting_cost_usd_boe", Release[Orden] = o)
+		formatString: #,##0.0
+		displayFolder: Operativo
+		lineageTag: 7af5abc8-b5ed-52fe-b8ca-6d08f0749f97
+
+	measure 'Variación lifting cost' =
+			VAR a = [Lifting cost]
+			VAR b = CALCULATE([Lifting cost], TREATAS({[_Trimestres comparación]}, Desfase[N]))
+			RETURN
+			    IF(NOT ISBLANK(a) && NOT ISBLANK(b) && b <> 0, (a - b) / ABS(b))
+		formatString: """▲ ""0.0%;""▼ ""0.0%;""–"""
+		displayFolder: Operativo
+		lineageTag: 40c7c6a0-7ae9-591f-8190-466c9fb37db7
+
+	measure 'Serie producción total' =
+			VAR o = SELECTEDVALUE(Eje[Orden])
+			VAR s = [_Orden elegido]
+			RETURN
+			    IF(o <= s && o > s - 12, [Producción total])
+		formatString: #,##0
+		displayFolder: Operativo
+		lineageTag: 0025de15-9b23-5056-8874-19be0fcabb65
+
+	measure 'Serie petróleo shale' =
+			VAR o = SELECTEDVALUE(Eje[Orden])
+			VAR s = [_Orden elegido]
+			RETURN
+			    IF(o <= s && o > s - 12, [Petróleo shale])
+		formatString: #,##0
+		displayFolder: Operativo
+		lineageTag: f46b7a31-ebea-5671-ba50-aa4e29106845
+
+	measure 'Serie precio del crudo' =
+			VAR o = SELECTEDVALUE(Eje[Orden])
+			VAR s = [_Orden elegido]
+			RETURN
+			    IF(o <= s && o > s - 12, [Precio del crudo])
+		formatString: #,##0.0
+		displayFolder: Operativo
+		lineageTag: cd681932-78d8-53e2-a770-a3f018792a1d
+
+	measure 'Producción shale' =
+			VAR o = [_Orden]
+			VAR c = SELECTEDVALUE(MapaConcesiones[Concesion], "Total shale operado")
+			RETURN
+			    CALCULATE(SUM(Mapa[Boed]), Mapa[Orden] = o, Mapa[Concesion] = c)
+		formatString: #,##0
+		displayFolder: Mapa
+		lineageTag: 467ccfe0-1c88-5558-9313-2a3ede1aa77e
+
+	measure 'Variación shale' =
+			VAR a = [Producción shale]
+			VAR b = CALCULATE([Producción shale], TREATAS({[_Trimestres comparación]}, Desfase[N]))
+			RETURN
+			    IF(NOT ISBLANK(b) && b > 0, (a - b) / b)
+		formatString: """▲ ""0.0%;""▼ ""0.0%;""–"""
+		displayFolder: Mapa
+		lineageTag: 6c5b517d-66f6-5810-97ab-94786358726b
+
+	measure 'Mapa X' =
+			SELECTEDVALUE(MapaConcesiones[X])
+		formatString: 0.0
+		isHidden
+		displayFolder: Mapa
+		lineageTag: 64f4a5b3-03ba-5feb-b3a6-bebe36474318
+
+	measure 'Mapa Y' =
+			SELECTEDVALUE(MapaConcesiones[Y])
+		formatString: 0.0
+		isHidden
+		displayFolder: Mapa
+		lineageTag: 3c20dc64-7542-580b-a68a-c670e2b0ed8b
+
+	measure 'Color mapa' =
+			IF([Variación shale] < 0, "#fbbf24", "#22d3ee")
+		isHidden
+		displayFolder: Mapa
+		lineageTag: e37d6ab2-97fb-5013-97f7-bf9739c02ccb
+
+	measure '_Fecha del reporte' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(MAX(Mercado[Fecha]), Mercado[Orden] = o)
+		isHidden
+		displayFolder: Mercado
+		lineageTag: d8e33f67-eb60-507b-9862-0515654a6224
+
+	measure 'Precio del ADR' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(MAX(Mercado[Precio]), Mercado[Orden] = o)
+		formatString: """US$ ""0.00"
+		displayFolder: Mercado
+		lineageTag: 1a7c71e7-bee8-5e2e-81e7-0ea42e307e30
+
+	measure 'Retorno del día' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(MAX(Mercado[Retorno]), Mercado[Orden] = o)
+		formatString: """+""0.0%;""−""0.0%;0.0%"
+		displayFolder: Mercado
+		lineageTag: 59dbcc09-bad1-5664-8f7b-f244331df0ac
+
+	measure 'Retorno anormal' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(MAX(Mercado[Anormal]), Mercado[Orden] = o)
+		formatString: """+""0.0%;""−""0.0%;0.0%"
+		displayFolder: Mercado
+		lineageTag: 7dfd7482-065c-5687-9c96-97911df2d66f
+
+	measure 'Anormal acumulado 4 ruedas' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(MAX(Mercado[Acumulado]), Mercado[Orden] = o)
+		formatString: """+""0.0%;""−""0.0%;0.0%"
+		displayFolder: Mercado
+		lineageTag: 561d81d2-8262-53ed-9d9c-4d86004e701b
+
+	measure 'Estadístico t' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(MAX(Mercado[T]), Mercado[Orden] = o)
+		formatString: 0.00
+		displayFolder: Mercado
+		lineageTag: e182d553-985a-5ea0-8b21-8beea88e66fd
+
+	measure 'Riesgo país ese día' =
+			VAR o = [_Orden]
+			RETURN
+			    CALCULATE(MAX(Mercado[Embi]), Mercado[Orden] = o)
+		formatString: "#,##0"" pb"""
+		displayFolder: Mercado
+		lineageTag: 6cc6284a-9bdd-51ef-abfc-ef75e123cd2f
+
+	measure 'Serie retorno anormal' =
+			VAR o = SELECTEDVALUE(Eje[Orden])
+			VAR s = [_Orden elegido]
+			RETURN
+			    IF(o <= s && o > s - 12, [Retorno anormal])
+		formatString: """+""0.0%;""−""0.0%;0.0%"
+		displayFolder: Mercado
+		lineageTag: 298213af-d6b2-511b-8c02-8c00f0fc2770
+
+	measure 'Color reacción' =
+			VAR o = SELECTEDVALUE(Eje[Orden])
+			RETURN
+			    IF(o = [_Orden elegido], "#fbbf24", IF([Retorno anormal] < 0, "#7c5a1e", "#27405f"))
+		isHidden
+		displayFolder: Mercado
+		lineageTag: 8a00dc43-53de-5f88-98a7-99884a308759
+
+	column _
+		dataType: int64
+		isHidden
+		lineageTag: 73c8330a-815a-58e6-b0d1-5d35a92f64d5
+		summarizeBy: none
+		sourceColumn: _
+
+	partition Medidas = m
+		mode: import
+		source =
+				let
+				    Fuente = #table(type table [_ = Int64.Type], {{1}})
+				in
+				    Fuente
+

@@ -1,0 +1,21 @@
+table Desfase
+	lineageTag: 217f35e5-ed8f-5f18-8c61-b69016e9e531
+
+	column N
+		dataType: int64
+		isHidden
+		lineageTag: 28aac433-a395-59ca-95b3-b576adff4b11
+		summarizeBy: none
+		sourceColumn: N
+
+		annotation SummarizationSetBy = User
+
+	partition Desfase = m
+		mode: import
+		source =
+				let
+				    Fuente = #table({"N"}, {{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15}}),
+				    Tipos = Table.TransformColumnTypes(Fuente, {{"N", Int64.Type}})
+				in
+				    Tipos
+

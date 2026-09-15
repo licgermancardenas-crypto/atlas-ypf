@@ -1,0 +1,53 @@
+table Estados
+	lineageTag: 35d8db59-28d0-52f2-a32e-04ed370af352
+
+	column Estado
+		dataType: string
+		isHidden
+		lineageTag: 8c26cf45-4c29-55c3-a716-e277f9f8d521
+		summarizeBy: none
+		sourceColumn: Estado
+
+		annotation SummarizationSetBy = User
+
+	column Clave
+		dataType: string
+		isHidden
+		lineageTag: 2d1ee041-cffe-547f-a02d-efd0c03eb41c
+		summarizeBy: none
+		sourceColumn: Clave
+
+		annotation SummarizationSetBy = User
+
+	column ValorMUSD
+		dataType: double
+		isHidden
+		lineageTag: f2315cea-1598-57da-afb2-2e21aff4a101
+		summarizeBy: none
+		sourceColumn: ValorMUSD
+
+		annotation SummarizationSetBy = User
+
+	column Orden
+		dataType: int64
+		isHidden
+		lineageTag: 8bffe2ec-93ea-598d-a92f-7a3b96a09b4b
+		summarizeBy: none
+		sourceColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	partition Estados = m
+		mode: import
+		source =
+				let
+				    Fuente = Parquet.Document(File.Contents(RutaDatos & "statements_ypf.parquet")),
+				    Filas = Table.SelectRows(Fuente, each [tipo] = "trimestre"),
+				    Columnas = Table.SelectColumns(Filas, {"estado", "clave", "periodo", "valor_musd"}),
+				    ConOrden = Table.NestedJoin(Columnas, {"periodo"}, Trimestres, {"Codigo"}, "T", JoinKind.Inner),
+				    Expandido = Table.ExpandTableColumn(ConOrden, "T", {"Orden"}),
+				    Renombrado = Table.RenameColumns(Expandido, {{"estado", "Estado"}, {"clave", "Clave"}, {"valor_musd", "ValorMUSD"}}),
+				    Final = Table.TransformColumnTypes(Table.RemoveColumns(Renombrado, {"periodo"}), {{"ValorMUSD", type number}, {"Orden", Int64.Type}})
+				in
+				    Final
+

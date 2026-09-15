@@ -85,6 +85,8 @@ TRANSFORM_SCRIPTS: list[tuple[str, Path, list[str]]] = [
     # El Excel se arma despues del catalogo: es una salida de presentacion,
     # no una entrada de ningun otro paso.
     ("export/excel", EXPORT / "excel_estados.py", []),
+    # El mismo tablero como proyecto de Power BI: texto, se regenera en segundos.
+    ("export/powerbi", EXPORT / "powerbi_tablero.py", []),
     # Ultima etapa: si algo quedo imposible, el job termina en rojo y el commit
     # automatico de datos no llega a ejecutarse.
     ("checks", ROOT / "pipeline" / "checks.py", []),

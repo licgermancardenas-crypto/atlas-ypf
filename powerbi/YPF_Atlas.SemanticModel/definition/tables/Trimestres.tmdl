@@ -1,0 +1,63 @@
+table Trimestres
+	lineageTag: c6fbaaf4-f952-5418-a4f7-c6be85b90acf
+
+	column Codigo
+		dataType: string
+		isHidden
+		lineageTag: 6c8eb29b-8391-5db9-a9f0-111584a000b1
+		summarizeBy: none
+		sourceColumn: Codigo
+
+		annotation SummarizationSetBy = User
+
+	column Etiqueta
+		dataType: string
+		lineageTag: e843d221-f01a-5fd1-b771-cbd9f419a16e
+		summarizeBy: none
+		sourceColumn: Etiqueta
+		sortByColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	column Orden
+		dataType: int64
+		isHidden
+		lineageTag: b841e2bc-78c9-5e4a-8aa5-9d4a642dfd47
+		summarizeBy: none
+		sourceColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	column Anio
+		dataType: int64
+		isHidden
+		lineageTag: b9ddff3a-42c2-5207-abc6-0d759b1c464d
+		summarizeBy: none
+		sourceColumn: Anio
+
+		annotation SummarizationSetBy = User
+
+	column NTrim
+		dataType: int64
+		isHidden
+		lineageTag: 9a28f39f-eca2-51c4-bf80-dc96f08e6c00
+		summarizeBy: none
+		sourceColumn: NTrim
+
+		annotation SummarizationSetBy = User
+
+	partition Trimestres = m
+		mode: import
+		source =
+				let
+				    Fuente = Parquet.Document(File.Contents(RutaDatos & "statements_ypf.parquet")),
+				    Trimestral = Table.SelectRows(Fuente, each [tipo] = "trimestre" and [periodo] >= "2019Q1"),
+				    Periodos = Table.Distinct(Table.SelectColumns(Trimestral, {"periodo", "anio", "trimestre"})),
+				    Ordenados = Table.Sort(Periodos, {{"periodo", Order.Ascending}}),
+				    ConIndice = Table.AddIndexColumn(Ordenados, "Orden", 1, 1, Int64.Type),
+				    ConEtiqueta = Table.AddColumn(ConIndice, "Etiqueta", each Text.From([trimestre]) & "T" & Text.End(Text.From([anio]), 2), type text),
+				    Renombrado = Table.RenameColumns(ConEtiqueta, {{"periodo", "Codigo"}, {"anio", "Anio"}, {"trimestre", "NTrim"}}),
+				    Tipos = Table.TransformColumnTypes(Renombrado, {{"Codigo", type text}, {"Anio", Int64.Type}, {"NTrim", Int64.Type}})
+				in
+				    Tipos
+

@@ -1,0 +1,29 @@
+table Comparacion
+	lineageTag: 47b8d476-2941-544a-9470-e2d406ad32be
+
+	column Comparacion
+		dataType: string
+		lineageTag: b0ff917a-cb93-5c27-81bc-a35e5bfe0c1f
+		summarizeBy: none
+		sourceColumn: Comparacion
+		sortByColumn: Trimestres
+
+		annotation SummarizationSetBy = User
+
+	column Trimestres
+		dataType: int64
+		lineageTag: 5bbf58f9-a831-5329-8d3e-851b6f08a389
+		summarizeBy: none
+		sourceColumn: Trimestres
+
+		annotation SummarizationSetBy = User
+
+	partition Comparacion = m
+		mode: import
+		source =
+				let
+				    Fuente = #table({"Comparacion", "Trimestres"}, {{"Año anterior", 4}, {"Trimestre anterior", 1}}),
+				    Tipos = Table.TransformColumnTypes(Fuente, {{"Comparacion", type text}, {"Trimestres", Int64.Type}})
+				in
+				    Tipos
+

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "SemanticModel",
+    "displayName": "YPF_Atlas"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "cba78ec8-5d5e-56c2-b640-dc126e39441d"
+  }
+}

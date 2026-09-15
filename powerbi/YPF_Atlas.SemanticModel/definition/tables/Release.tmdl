@@ -1,0 +1,42 @@
+table Release
+	lineageTag: 10eefc1b-5dda-5279-a437-0cc1defe8a7f
+
+	column Campo
+		dataType: string
+		isHidden
+		lineageTag: f5103fda-489e-589e-b9b1-b1fa8c69f123
+		summarizeBy: none
+		sourceColumn: Campo
+
+		annotation SummarizationSetBy = User
+
+	column Valor
+		dataType: double
+		isHidden
+		lineageTag: 5b0c06bc-14a8-5be6-99df-a48a279dbc03
+		summarizeBy: none
+		sourceColumn: Valor
+
+		annotation SummarizationSetBy = User
+
+	column Orden
+		dataType: int64
+		isHidden
+		lineageTag: cb73eabc-6ba9-5fdf-a9bf-108a44c90c42
+		summarizeBy: none
+		sourceColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	partition Release = m
+		mode: import
+		source =
+				let
+				    Fuente = Parquet.Document(File.Contents(RutaDatos & "financials_ypf.parquet")),
+				    Largo = Table.UnpivotOtherColumns(Fuente, {"trimestre"}, "Campo", "Valor"),
+				    ConOrden = Table.NestedJoin(Largo, {"trimestre"}, Trimestres, {"Codigo"}, "T", JoinKind.Inner),
+				    Expandido = Table.ExpandTableColumn(ConOrden, "T", {"Orden"}),
+				    Final = Table.TransformColumnTypes(Table.RemoveColumns(Expandido, {"trimestre"}), {{"Valor", type number}, {"Campo", type text}, {"Orden", Int64.Type}})
+				in
+				    Final
+

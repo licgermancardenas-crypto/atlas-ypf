@@ -1,0 +1,56 @@
+table Eje
+	lineageTag: c1ed72db-51a1-5cd1-a6ab-c76b01ea8c65
+
+	column Codigo
+		dataType: string
+		isHidden
+		lineageTag: 6ddfc30c-9af8-58f2-8b7d-94d623033512
+		summarizeBy: none
+		sourceColumn: Codigo
+
+		annotation SummarizationSetBy = User
+
+	column Etiqueta
+		dataType: string
+		lineageTag: b1a82664-8eaf-52b3-b518-042ec2370585
+		summarizeBy: none
+		sourceColumn: Etiqueta
+		sortByColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	column Orden
+		dataType: int64
+		isHidden
+		lineageTag: 2fdd7080-5825-5bb9-af21-3b31315ca1a1
+		summarizeBy: none
+		sourceColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	column Anio
+		dataType: int64
+		isHidden
+		lineageTag: c96665e2-220c-50c1-acf5-2370f47b3e6d
+		summarizeBy: none
+		sourceColumn: Anio
+
+		annotation SummarizationSetBy = User
+
+	column NTrim
+		dataType: int64
+		isHidden
+		lineageTag: 88b5a52b-b5e7-5a07-8c39-0297c22228fe
+		summarizeBy: none
+		sourceColumn: NTrim
+
+		annotation SummarizationSetBy = User
+
+	partition Eje = m
+		mode: import
+		source =
+				let
+				    Fuente = Trimestres
+				in
+				    Fuente
+

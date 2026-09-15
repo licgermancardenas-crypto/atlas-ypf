@@ -37,3 +37,7 @@ web/tsconfig.tsbuildinfo
 # Copia que deja el exportador cuando el libro esta abierto en Excel
 docs/*(nuevo).xlsx
 ~$*.xlsx
+
+# Estado local de Power BI Desktop: caché de datos y ajustes de la sesión
+powerbi/**/.pbi/localSettings.json
+powerbi/**/.pbi/cache.abf

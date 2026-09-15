@@ -1,0 +1,88 @@
+table Mercado
+	lineageTag: bf1c72dc-8a24-5db3-9f35-cb4dd8cb3b21
+
+	column Fecha
+		dataType: string
+		isHidden
+		lineageTag: 8dc19fe7-0cb5-5237-b845-f0d386bc5e4a
+		summarizeBy: none
+		sourceColumn: Fecha
+
+		annotation SummarizationSetBy = User
+
+	column Precio
+		dataType: double
+		isHidden
+		lineageTag: 2eb0112b-6ff6-52dd-a27b-9c15447fbb93
+		summarizeBy: none
+		sourceColumn: Precio
+
+		annotation SummarizationSetBy = User
+
+	column Retorno
+		dataType: double
+		isHidden
+		lineageTag: 32937611-79df-5f86-8798-37d7db7660d4
+		summarizeBy: none
+		sourceColumn: Retorno
+
+		annotation SummarizationSetBy = User
+
+	column Anormal
+		dataType: double
+		isHidden
+		lineageTag: 23e94870-bc96-5b5d-b0ac-9fe08926a0ca
+		summarizeBy: none
+		sourceColumn: Anormal
+
+		annotation SummarizationSetBy = User
+
+	column Acumulado
+		dataType: double
+		isHidden
+		lineageTag: 8cd836e7-cd2c-5386-bea0-b6ccc168f799
+		summarizeBy: none
+		sourceColumn: Acumulado
+
+		annotation SummarizationSetBy = User
+
+	column T
+		dataType: double
+		isHidden
+		lineageTag: 3927d494-8824-505b-a475-8324dd01cdb7
+		summarizeBy: none
+		sourceColumn: T
+
+		annotation SummarizationSetBy = User
+
+	column Embi
+		dataType: double
+		isHidden
+		lineageTag: af34b8c4-8af1-59ae-ac18-f975cbcef97f
+		summarizeBy: none
+		sourceColumn: Embi
+
+		annotation SummarizationSetBy = User
+
+	column Orden
+		dataType: int64
+		isHidden
+		lineageTag: 64f425b0-44f1-5732-a2bd-151b61f1604a
+		summarizeBy: none
+		sourceColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	partition Mercado = m
+		mode: import
+		source =
+				let
+				    Fuente = Json.Document(File.Contents(RutaDatos & "market_reaction.json")),
+				    Tabla = Table.FromRecords(Fuente[eventos], {"trimestre", "fecha_reporte", "precio_ypf", "retorno_dia", "retorno_anormal_dia", "car_0_3", "t_estadistico", "embi_dia"}, MissingField.UseNull),
+				    ConOrden = Table.NestedJoin(Tabla, {"trimestre"}, Trimestres, {"Codigo"}, "T", JoinKind.Inner),
+				    Expandido = Table.ExpandTableColumn(ConOrden, "T", {"Orden"}),
+				    Renombrado = Table.RenameColumns(Table.RemoveColumns(Expandido, {"trimestre"}), {{"fecha_reporte", "Fecha"}, {"precio_ypf", "Precio"}, {"retorno_dia", "Retorno"}, {"retorno_anormal_dia", "Anormal"}, {"car_0_3", "Acumulado"}, {"t_estadistico", "T"}, {"embi_dia", "Embi"}}),
+				    Final = Table.TransformColumnTypes(Renombrado, {{"Fecha", type text}, {"Precio", type number}, {"Retorno", type number}, {"Anormal", type number}, {"Acumulado", type number}, {"T", type number}, {"Embi", type number}, {"Orden", Int64.Type}})
+				in
+				    Final
+

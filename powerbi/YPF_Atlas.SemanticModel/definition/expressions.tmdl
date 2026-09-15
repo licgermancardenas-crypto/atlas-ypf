@@ -1,0 +1,5 @@
+/// Carpeta de data/processed/. Es lo único que hay que cambiar si el repo se mueve.
+expression RutaDatos = "E:\YPF ATLAS\data\processed\" meta [IsParameterQuery = true, Type = "Text", IsParameterQueryRequired = true]
+	lineageTag: 48c88b7f-a6a3-5d1e-b292-0ad6bf6c77d4
+
+	annotation PBI_ResultType = Text

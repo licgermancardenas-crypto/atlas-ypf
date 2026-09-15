@@ -1,0 +1,53 @@
+table Segmentos
+	lineageTag: 033fbf0e-0577-56f0-b049-cfcf84d55e00
+
+	column Segmento
+		dataType: string
+		isHidden
+		lineageTag: dda42b4f-5da8-5fc4-bcba-5d3568c6d362
+		summarizeBy: none
+		sourceColumn: Segmento
+
+		annotation SummarizationSetBy = User
+
+	column Concepto
+		dataType: string
+		isHidden
+		lineageTag: 79078786-b50a-5b85-bfe0-fce4ff93c20b
+		summarizeBy: none
+		sourceColumn: Concepto
+
+		annotation SummarizationSetBy = User
+
+	column ValorMUSD
+		dataType: double
+		isHidden
+		lineageTag: 0dd15422-39ef-5731-965c-1336fca50dc1
+		summarizeBy: none
+		sourceColumn: ValorMUSD
+
+		annotation SummarizationSetBy = User
+
+	column Orden
+		dataType: int64
+		isHidden
+		lineageTag: 3fa9d4ea-e84b-55ca-b09b-41fe48cf962b
+		summarizeBy: none
+		sourceColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	partition Segmentos = m
+		mode: import
+		source =
+				let
+				    Fuente = Parquet.Document(File.Contents(RutaDatos & "segments_ypf_homologado.parquet")),
+				    Filas = Table.SelectRows(Fuente, each [tipo] = "trimestre"),
+				    Columnas = Table.SelectColumns(Filas, {"segmento", "concepto", "periodo", "valor_musd"}),
+				    ConOrden = Table.NestedJoin(Columnas, {"periodo"}, Trimestres, {"Codigo"}, "T", JoinKind.Inner),
+				    Expandido = Table.ExpandTableColumn(ConOrden, "T", {"Orden"}),
+				    Renombrado = Table.RenameColumns(Expandido, {{"segmento", "Segmento"}, {"concepto", "Concepto"}, {"valor_musd", "ValorMUSD"}}),
+				    Final = Table.TransformColumnTypes(Table.RemoveColumns(Renombrado, {"periodo"}), {{"ValorMUSD", type number}, {"Orden", Int64.Type}})
+				in
+				    Final
+

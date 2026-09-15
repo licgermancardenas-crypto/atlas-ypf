@@ -1,0 +1,30 @@
+table Margen
+	lineageTag: bffd1e65-0ebd-533a-84c4-51b3ec4f63cf
+
+	column Margen
+		dataType: string
+		lineageTag: 1311e666-0ef4-58a1-b83c-26e8eed437c4
+		summarizeBy: none
+		sourceColumn: Margen
+		sortByColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	column Orden
+		dataType: int64
+		isHidden
+		lineageTag: 7b9b5ae2-e3fb-5534-9e55-12f80a0afa53
+		summarizeBy: none
+		sourceColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	partition Margen = m
+		mode: import
+		source =
+				let
+				    Fuente = #table({"Margen", "Orden"}, {{"Bruto", 1}, {"Operativo", 2}, {"EBITDA", 3}, {"Neto", 4}, {"Flujo operativo", 5}}),
+				    Tipos = Table.TransformColumnTypes(Fuente, {{"Margen", type text}, {"Orden", Int64.Type}})
+				in
+				    Tipos
+

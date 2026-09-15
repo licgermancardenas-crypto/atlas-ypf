@@ -1,0 +1,37 @@
+table MapaConcesiones
+	lineageTag: 571ca2e7-1a63-5c6c-8fef-80d8034692a3
+
+	column Concesion
+		dataType: string
+		lineageTag: 5cbd17c7-956d-5d52-ae95-ddc89457116d
+		summarizeBy: none
+		sourceColumn: Concesion
+
+		annotation SummarizationSetBy = User
+
+	column X
+		dataType: double
+		lineageTag: 2127b035-e9e0-52df-bdf3-e44be49f2029
+		summarizeBy: none
+		sourceColumn: X
+
+		annotation SummarizationSetBy = User
+
+	column Y
+		dataType: double
+		lineageTag: 9c5d5a83-0b53-5e4d-a53c-c53f13d7b81c
+		summarizeBy: none
+		sourceColumn: Y
+
+		annotation SummarizationSetBy = User
+
+	partition MapaConcesiones = m
+		mode: import
+		source =
+				let
+				    Fuente = Json.Document(File.Contents(RutaDatos & "tablero_mapa.json")),
+				    Tabla = Table.FromRecords(List.Transform(Fuente[concesiones], (c) => [Concesion = c[nombre], X = c[x], Y = -c[y]])),
+				    Tipos = Table.TransformColumnTypes(Tabla, {{"Concesion", type text}, {"X", type number}, {"Y", type number}})
+				in
+				    Tipos
+

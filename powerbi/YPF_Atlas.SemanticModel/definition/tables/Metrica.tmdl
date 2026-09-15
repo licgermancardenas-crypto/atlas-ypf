@@ -1,0 +1,30 @@
+table Metrica
+	lineageTag: de25e758-dbeb-560b-a839-eea81b586b18
+
+	column Metrica
+		dataType: string
+		lineageTag: a2870c7e-b60f-5c73-a96d-10af23c6a5dc
+		summarizeBy: none
+		sourceColumn: Metrica
+		sortByColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	column Orden
+		dataType: int64
+		isHidden
+		lineageTag: 4a97e565-5cec-54d4-ba56-ca53e8e7a27e
+		summarizeBy: none
+		sourceColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	partition Metrica = m
+		mode: import
+		source =
+				let
+				    Fuente = #table({"Metrica", "Orden"}, {{"Ingresos", 1}, {"EBITDA ajustado", 2}, {"Resultado operativo", 3}, {"Capex", 4}, {"Flujo operativo", 5}, {"Flujo de caja libre", 6}, {"Resultado neto", 7}}),
+				    Tipos = Table.TransformColumnTypes(Fuente, {{"Metrica", type text}, {"Orden", Int64.Type}})
+				in
+				    Tipos
+

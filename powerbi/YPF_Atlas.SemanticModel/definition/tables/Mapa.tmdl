@@ -1,0 +1,47 @@
+table Mapa
+	lineageTag: a7f06cb4-0c52-561e-8edf-cc0e81ffeba2
+
+	column Concesion
+		dataType: string
+		isHidden
+		lineageTag: c1e1f97d-5661-5dea-b8d7-45ccfb537940
+		summarizeBy: none
+		sourceColumn: Concesion
+
+		annotation SummarizationSetBy = User
+
+	column Boed
+		dataType: double
+		isHidden
+		lineageTag: bc6ab1ae-a98e-58ee-adb8-3c2f8bcfae4d
+		summarizeBy: none
+		sourceColumn: Boed
+
+		annotation SummarizationSetBy = User
+
+	column Orden
+		dataType: int64
+		isHidden
+		lineageTag: 6d0b7412-4819-573a-a8e6-4bded845c0b0
+		summarizeBy: none
+		sourceColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	partition Mapa = m
+		mode: import
+		source =
+				let
+				    Fuente = Json.Document(File.Contents(RutaDatos & "tablero_mapa.json")),
+				    Periodos = Fuente[trimestres],
+				    PorConcesion = List.Combine(List.Transform(Fuente[concesiones], (c) =>
+				        List.Transform(List.Positions(c[boed]), (i) => [Concesion = c[nombre], periodo = Periodos{i}, Boed = c[boed]{i}]))),
+				    Total = List.Transform(List.Positions(Fuente[total_boed]), (i) =>
+				        [Concesion = "Total shale operado", periodo = Periodos{i}, Boed = Fuente[total_boed]{i}]),
+				    Tabla = Table.FromRecords(PorConcesion & Total),
+				    ConOrden = Table.NestedJoin(Tabla, {"periodo"}, Trimestres, {"Codigo"}, "T", JoinKind.Inner),
+				    Expandido = Table.ExpandTableColumn(ConOrden, "T", {"Orden"}),
+				    Final = Table.TransformColumnTypes(Table.RemoveColumns(Expandido, {"periodo"}), {{"Concesion", type text}, {"Boed", type number}, {"Orden", Int64.Type}})
+				in
+				    Final
+

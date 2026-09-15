@@ -1,0 +1,30 @@
+table Segmento
+	lineageTag: cc6161df-6afd-5bb9-bb4a-d595542dc40d
+
+	column Segmento
+		dataType: string
+		lineageTag: af890c7e-6950-5b93-9d07-a090312c6c90
+		summarizeBy: none
+		sourceColumn: Segmento
+		sortByColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	column Orden
+		dataType: int64
+		isHidden
+		lineageTag: 983aeb4e-c291-5128-89ee-a0ecd99a4687
+		summarizeBy: none
+		sourceColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	partition Segmento = m
+		mode: import
+		source =
+				let
+				    Fuente = #table({"Segmento", "Orden"}, {{"Consolidado", 1}, {"Upstream", 2}, {"Downstream y gas", 3}}),
+				    Tipos = Table.TransformColumnTypes(Fuente, {{"Segmento", type text}, {"Orden", Int64.Type}})
+				in
+				    Tipos
+

@@ -1,0 +1,28 @@
+model Model
+	culture: es-ES
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	discourageImplicitMeasures
+	sourceQueryCulture: en-US
+	dataAccessOptions
+		legacyRedirects
+		returnErrorValuesAsNull
+
+annotation __PBI_TimeIntelligenceEnabled = 0
+
+annotation PBI_QueryOrder = ["RutaDatos", "Trimestres", "Eje", "Estados", "Release", "Segmentos", "Segmento", "Metrica", "Comparacion", "Desfase", "Margen", "Acumulado", "Mapa", "MapaConcesiones", "Mercado", "Medidas"]
+
+ref table Trimestres
+ref table Eje
+ref table Estados
+ref table Release
+ref table Segmentos
+ref table Segmento
+ref table Metrica
+ref table Comparacion
+ref table Desfase
+ref table Margen
+ref table Acumulado
+ref table Mapa
+ref table MapaConcesiones
+ref table Mercado
+ref table Medidas
