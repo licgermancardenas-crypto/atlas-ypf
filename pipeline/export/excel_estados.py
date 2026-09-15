@@ -9,6 +9,7 @@ Qué tiene el libro:
 
   Portada     alcance, unidades, método y las advertencias que hay que leer
               antes de usar un número;
+  Tablero     el trimestre en una pantalla, armado en export/tablero.py;
   Resultados  estado de resultados integrales, trimestral y anual;
   Balance     estado de situación patrimonial;
   Flujo       estado de flujo de efectivo;
@@ -40,10 +41,14 @@ import xlsxwriter
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "transform"))
 from _common import PROCESSED, ROOT, base_parser, human, log, record, rel  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import tablero  # noqa: E402
+
 ENTRADA = PROCESSED / "statements_ypf.parquet"
 META = PROCESSED / "statements_ypf.json"
 HIGHLIGHTS = PROCESSED / "financials_ypf.parquet"
 SEGMENTOS_ENTRADA = PROCESSED / "segments_ypf.parquet"
+HOMOLOGADOS_ENTRADA = PROCESSED / "segments_ypf_homologado.parquet"
 SALIDA = ROOT / "docs" / "YPF_estados_financieros.xlsx"
 
 # Seis ejercicios completos más lo que va del séptimo. Hacia atrás hay algunos
@@ -471,6 +476,7 @@ def escribir_portada(libro, fmt, meta: dict, datos: pd.DataFrame, trimestres: li
         ("Resultados", "Estado de resultados integrales, trimestral y anual."),
         ("Balance", "Estado de situación patrimonial."),
         ("Flujo de efectivo", "Estado de flujo de efectivo."),
+        ("Tablero", "El trimestre en una pantalla: tarjetas y gráficos sobre fondo oscuro, con botones a cada hoja."),
         ("Resumen", "Seis números y cinco gráficos: el trimestre y la serie, sin abrir ninguna otra hoja."),
         ("Segmentos", "Ingresos, resultado operativo, capex y activos por negocio, con el margen de cada uno."),
         ("Operativo", "Producción, precios de realización y las métricas por barril que salen de cruzarlos con los estados."),
@@ -915,6 +921,7 @@ def escribir_analisis(libro, fmt, mapas: dict, trimestres: list[str], anios: lis
         fila = escribir_formula(fila, etiqueta, division(R(clave), ingresos), fmt["porcentaje"])
 
     # --- puente al EBITDA que publica la compañía --------------------------
+    publicados: dict[str, int] = {}
     if highlights is not None and not highlights.empty and "adj_ebitda_musd" in highlights.columns:
         fila += 1
         hoja.write(fila, 0, "Puente al EBITDA ajustado de la compañía", fmt["seccion"])
@@ -964,9 +971,31 @@ def escribir_analisis(libro, fmt, mapas: dict, trimestres: list[str], anios: lis
                     (lambda cl: (lambda c, p: (f"={R(cl)(c)}" if R(cl)(c) else None)))(clave),
                     fmt["dato"],
                 )
+        publicados["ebitda_ajustado"] = fila_ajustado
+
+        # El capex y el flujo libre del release tampoco son los de los estados:
+        # el capex es devengado y el flujo libre lo define la compañía. Se dejan
+        # al lado para que el tablero pueda mostrar las dos lecturas con nombre.
+        fila += 1
+        hoja.write(fila, 0, "Otros números del release", fmt["seccion"])
+        fila += 1
+        for clave, etiqueta, campo in [
+            ("capex_publicado", "Capex publicado", "capex_musd"),
+            ("fcf_publicado", "Flujo de caja libre publicado", "fcf_musd"),
+        ]:
+            if campo not in highlights.columns:
+                continue
+            hoja.write(fila, 0, etiqueta, fmt["etiqueta"])
+            for periodo, columna in columnas.items():
+                if periodo not in indexado.index or pd.isna(indexado.at[periodo, campo]):
+                    continue
+                hoja.write_number(fila, columna, float(indexado.at[periodo, campo]) * ESCALA, fmt["dato"])
+            publicados[clave] = fila
+            fila += 1
 
     hoja.freeze_panes(fila_encabezado + 1, 1)
     return {
+        **publicados,
         "hoja": "Análisis",
         "ebitda": fila_ebitda,
         "fcf": fila_fcf,
@@ -1747,6 +1776,9 @@ ORDEN_SEGMENTOS = [
     "Total",
 ]
 
+ORDEN_SEGMENTOS_HOMOLOGADOS = ["Upstream", "Downstream y gas", "Administración central y otros",
+                               "Ajustes de consolidación", "Total"]
+
 BLOQUES_SEGMENTO = [
     ("ingresos_totales", "Ingresos", "dato"),
     ("resultado_operativo", "Resultado operativo", "dato"),
@@ -1757,7 +1789,7 @@ BLOQUES_SEGMENTO = [
 
 
 def escribir_segmentos(libro, fmt, segmentos: pd.DataFrame, trimestres: list[str],
-                       anios: list[str], columnas: dict) -> dict:
+                       anios: list[str], columnas: dict, homologados: pd.DataFrame | None = None) -> dict:
     """Los segmentos, que es donde el consolidado deja de promediar.
 
     Un trimestre récord puede ser shale creciendo, refino recuperando margen o
@@ -1784,64 +1816,71 @@ def escribir_segmentos(libro, fmt, segmentos: pd.DataFrame, trimestres: list[str
         hoja.write(fila_encabezado, columna, periodo if periodo in trimestres else f"FY{periodo[-2:]}", fmt["encabezado"])
 
     presentes = [s for s in ORDEN_SEGMENTOS if s in set(segmentos["segmento"])]
-    filas_por_bloque: dict[tuple[str, str], int] = {}
+    filas_por_bloque: dict[tuple, int] = {}
     fila = fila_encabezado + 1
 
-    for concepto, titulo, formato in BLOQUES_SEGMENTO:
-        datos_bloque = segmentos[segmentos["concepto"] == concepto]
-        if datos_bloque.empty:
-            continue
-        matriz_bloque = datos_bloque.pivot_table(
-            index="segmento", columns="periodo", values="valor_musd", aggfunc="first"
-        )
-        hoja.write(fila, 0, titulo, fmt["seccion"])
-        fila += 1
-        for segmento in presentes:
-            if segmento not in matriz_bloque.index:
+    def escribir_bloques(datos: pd.DataFrame, orden: list[str], apertura: str | None, nota_cierre: str) -> None:
+        """Un bloque por concepto. La clave lleva la apertura cuando no es la reportada."""
+        nonlocal fila
+
+        def clave(concepto: str, segmento: str) -> tuple:
+            return (concepto, segmento) if apertura is None else (concepto, segmento, apertura)
+
+        for concepto, titulo, formato in BLOQUES_SEGMENTO:
+            datos_bloque = datos[datos["concepto"] == concepto]
+            if datos_bloque.empty:
                 continue
-            es_total = segmento == "Total"
-            hoja.write(fila, 0, segmento, fmt["etiqueta_total"] if es_total else fmt["etiqueta"])
-            for periodo, columna in columnas.items():
-                if periodo not in matriz_bloque.columns:
+            matriz_bloque = datos_bloque.pivot_table(
+                index="segmento", columns="periodo", values="valor_musd", aggfunc="first"
+            )
+            hoja.write(fila, 0, titulo, fmt["seccion"])
+            fila += 1
+            for segmento in orden:
+                if segmento not in matriz_bloque.index:
                     continue
-                valor = matriz_bloque.at[segmento, periodo]
-                if pd.isna(valor):
-                    continue
-                hoja.write_number(
-                    fila, columna, float(valor) * ESCALA,
-                    fmt["dato_total"] if es_total else fmt[formato],
-                )
-            filas_por_bloque[(concepto, segmento)] = fila
+                es_total = segmento == "Total"
+                hoja.write(fila, 0, segmento, fmt["etiqueta_total"] if es_total else fmt["etiqueta"])
+                for periodo, columna in columnas.items():
+                    if periodo not in matriz_bloque.columns:
+                        continue
+                    valor = matriz_bloque.at[segmento, periodo]
+                    if pd.isna(valor):
+                        continue
+                    hoja.write_number(
+                        fila, columna, float(valor) * ESCALA,
+                        fmt["dato_total"] if es_total else fmt[formato],
+                    )
+                filas_por_bloque[clave(concepto, segmento)] = fila
+                fila += 1
+
+            # El control que importa: las partes tienen que dar el todo.
+            if "Total" in matriz_bloque.index:
+                hoja.write(fila, 0, "Suma de segmentos − total", fmt["nota"])
+                hoja.write(fila, max(columnas.values()) + 2, nota_cierre, fmt["nota"])
+                for periodo, columna in columnas.items():
+                    partes = [
+                        filas_por_bloque[clave(concepto, s)]
+                        for s in orden
+                        if s != "Total" and clave(concepto, s) in filas_por_bloque
+                    ]
+                    if not partes or clave(concepto, "Total") not in filas_por_bloque:
+                        continue
+                    letra = xlsxwriter.utility.xl_col_to_name(columna)
+                    celdas = [f"{letra}{f + 1}" for f in partes]
+                    total = f"{letra}{filas_por_bloque[clave(concepto, 'Total')] + 1}"
+                    hoja.write_formula(
+                        fila, columna,
+                        f"=IF(COUNT({total})=1,SUM({','.join(celdas)})-{total},\"\")",
+                        fmt["dato"], "",
+                    )
+                fila += 1
             fila += 1
 
-        # El control que importa: las partes tienen que dar el todo.
-        if "Total" in matriz_bloque.index:
-            hoja.write(fila, 0, "Suma de segmentos − total", fmt["nota"])
-            hoja.write(
-                fila, max(columnas.values()) + 2,
-                "Da cero cuando la apertura está completa. Donde un segmento no se publicó —el 4T22, "
-                "que es cuando la compañía cambió la apertura— la diferencia es ese hueco.",
-                fmt["nota"],
-            )
-            for periodo, columna in columnas.items():
-                partes = [
-                    filas_por_bloque[(concepto, s)]
-                    for s in presentes
-                    if s != "Total" and (concepto, s) in filas_por_bloque
-                ]
-                if not partes or (concepto, "Total") not in filas_por_bloque:
-                    continue
-                letra = xlsxwriter.utility.xl_col_to_name(columna)
-                celdas = [f"{letra}{f + 1}" for f in partes]
-                suma = "+".join(celdas)
-                total = f"{letra}{filas_por_bloque[(concepto, 'Total')] + 1}"
-                hoja.write_formula(
-                    fila, columna,
-                    f"=IF(COUNT({total})=1,SUM({','.join(celdas)})-{total},\"\")",
-                    fmt["dato"], "",
-                )
-            fila += 1
-        fila += 1
+    escribir_bloques(
+        segmentos, presentes, None,
+        "Da cero cuando la apertura está completa. Donde un segmento no se publicó —el 4T22, "
+        "que es cuando la compañía cambió la apertura— la diferencia es ese hueco.",
+    )
 
     # Márgenes: el número por el que existe la hoja.
     hoja.write(fila, 0, "Margen operativo por segmento", fmt["seccion"])
@@ -1858,6 +1897,23 @@ def escribir_segmentos(libro, fmt, segmentos: pd.DataFrame, trimestres: list[str
             abajo = f"{letra}{filas_por_bloque[('ingresos_totales', segmento)] + 1}"
             hoja.write_formula(fila, columna, f"=IFERROR({arriba}/{abajo},\"\")", fmt["porcentaje"], "")
         fila += 1
+
+    if homologados is not None and not homologados.empty:
+        fila += 1
+        hoja.write(fila, 0, "Apertura homologada", fmt["titulo"])
+        fila += 1
+        hoja.write(
+            fila, 0,
+            "Las tres aperturas que usó la compañía reparten distinto el mismo conjunto de negocios. Todo lo que "
+            "no es Upstream ni la administración central se suma en «Downstream y gas», con sus ventas a terceros "
+            "como ingresos; así la serie sigue sin cortes. El 4T22 sale del ejercicio menos tres trimestres. "
+            "Lo arma transform/segments_ypf.py.",
+            fmt["subtitulo"],
+        )
+        fila += 2
+        orden = [s for s in ORDEN_SEGMENTOS_HOMOLOGADOS if s in set(homologados["segmento"])]
+        escribir_bloques(homologados, orden, "homologada",
+                         "Da cero por construcción: los ajustes de ingresos son el total menos los negocios.")
 
     hoja.freeze_panes(fila_encabezado + 1, 1)
     return filas_por_bloque
@@ -2003,6 +2059,7 @@ def escribir_operativo(libro, fmt, highlights: pd.DataFrame, mapas: dict, analis
     hoja.freeze_panes(fila_encabezado + 1, 1)
     return {
         "produccion": filas_kpi["produccion_kboed"],
+        "kpi": filas_kpi,
         "ebitda_boe": fila_ebitda_boe,
         "boe_periodo": fila_boe,
     }
@@ -2747,8 +2804,9 @@ def main() -> int:
     fmt = formatos(libro)
 
     escribir_portada(libro, fmt, meta, datos, trimestres, anios)
-    # La hoja de resumen se crea acá para que quede segunda en el libro, pero
+    # El tablero y el resumen se crean acá para que quede segunda en el libro, pero
     # se llena al final: sus gráficos apuntan a filas que todavía no existen.
+    hoja_tablero = libro.add_worksheet(tablero.NOMBRE)
     hoja_resumen = libro.add_worksheet("Resumen")
 
     mapas: dict = {}
@@ -2765,7 +2823,8 @@ def main() -> int:
     filas_segmento: dict = {}
     if not segmentos.empty:
         filas_segmento = escribir_segmentos(
-            libro, fmt, segmentos, trimestres, anios, mapas["columnas"]
+            libro, fmt, segmentos, trimestres, anios, mapas["columnas"],
+            pd.read_parquet(HOMOLOGADOS_ENTRADA) if HOMOLOGADOS_ENTRADA.exists() else None,
         )
     filas_operativo = escribir_operativo(
         libro, fmt, highlights, mapas, filas_analisis, filas_segmento, trimestres, anios
@@ -2782,6 +2841,10 @@ def main() -> int:
     escribir_resumen(
         libro, hoja_resumen, fmt, mapas, filas_analisis, filas_valuacion,
         filas_operativo, filas_segmento, trimestres,
+    )
+    tablero.escribir_tablero(
+        libro, hoja_tablero, HOJAS, mapas, filas_analisis, filas_valuacion,
+        filas_segmento, filas_operativo, trimestres, anios, PROCESSED,
     )
 
     libro.close()

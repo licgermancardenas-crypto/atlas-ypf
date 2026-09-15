@@ -15,6 +15,7 @@ el estado de flujo: restar en la moneda de origen y recién después convertir.
 Entrada:  data/raw/financials/ypf/filings/*/   (los baja ingest/financials_ypf.py)
 Salidas:  data/processed/segments_ypf.parquet  (largo: segmento-concepto-período)
           data/processed/segments_ypf.json     (resumen y cobertura)
+          data/processed/segments_ypf_homologado.parquet  (misma forma, apertura estable)
 """
 
 from __future__ import annotations
@@ -96,6 +97,16 @@ SEGMENTOS = {
 SEGMENTOS_NUEVOS = {"Midstream y Downstream", "GNL y gas integrado", "Nuevas energías"}
 SEGMENTOS_PARTIDOS = {"Industrialización", "Comercialización"}
 SEGMENTOS_VIEJOS = {"Downstream", "Gas y energía"} | SEGMENTOS_PARTIDOS
+
+# La apertura homologada (ver homologar): todo lo que no es Upstream ni la
+# administración central es un solo negocio, que las tres aperturas reparten
+# distinto. Solo conceptos de flujo: los activos se reasignaron entre segmentos
+# con cada cambio y no admiten esta suma.
+DOWNSTREAM_Y_GAS = "Downstream y gas"
+HOMOLOGACION = {s: DOWNSTREAM_Y_GAS for s in SEGMENTOS_NUEVOS | SEGMENTOS_VIEJOS}
+ORDEN_HOMOLOGADO = ["Upstream", DOWNSTREAM_Y_GAS, "Administración central y otros", "Ajustes de consolidación", "Total"]
+CONCEPTOS_HOMOLOGADOS = ["ingresos_totales", "resultado_operativo", "capex_ppe", "depreciacion_ppe"]
+OUT_HOMOLOGADO = PROCESSED / "segments_ypf_homologado.parquet"
 
 CONCEPTOS = [
     (r"^revenues from intersegment sales", "ingresos_intersegmento"),
@@ -655,6 +666,93 @@ def serie_trimestral(crudo: pd.DataFrame) -> pd.DataFrame:
     return serie[serie["anio"] >= 2019].reset_index(drop=True)
 
 
+def homologar(serie: pd.DataFrame) -> pd.DataFrame:
+    """Una apertura que no cambia con los años, para leer una serie larga.
+
+    La serie reportada conserva los nombres de cada época, y está bien: es lo
+    que la compañía publicó. Pero seguir un negocio a través de las dos
+    reorganizaciones es imposible con ella —"Downstream" existe en 2021, no en
+    2023, vuelve en 2024 y se va en 2025—, y un filtro por segmento muestra
+    trimestres sueltos.
+
+    Lo que sí es estable es lo que no es Upstream. Downstream más Gas y energía,
+    Industrialización más Comercialización más Gas y energía, y Midstream y
+    Downstream más GNL más Nuevas energías son tres maneras de repartir el
+    mismo conjunto de negocios. Sumados son comparables en toda la serie.
+    Upstream, la administración central y los ajustes no cambiaron.
+
+    Además llena los cuartos trimestres que faltan —el 4T22, cuando cambió la
+    apertura— como el ejercicio menos sus tres primeros trimestres. Con la
+    apertura reportada esa resta mezcla dos aperturas; con la homologada no.
+    """
+    flujos = serie[serie["tipo"].isin(["trimestre", "anual"])].copy()
+    es_parte = flujos["segmento"].isin(HOMOLOGACION)
+
+    # Los ingresos no se pueden sumar tal cual: cuando Downstream estaba partido,
+    # Industrialización le vendía a Comercialización y esa venta figuraba como
+    # ingreso de una y costo de la otra, así que la suma cuenta dos veces el
+    # mismo litro. Para el negocio homologado se toman las ventas a terceros,
+    # que no dependen de cómo esté repartido por dentro.
+    flujos = flujos[~(es_parte & (flujos["concepto"] == "ingresos_totales"))]
+    externos = es_parte & (flujos["concepto"] == "ingresos_externos")
+    flujos.loc[externos, "concepto"] = "ingresos_totales"
+    flujos = flujos[flujos["concepto"].isin(CONCEPTOS_HOMOLOGADOS)]
+    flujos["segmento"] = flujos["segmento"].map(lambda s: HOMOLOGACION.get(s, s))
+    flujos = flujos[flujos["segmento"].isin(ORDEN_HOMOLOGADO)]
+
+    agrupado = (
+        flujos.groupby(["segmento", "concepto", "periodo", "anio", "trimestre", "tipo"], as_index=False)
+        .agg(
+            valor_musd=("valor_musd", "sum"),
+            partes=("valor_musd", "size"),
+            derivacion=("derivacion", lambda d: " + ".join(sorted(set(d)))),
+            moneda_origen=("moneda_origen", "first"),
+            fuentes=("fuentes", "first"),
+            presentado=("presentado", "max"),
+        )
+    )
+
+    completados = []
+    for (segmento, concepto, anio), grupo in agrupado.groupby(["segmento", "concepto", "anio"]):
+        trimestres = grupo[grupo["tipo"] == "trimestre"].set_index("trimestre")
+        anual = grupo[grupo["tipo"] == "anual"]
+        if anual.empty or 4 in trimestres.index or not {1, 2, 3} <= set(trimestres.index):
+            continue
+        valor = float(anual["valor_musd"].iloc[0]) - float(trimestres.loc[[1, 2, 3], "valor_musd"].sum())
+        completados.append({
+            "segmento": segmento, "concepto": concepto, "periodo": f"{anio}Q4", "anio": anio, "trimestre": 4,
+            "tipo": "trimestre", "valor_musd": valor, "partes": int(anual["partes"].iloc[0]),
+            "derivacion": "ejercicio menos tres trimestres", "moneda_origen": anual["moneda_origen"].iloc[0],
+            "fuentes": anual["fuentes"].iloc[0], "presentado": anual["presentado"].iloc[0],
+        })
+    if completados:
+        agrupado = pd.concat([agrupado, pd.DataFrame(completados)], ignore_index=True)
+
+    # Con las ventas internas del negocio homologado fuera, los ajustes de
+    # consolidación de ingresos dejan de ser los reportados: pasan a ser lo que
+    # falta para el total, que son las ventas de Upstream al resto de la compañía.
+    ingresos = agrupado[agrupado["concepto"] == "ingresos_totales"]
+    for (periodo, tipo), grupo in ingresos.groupby(["periodo", "tipo"]):
+        valores = grupo.set_index("segmento")["valor_musd"]
+        necesarios = ["Total", "Upstream", DOWNSTREAM_Y_GAS, "Administración central y otros"]
+        if not all(s in valores.index for s in necesarios):
+            continue
+        residuo = float(valores["Total"] - valores[necesarios[1:]].sum())
+        fila = (agrupado["concepto"] == "ingresos_totales") & (agrupado["periodo"] == periodo) & (
+            agrupado["tipo"] == tipo) & (agrupado["segmento"] == "Ajustes de consolidación")
+        if fila.any():
+            agrupado.loc[fila, ["valor_musd", "derivacion"]] = [residuo, "total menos los negocios"]
+        else:
+            modelo = grupo.iloc[0]
+            agrupado = pd.concat([agrupado, pd.DataFrame([{
+                **modelo.to_dict(), "segmento": "Ajustes de consolidación", "valor_musd": residuo,
+                "derivacion": "total menos los negocios",
+            }])], ignore_index=True)
+
+    agrupado["apertura"] = "homologada"
+    return agrupado.drop(columns="partes").sort_values(["segmento", "concepto", "periodo"]).reset_index(drop=True)
+
+
 def construir_json(serie: pd.DataFrame) -> dict:
     trimestres = sorted(serie.loc[serie["tipo"] == "trimestre", "periodo"].unique())
     por_segmento = {
@@ -686,6 +784,8 @@ def main() -> int:
 
     bytes_parquet = save_parquet(serie.reset_index(drop=True), OUT_LONG)
     bytes_json = save_json(construir_json(serie), OUT_JSON, indent=2)
+    homologada = homologar(serie)
+    bytes_parquet += save_parquet(homologada, OUT_HOMOLOGADO)
 
     trimestres = sorted(serie.loc[serie["tipo"] == "trimestre", "periodo"].unique())
     log(
@@ -696,7 +796,7 @@ def main() -> int:
         "transform/segmentos",
         rows=int(len(serie)),
         bytes=int(bytes_parquet + bytes_json),
-        outputs=[rel(OUT_LONG), rel(OUT_JSON)],
+        outputs=[rel(OUT_LONG), rel(OUT_JSON), rel(OUT_HOMOLOGADO)],
         source=rel(FILINGS),
         note=f"{trimestres[0]}–{trimestres[-1]}; el trimestre sale de la diferencia de acumulados",
     )

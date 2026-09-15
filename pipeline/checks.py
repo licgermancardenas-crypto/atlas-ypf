@@ -464,6 +464,47 @@ def chequear_segmentos(problemas: list[str]) -> None:
                 )
 
 
+def chequear_segmentos_homologados(problemas: list[str]) -> None:
+    """La apertura homologada tiene que cerrar y no tener huecos.
+
+    Existe para que un negocio se pueda seguir trimestre a trimestre a través
+    de las reorganizaciones. Si las partes no dan el total, la suma mezcló dos
+    aperturas; si falta un trimestre en el medio, volvió el problema que vino a
+    resolver.
+    """
+    ruta = PROCESSED / "segments_ypf_homologado.parquet"
+    if not ruta.exists():
+        return
+
+    import pandas as pd
+
+    trimestral = pd.read_parquet(ruta)
+    trimestral = trimestral[trimestral["tipo"] == "trimestre"]
+    for (concepto, periodo), grupo in trimestral.groupby(["concepto", "periodo"]):
+        total = grupo[grupo["segmento"] == "Total"]
+        partes = grupo[grupo["segmento"] != "Total"]
+        if total.empty or partes.empty:
+            continue
+        esperado, suma = float(total["valor_musd"].iloc[0]), float(partes["valor_musd"].sum())
+        if abs(esperado) >= 50 and not cerca(suma, esperado, 0.02):
+            problemas.append(
+                f"segmentos homologados: en {periodo} las partes no dan el total de {concepto} "
+                f"({suma:.0f} contra {esperado:.0f} MUSD)"
+            )
+
+    for segmento in ("Upstream", "Downstream y gas"):
+        serie = trimestral[(trimestral["segmento"] == segmento) & (trimestral["concepto"] == "ingresos_totales")]
+        if serie.empty:
+            continue
+        presentes = pd.PeriodIndex(sorted(serie["periodo"]), freq="Q")
+        esperados = pd.period_range(presentes.min(), presentes.max(), freq="Q")
+        faltan = sorted(set(esperados) - set(presentes))
+        if faltan:
+            problemas.append(
+                f"segmentos homologados: a {segmento} le faltan trimestres ({', '.join(str(p) for p in faltan)})"
+            )
+
+
 def chequear_produccion_ypf(problemas: list[str]) -> None:
     """Las cinco dimensiones de YPF tienen que sumar lo mismo entre sí.
 
@@ -609,6 +650,7 @@ CHEQUEOS = (
     ("grafo de entidades", chequear_grafo),
     ("estados contables", chequear_estados),
     ("segmentos", chequear_segmentos),
+    ("segmentos homologados", chequear_segmentos_homologados),
     ("produccion de ypf", chequear_produccion_ypf),
 )
 

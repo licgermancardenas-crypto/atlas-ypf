@@ -75,6 +75,9 @@ TRANSFORM_SCRIPTS: list[tuple[str, Path, list[str]]] = [
     # son segundos y las capas quedan versionadas aunque el refresh semanal las
     # saltee.
     ("transform/mapa", TRANSFORM / "map_svg.py", []),
+    # Despues del mapa: usa su proyeccion y su marco para ubicar las burbujas
+    # del mapa del tablero del Excel.
+    ("transform/tablero-mapa", TRANSFORM / "tablero_mapa.py", []),
     # Despues de geo: la titularidad sale del padron de concesiones que baja
     # ingest/geo_layers.py, y las metricas del panel de produccion.
     ("transform/grafo", TRANSFORM / "entity_graph.py", []),

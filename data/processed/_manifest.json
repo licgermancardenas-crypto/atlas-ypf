@@ -240,9 +240,9 @@
     "note": "2016Q4–2026Q2 en USD; el 4T sale del anual menos nueve meses"
   },
   "export/excel": {
-    "generated_at": "2026-09-10T22:26:55+00:00",
+    "generated_at": "2026-09-15T14:46:51+00:00",
     "rows": 5174,
-    "bytes": 338442,
+    "bytes": 759078,
     "outputs": [
       "docs/YPF_estados_financieros.xlsx"
     ],
@@ -250,12 +250,13 @@
     "note": "2020Q1–2026Q2 trimestral y FY2019–FY2025"
   },
   "transform/segmentos": {
-    "generated_at": "2026-09-10T20:26:17+00:00",
+    "generated_at": "2026-09-15T14:37:22+00:00",
     "rows": 1808,
-    "bytes": 24451,
+    "bytes": 37122,
     "outputs": [
       "data/processed/segments_ypf.parquet",
-      "data/processed/segments_ypf.json"
+      "data/processed/segments_ypf.json",
+      "data/processed/segments_ypf_homologado.parquet"
     ],
     "source": "data/raw/financials/ypf/filings",
     "note": "2019Q1–2026Q2; el trimestre sale de la diferencia de acumulados"
@@ -317,5 +318,14 @@
     ],
     "source": "data/raw/production/sesco",
     "note": "producción de YPF por cuenca, provincia, concesión, yacimiento y localidad"
+  },
+  "transform/tablero-mapa": {
+    "generated_at": "2026-09-15T14:16:33+00:00",
+    "rows": 14,
+    "bytes": 5086,
+    "outputs": [
+      "data/processed/tablero_mapa.json"
+    ],
+    "note": "2019Q1–2026Q2, 14 concesiones"
   }
 }
