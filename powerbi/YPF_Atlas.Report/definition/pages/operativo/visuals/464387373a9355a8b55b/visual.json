@@ -4,10 +4,10 @@
   "position": {
     "x": 1184.0,
     "y": 104,
-    "z": 14000,
+    "z": 15000,
     "height": 100,
     "width": 190.0,
-    "tabOrder": 14000
+    "tabOrder": 15000
   },
   "visual": {
     "visualType": "card",
@@ -93,7 +93,7 @@
             "text": {
               "expr": {
                 "Literal": {
-                  "Value": "'Precio del crudo · US$/bbl'"
+                  "Value": "'Crudo · US$/bbl'"
                 }
               }
             },

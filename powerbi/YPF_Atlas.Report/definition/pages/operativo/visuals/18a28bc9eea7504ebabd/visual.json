@@ -4,10 +4,10 @@
   "position": {
     "x": 1386.0,
     "y": 104,
-    "z": 16000,
+    "z": 17000,
     "height": 100,
     "width": 190.0,
-    "tabOrder": 16000
+    "tabOrder": 17000
   },
   "visual": {
     "visualType": "card",
@@ -93,7 +93,7 @@
             "text": {
               "expr": {
                 "Literal": {
-                  "Value": "'Lifting cost · US$/boe'"
+                  "Value": "'Lifting · US$/boe'"
                 }
               }
             },

@@ -4,10 +4,10 @@
   "position": {
     "x": 1069.3333333333335,
     "y": 104,
-    "z": 10000,
+    "z": 11000,
     "height": 120,
     "width": 245.33333333333334,
-    "tabOrder": 10000
+    "tabOrder": 11000
   },
   "visual": {
     "visualType": "card",
@@ -93,7 +93,7 @@
             "text": {
               "expr": {
                 "Literal": {
-                  "Value": "'EBITDA de los estados (res. operativo + D&A)'"
+                  "Value": "'EBITDA de los estados'"
                 }
               }
             },

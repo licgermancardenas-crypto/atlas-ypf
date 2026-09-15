@@ -4,10 +4,10 @@
   "position": {
     "x": 982.0,
     "y": 104,
-    "z": 12000,
+    "z": 13000,
     "height": 100,
     "width": 190.0,
-    "tabOrder": 12000
+    "tabOrder": 13000
   },
   "visual": {
     "visualType": "card",
@@ -93,7 +93,7 @@
             "text": {
               "expr": {
                 "Literal": {
-                  "Value": "'Petróleo shale · kbbl/d'"
+                  "Value": "'Shale · kbbl/d'"
                 }
               }
             },

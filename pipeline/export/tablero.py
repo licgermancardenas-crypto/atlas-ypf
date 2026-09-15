@@ -39,6 +39,8 @@ import numpy as np
 import xlsxwriter
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
+import iconos
+
 NOMBRE = "Tablero"
 
 # --------------------------------------------------------------------------- #
@@ -85,6 +87,13 @@ FILA_E_Y, FILA_E_H = 1454, 296
 # es la de la ventana que arma transform/tablero_mapa.py.
 MAPA_ANCHO_TARJETA = 700
 MAPA_RECUADRO = (16, 64, 370, 400)
+
+# Siluetas tenues en el fondo de algunas tarjetas: (ícono, lado, corrimiento x, y
+# desde la esquina inferior derecha). Van donde no hay un gráfico encima.
+MARCAS_DE_AGUA = {
+    "capex": ("casco", 130, -14, -40),
+    "mapa": ("cigueña", 150, -12, 4),
+}
 
 TARJETAS = {
     "heroe": (IZQ_X, FILA_A_Y, IZQ_W, FILA_A_H),
@@ -373,9 +382,18 @@ def imagen_de_fondo(mapa: dict | None = None, web: dict | None = None, relieve: 
                     200, 320, fill=(190, 225, 255, 40 - i * 8), width=s,
                 )
             relleno.alpha_composite(hoja_curvas)
+            # Una gota enorme y casi invisible detrás del número: la firma de la tarjeta.
+            lado_gota = 150 * s
+            relleno.alpha_composite(iconos.marca_de_agua("gota", lado_gota, alfa=26),
+                                    (w * s - lado_gota - 70 * s, h * s - lado_gota + 10 * s))
             _tarjeta(lienzo, x, y, w, h, radio=22, relleno=relleno)
         else:
             _tarjeta(lienzo, x, y, w, h)
+        marca = MARCAS_DE_AGUA.get(clave)
+        if marca:
+            nombre_marca, lado_marca, dx, dy = marca
+            lienzo.alpha_composite(iconos.marca_de_agua(nombre_marca, lado_marca * s, alfa=18),
+                                   ((x + w - lado_marca + dx) * s, (y + h - lado_marca + dy) * s))
 
     if mapa and web and relieve is not None:
         dibujar_mapa(lienzo, mapa, web, relieve)
@@ -1208,14 +1226,27 @@ def escribir_tablero(libro: xlsxwriter.Workbook, hoja, hojas: dict, mapas: dict,
     def texto_de(clave: str) -> str:
         return f"='{nombre}'!{sel[clave]}"
 
+    def poner_icono(nombre_icono: str, x: float, y: float, lado: int, **opciones) -> None:
+        """Un ícono de export/iconos.py, dibujado al doble y achicado para que se vea nítido."""
+        hoja.insert_image(0, 0, f"icono_{nombre_icono}_{int(x)}_{int(y)}.png", {
+            "image_data": iconos.png(nombre_icono, lado * 2, **opciones), "x_scale": 0.5, "y_scale": 0.5,
+            **lugar(x, y), "decorative": True,
+        })
+
     def titulo_tarjeta(clave: str, titulo: str, subtitulo: str | None = None,
-                       ancho: int | None = None) -> tuple[int, int, int, int]:
+                       ancho: int | None = None, icono: str | None = None) -> tuple[int, int, int, int]:
         x, y, w, h = TARJETAS[clave]
+        # El ícono va a la izquierda del título y corre el texto.
+        corrido = 0
+        if icono:
+            poner_icono(icono, x + 12, y + 14, 34)
+            corrido = 42
         # Un cuadro de texto encima de una lista no deja hacer clic en ella: el
         # título de las tarjetas con lista se corta antes.
-        texto(x + 12, y + 17, ancho or w - 24, 26, titulo, 12, TEXTO, negrita=True)
+        texto(x + 12 + corrido, y + 17, (ancho or w - 24) - (corrido if ancho is None else 0), 26, titulo, 12,
+              TEXTO, negrita=True)
         if subtitulo:
-            texto(x + 12, y + 40, w - 24, 20, "", 8, TEXTO_TENUE, enlace=texto_de(subtitulo))
+            texto(x + 12 + corrido, y + 40, w - 24 - corrido, 20, "", 8, TEXTO_TENUE, enlace=texto_de(subtitulo))
         return x, y, w, h
 
     def aviso(x: float, y: float, w: float, clave: str = "aviso", alinear: str = "right") -> None:
@@ -1249,7 +1280,10 @@ def escribir_tablero(libro: xlsxwriter.Workbook, hoja, hojas: dict, mapas: dict,
 
     # --- cabecera -----------------------------------------------------------
     cx, cy, cw, ch = CABECERA
-    texto(cx + 14, cy + 8, 40, ch - 16, "◆", 16, CIAN, negrita=True)
+    hoja.insert_image(0, 0, "logo.png", {
+        "image_data": _png(iconos.logo(88)), "x_scale": 0.5, "y_scale": 0.5, **lugar(cx + 6, cy + 8),
+        "decorative": True,
+    })
     texto(cx + 44, cy + 6, 220, 28, "YPF · ATLAS", 14, TEXTO, negrita=True)
     texto(cx + 44, cy + 30, 250, 22, "", 8, TEXTO_SUAVE, enlace=texto_de("cabecera"))
 
@@ -1289,7 +1323,8 @@ def escribir_tablero(libro: xlsxwriter.Workbook, hoja, hojas: dict, mapas: dict,
 
     # --- tarjeta héroe: el trimestre ---------------------------------------
     x, y, w, h = TARJETAS["heroe"]
-    texto(x + 12, y + 12, 250, 22, "", 10, "#cfe0ff", enlace=texto_de("heroe"))
+    poner_icono("gota", x + 12, y + 12, 22, ficha=False, tinte="blanco")
+    texto(x + 36, y + 12, 226, 22, "", 10, "#cfe0ff", enlace=texto_de("heroe"))
     texto(x + 12, y + 32, 250, 48, "", 26, "#ffffff", negrita=True, enlace=vinculo(ind["ebitda"]))
     texto(x + 12, y + 86, 250, 30, "", 15, "#ffffff", negrita=True, enlace=vinculo(ind["ingresos"]))
     texto(x + 12, y + 110, 250, 20, "Ingresos del trimestre", 8, "#a9c3ee")
@@ -1333,7 +1368,7 @@ def escribir_tablero(libro: xlsxwriter.Workbook, hoja, hojas: dict, mapas: dict,
     texto(x + w - 150, y + h - 38, 138, 28, "", 12, CIAN, negrita=True, alinear="right", enlace=vinculo(ind["ebitda_cmp"]))
 
     # --- serie trimestral ---------------------------------------------------
-    x, y, w, h = titulo_tarjeta("ingresos", "Serie", "serie", ancho=170)
+    x, y, w, h = titulo_tarjeta("ingresos", "Serie", "serie", ancho=170, icono="velas")
     texto(x + w - 232, y + 8, 220, 20, "Últimos doce meses", 8, TEXTO_TENUE, alinear="right")
     texto(x + w - 262, y + 24, 250, 34, "", 18, TEXTO, negrita=True, alinear="right", enlace=vinculo(udm))
 
@@ -1363,7 +1398,7 @@ def escribir_tablero(libro: xlsxwriter.Workbook, hoja, hojas: dict, mapas: dict,
           enlace=texto_de("aviso_serie"))
 
     # --- márgenes: radar ----------------------------------------------------
-    x, y, w, h = titulo_tarjeta("margenes", "Márgenes", "radar", ancho=130)
+    x, y, w, h = titulo_tarjeta("margenes", "Márgenes", "radar", ancho=130, icono="porcentaje")
     x_c, _, _, _ = CONTROLES["comparar"]
     texto(x_c - MARCO_IZQ - 66, y + 17, 66, 26, "contra", 9, TEXTO_SUAVE, alinear="right")
     radar = libro.add_chart({"type": "radar", "subtype": "filled"})
@@ -1396,8 +1431,9 @@ def escribir_tablero(libro: xlsxwriter.Workbook, hoja, hojas: dict, mapas: dict,
 
     # --- lo que va del año --------------------------------------------------
     x, y, w, h = TARJETAS["semestre"]
-    texto(x + 12, y + 17, w - 24, 26, "", 12, TEXTO, negrita=True, enlace=texto_de("semestre"))
-    texto(x + 12, y + 40, w - 24, 20, "", 8, TEXTO_TENUE, enlace=texto_de("semestre_sub"))
+    poner_icono("calendario", x + 12, y + 14, 34)
+    texto(x + 54, y + 17, w - 66, 26, "", 12, TEXTO, negrita=True, enlace=texto_de("semestre"))
+    texto(x + 54, y + 40, w - 66, 20, "", 8, TEXTO_TENUE, enlace=texto_de("semestre_sub"))
     renglones = semestre_fin - semestre_inicio + 1
     banda = 42
     y_lista = y + 60
@@ -1430,7 +1466,7 @@ def escribir_tablero(libro: xlsxwriter.Workbook, hoja, hojas: dict, mapas: dict,
     insertar(progreso, x + 18, y_lista + 10, w - 36, banda * renglones)
 
     # --- destino de los ingresos --------------------------------------------
-    x, y, w, h = titulo_tarjeta("destino", "Adónde va cada dólar de ingresos", "destino")
+    x, y, w, h = titulo_tarjeta("destino", "Adónde va cada dólar de ingresos", "destino", icono="dolar")
     aviso(x + 160, y + 40, 300, clave="aviso_destino", alinear="left")
     torta = libro.add_chart({"type": "doughnut"})
     porciones_destino = destino_fin - destino_inicio + 1
@@ -1495,7 +1531,7 @@ def escribir_tablero(libro: xlsxwriter.Workbook, hoja, hojas: dict, mapas: dict,
               enlace=vinculo(publicado["fcf_publicado"]))
 
     # --- capex por segmento -------------------------------------------------
-    x, y, w, h = titulo_tarjeta("capex", "Capex por segmento", "capex")
+    x, y, w, h = titulo_tarjeta("capex", "Capex por segmento", "capex", icono="casco")
     if capex_inicio is not None:
         aviso(x + 12, y + 244, w - 24, clave="aviso_capex", alinear="center")
         torta_capex = libro.add_chart({"type": "doughnut"})
@@ -1536,7 +1572,7 @@ def escribir_tablero(libro: xlsxwriter.Workbook, hoja, hojas: dict, mapas: dict,
         texto(x + w - 136, yy, 124, 20, "", 9, TEXTO, negrita=True, alinear="right", enlace=enlace)
 
     # --- EBITDA y flujo operativo -------------------------------------------
-    x, y, w, h = titulo_tarjeta("caja", "EBITDA y flujo operativo", "lineas")
+    x, y, w, h = titulo_tarjeta("caja", "EBITDA y flujo operativo", "lineas", icono="flujo")
     texto(x + w - 250, y + 12, 120, 20, "━ EBITDA ajustado", 8, CIAN, negrita=True, alinear="right")
     texto(x + w - 130, y + 12, 118, 20, "┅ Flujo operativo", 8, "#818cf8", negrita=True, alinear="right")
     aviso(x + w - 312, y + 32, 300, clave="aviso_flujo")
@@ -1561,7 +1597,7 @@ def escribir_tablero(libro: xlsxwriter.Workbook, hoja, hojas: dict, mapas: dict,
     insertar(lineas, x + 6, y + 58, w - 12, h - 64)
 
     # --- ejercicios ---------------------------------------------------------
-    x, y, w, h = titulo_tarjeta("ejercicios", "Ejercicios", "ejercicios")
+    x, y, w, h = titulo_tarjeta("ejercicios", "Ejercicios", "ejercicios", icono="refineria")
     texto(x + w - 190, y + 12, 90, 20, "■ EBITDA", 8, CIAN, negrita=True, alinear="right")
     texto(x + w - 100, y + 12, 88, 20, "□ Capex", 8, "#93c5fd", negrita=True, alinear="right")
     anual = libro.add_chart({"type": "column"})
@@ -1593,7 +1629,7 @@ def escribir_tablero(libro: xlsxwriter.Workbook, hoja, hojas: dict, mapas: dict,
     insertar(anual, x + 6, y + 54, w - 12, h - 60)
 
     # --- mapa ---------------------------------------------------------------
-    x, y, w, h = titulo_tarjeta("mapa", "Vaca Muerta: dónde produce YPF", "mapa")
+    x, y, w, h = titulo_tarjeta("mapa", "Vaca Muerta: dónde produce YPF", "mapa", icono="pin")
     if mapa_inicio is not None:
         mx, my, mw, mh = recuadro_del_mapa(datos_mapa)
         ventana = datos_mapa["ventana"]
@@ -1645,14 +1681,17 @@ def escribir_tablero(libro: xlsxwriter.Workbook, hoja, hojas: dict, mapas: dict,
               "Bruto operado, con la parte de los socios: no es la producción neta del release.", 7, TEXTO_TENUE)
 
     # --- operativo -----------------------------------------------------------
-    x, y, w, h = titulo_tarjeta("operativo", "Precio o volumen", "operativo_sub")
+    x, y, w, h = titulo_tarjeta("operativo", "Precio o volumen", "operativo_sub", icono="barril")
     aviso(x + w - 212, y + 17, 200, clave="aviso_operativo")
     if operativo_inicio is not None:
         ancho_tile = (w - 24 - 12 * (len(tarjetas_operativo) - 1)) / len(tarjetas_operativo)
-        for i, (_, etiqueta, unidad, _) in enumerate(tarjetas_operativo):
+        iconos_operativo = {"produccion_kboed": "cigueña", "shale_oil_kbbld": "gota",
+                            "precio_crudo_usd_bbl": "barril", "lifting_cost_usd_boe": "engranaje"}
+        for i, (campo, etiqueta, unidad, _) in enumerate(tarjetas_operativo):
             tx = x + 12 + i * (ancho_tile + 12)
             fila_dato = operativo_inicio + i
-            texto(tx, y + 64, ancho_tile, 18, f"{etiqueta} · {unidad}", 8, TEXTO_TENUE)
+            poner_icono(iconos_operativo.get(campo, "gota"), tx, y + 62, 24)
+            texto(tx + 30, y + 64, ancho_tile - 30, 18, f"{etiqueta} · {unidad}", 8, TEXTO_TENUE)
             texto(tx, y + 82, ancho_tile, 32, "", 18, TEXTO, negrita=True, enlace=vinculo(fila_dato, 0))
             texto(tx, y + 114, ancho_tile, 20, "", 9, CIAN, negrita=True, enlace=vinculo(fila_dato, 2))
             texto(tx, y + 132, ancho_tile, 18, "", 7, TEXTO_TENUE, enlace=texto_de("comparacion"))
@@ -1700,9 +1739,9 @@ def escribir_tablero(libro: xlsxwriter.Workbook, hoja, hojas: dict, mapas: dict,
         texto(x + w - 212, y + 156, 200, 20, "━ Precio del crudo, US$/bbl", 8, AMBAR, negrita=True, alinear="right")
 
     # --- mercado ------------------------------------------------------------
-    x, y, w, h = titulo_tarjeta("mercado", "Cómo reaccionó el mercado al balance")
+    x, y, w, h = titulo_tarjeta("mercado", "Cómo reaccionó el mercado al balance", icono="velas")
     if mercado_sel is not None:
-        texto(x + 12, y + 40, w - 24, 20, "", 8, TEXTO_TENUE, enlace=texto_de("mercado_sub"))
+        texto(x + 54, y + 40, w - 66, 20, "", 8, TEXTO_TENUE, enlace=texto_de("mercado_sub"))
         fichas = [
             (1, "Precio del ADR", TEXTO), (2, "Retorno del día", TEXTO),
             (3, "Anormal, contra Vista y Brent", CIAN), (4, "Acumulado, cuatro ruedas", CIAN),
@@ -1711,7 +1750,8 @@ def escribir_tablero(libro: xlsxwriter.Workbook, hoja, hojas: dict, mapas: dict,
         for i, (indice, rotulo, color) in enumerate(fichas):
             fx = x + 12 + (i % 2) * (ancho_ficha + 12)
             fy = y + 70 + (i // 2) * 76
-            texto(fx, fy, ancho_ficha, 18, rotulo, 8, TEXTO_TENUE)
+            poner_icono(("dolar", "velas", "rayo", "flujo")[i], fx, fy, 18, ficha=False)
+            texto(fx + 22, fy, ancho_ficha - 22, 18, rotulo, 8, TEXTO_TENUE)
             texto(fx, fy + 18, ancho_ficha, 34, "", 20, color, negrita=True, enlace=vinculo(mercado_sel, indice))
         texto(x + 12, y + 226, 170, 20, "", 8, AMBAR, negrita=True, enlace=texto_de("mercado_t"))
         texto(x + 180, y + 226, 34, 20, "t =", 8, TEXTO_TENUE, alinear="right")
@@ -1752,9 +1792,9 @@ def escribir_tablero(libro: xlsxwriter.Workbook, hoja, hojas: dict, mapas: dict,
         insertar(reaccion, gx - 6, y + 86, w - 470, h - 92)
 
     # --- sensibilidad --------------------------------------------------------
-    x, y, w, h = titulo_tarjeta("sensibilidad", "Qué mueve a la acción")
+    x, y, w, h = titulo_tarjeta("sensibilidad", "Qué mueve a la acción", icono="balanza")
     if mercado:
-        texto(x + 12, y + 40, w - 24, 20, "Retornos diarios desde 2021 (transform/market_reaction.py)", 8, TEXTO_TENUE)
+        texto(x + 54, y + 40, w - 66, 20, "Retornos diarios desde 2021 (transform/market_reaction.py)", 8, TEXTO_TENUE)
         riesgo = mercado.get("riesgo_pais", {})
         resumen = mercado.get("resumen", {})
         f_pp = libro.add_format({**base, "font_color": TEXTO, "num_format": '"+"0.0%;"−"0.0%'})
@@ -1783,8 +1823,9 @@ def escribir_tablero(libro: xlsxwriter.Workbook, hoja, hojas: dict, mapas: dict,
             if clave not in constantes:
                 continue
             yy = y + 70 + i * 58
-            texto(x + 12, yy, w - 130, 20, rotulo, 9, TEXTO_SUAVE)
-            texto(x + 12, yy + 18, w - 130, 18, detalle, 7, TEXTO_TENUE)
+            poner_icono({"pb": "rayo", "brent": "barril", "mediano": "velas"}[clave], x + 12, yy + 2, 32)
+            texto(x + 52, yy, w - 170, 20, rotulo, 9, TEXTO_SUAVE)
+            texto(x + 52, yy + 18, w - 170, 18, detalle, 7, TEXTO_TENUE)
             texto(x + w - 130, yy, 118, 32, "", 17, CIAN, negrita=True, alinear="right", enlace=vinculo(constantes[clave]))
         if "negativos" in constantes and "balances" in constantes:
             texto(x + 12, y + h - 52, 44, 30, "", 17, AMBAR, negrita=True, alinear="right",

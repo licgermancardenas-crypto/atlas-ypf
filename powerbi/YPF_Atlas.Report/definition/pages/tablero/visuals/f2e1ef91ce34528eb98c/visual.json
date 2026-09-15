@@ -4,10 +4,10 @@
   "position": {
     "x": 1330.666666666667,
     "y": 104,
-    "z": 11000,
+    "z": 12000,
     "height": 120,
     "width": 245.33333333333334,
-    "tabOrder": 11000
+    "tabOrder": 12000
   },
   "visual": {
     "visualType": "card",
@@ -93,7 +93,7 @@
             "text": {
               "expr": {
                 "Literal": {
-                  "Value": "'Deuda neta / EBITDA (release)'"
+                  "Value": "'Deuda neta / EBITDA'"
                 }
               }
             },

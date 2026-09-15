@@ -581,6 +581,7 @@ class Pagina:
     def __init__(self, nombre: str, titulo: str, ancho: int, alto: int):
         self.nombre, self.titulo, self.ancho, self.alto = nombre, titulo, ancho, alto
         self.visuales: list[dict] = []
+        self.lugares: dict[str, tuple[float, float, float, float]] = {}
 
     def agregar(self, semilla: str, tipo: str, x: float, y: float, w: float, h: float,
                 roles: dict | None = None, objetos: dict | None = None, contenedor: dict | None = None,
@@ -605,6 +606,7 @@ class Pagina:
             cont["border"] = [props(show=False)]
         visual["visualContainerObjects"] = cont
         visual["drillFilterOtherVisuals"] = True
+        self.lugares[semilla] = (x, y, w, h)
         self.visuales.append({
             "$schema": V_VISUAL,
             "name": nombre_visual(f"{self.nombre}/{semilla}"),
@@ -790,13 +792,42 @@ def tema() -> dict:
     }
 
 
+SIN_RELLENO = {"padding": [props(top=0, bottom=0, left=0, right=0)]}
+
+
+def iconos_en(p: Pagina, asignacion: dict[str, str], lado: int = 36) -> None:
+    """Un ícono de export/iconos.py en la esquina superior derecha de cada visual."""
+    import iconos
+
+    for semilla, nombre_icono in asignacion.items():
+        if semilla not in p.lugares:
+            continue
+        x, y, w, _ = p.lugares[semilla]
+        p.agregar(f"icono_{semilla}", "image", x + w - lado - 10, y + 8, lado, lado,
+                  objetos={"general": [props(imageUrl=iconos.data_uri(nombre_icono, lado * 3))],
+                           "imageScaling": [props(imageScalingType="Fit")]},
+                  # Sin el relleno del tema: en una caja de 36 px, 10 de margen dejan un punto.
+                  contenedor=dict(SIN_RELLENO), fondo=False)
+
+
 def cabecera(p: Pagina) -> None:
     """Título, subtítulo y las cuatro listas, iguales en todas las páginas."""
     M = 24
-    p.agregar("titulo", "textbox", M, 8, 300, 60, objetos={"general": [{"properties": {"paragraphs": [
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import base64
+    import io
+
+    import iconos
+
+    salida = io.BytesIO()
+    iconos.logo(168).save(salida, format="PNG")
+    p.agregar("logo", "image", M, 16, 56, 56,
+              objetos={"general": [props(imageUrl="data:image/png;base64," + base64.b64encode(salida.getvalue()).decode())],
+                       "imageScaling": [props(imageScalingType="Fit")]}, contenedor=dict(SIN_RELLENO), fondo=False)
+    p.agregar("titulo", "textbox", M + 64, 8, 300, 60, objetos={"general": [{"properties": {"paragraphs": [
         {"textRuns": [{"value": "YPF · ATLAS", "textStyle": {"fontFamily": "Segoe UI Semibold", "fontSize": "20pt",
                                                                "color": TEXTO}}]}]}}]}, fondo=False)
-    tarjeta(p, "subtitulo", "Título tablero", M, 62, 420, 34, tamanio=10.0, tinte=TEXTO_SUAVE)
+    tarjeta(p, "subtitulo", "Título tablero", M + 64, 62, 420, 34, tamanio=10.0, tinte=TEXTO_SUAVE)
     p.visuales[-1]["visual"]["visualContainerObjects"]["background"] = [props(show=False)]
     p.visuales[-1]["visual"]["visualContainerObjects"]["border"] = [props(show=False)]
     filtro(p, "f_trimestre", "Trimestres", "Etiqueta", "Trimestre", 640, 16, 200, 72, descendente=True,
@@ -829,8 +860,8 @@ def pagina_tablero() -> Pagina:
         ("ingresos", "Ingresos", "Ingresos del trimestre", None, TEXTO),
         ("margen", "Margen EBITDA", "Margen EBITDA", None, TEXTO),
         ("variacion", "Variación EBITDA", None, "Título variación", CIAN),
-        ("contable", "EBITDA de los estados", "EBITDA de los estados (res. operativo + D&A)", None, TEXTO_SUAVE),
-        ("apalancamiento", "Deuda neta / EBITDA", "Deuda neta / EBITDA (release)", None, TEXTO),
+        ("contable", "EBITDA de los estados", "EBITDA de los estados", None, TEXTO_SUAVE),
+        ("apalancamiento", "Deuda neta / EBITDA", "Deuda neta / EBITDA", None, TEXTO),
     ]
     for i, (semilla, medida, titulo, titulo_medida, tinte) in enumerate(fichas):
         tarjeta(p, semilla, medida, M + i * (ancho + 16), y1, ancho, h1, titulo=titulo,
@@ -898,6 +929,10 @@ def pagina_tablero() -> Pagina:
                  "categoryLabels": [props(color=color(TEXTO_SUAVE), fontSize=9.0)]},
         titulo="Las lecturas del capex y del flujo libre (consolidado)",
     )
+    iconos_en(p, {"ebitda": "gota", "ingresos": "dolar", "margen": "porcentaje", "variacion": "velas",
+                  "contable": "refineria", "apalancamiento": "balanza", "serie": "barril", "udm": "calendario",
+                  "capex_pagado": "casco", "margenes": "porcentaje", "acumulado": "calendario", "lineas": "flujo",
+                  "lecturas": "engranaje"})
     return p
 
 
@@ -986,11 +1021,12 @@ def pagina_operativo() -> Pagina:
         )
 
     # --- precio o volumen ----------------------------------------------------
-    fichas = [("Producción total", "kboe/d"), ("Petróleo shale", "kbbl/d"), ("Precio del crudo", "US$/bbl"),
-              ("Lifting cost", "US$/boe")]
+    # (medida, título corto): la ficha es angosta y el ícono ocupa la esquina.
+    fichas = [("Producción total", "Producción · kboe/d"), ("Petróleo shale", "Shale · kbbl/d"),
+              ("Precio del crudo", "Crudo · US$/bbl"), ("Lifting cost", "Lifting · US$/boe")]
     ancho = (w2 - 3 * 12) / 4
     for i, (medida, unidad) in enumerate(fichas):
-        tarjeta(p, f"op_{i}", medida, x2 + i * (ancho + 12), y1, ancho, 100, titulo=f"{medida} · {unidad}",
+        tarjeta(p, f"op_{i}", medida, x2 + i * (ancho + 12), y1, ancho, 100, titulo=unidad,
                 tamanio=20.0)
         tarjeta(p, f"op_var_{i}", f"Variación {medida.lower()}", x2 + i * (ancho + 12), y1 + 104, ancho, 44,
                 tamanio=11.0, tinte=CIAN)
@@ -1031,6 +1067,10 @@ def pagina_operativo() -> Pagina:
         titulo="Retorno anormal en cada balance: lo que la acción se movió más allá de Vista y el Brent",
         orden={"sort": [{"field": eje, "direction": "Ascending"}]},
     )
+    iconos_en(p, {"mapa_marco": "pin", "op_0": "cigueña", "op_1": "gota", "op_2": "barril", "op_3": "engranaje",
+                  "precio_volumen": "ducto", "mercado_marco": "velas", "merc_0": "dolar", "merc_1": "velas",
+                  "merc_2": "rayo", "merc_3": "flujo", "merc_4": "porcentaje", "merc_5": "balanza",
+                  "reaccion": "llama"})
     return p
 
 
