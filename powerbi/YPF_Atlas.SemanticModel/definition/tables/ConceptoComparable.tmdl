@@ -1,0 +1,38 @@
+table ConceptoComparable
+	lineageTag: c3ba7fdd-8a94-571d-9d43-380c49fada8c
+
+	column Concepto
+		dataType: string
+		lineageTag: a636b671-2ea1-568a-961b-f91749389008
+		summarizeBy: none
+		sourceColumn: Concepto
+		sortByColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	column Campo
+		dataType: string
+		lineageTag: 2094c8be-c925-511f-98ad-aa41d6b3a6b0
+		summarizeBy: none
+		sourceColumn: Campo
+
+		annotation SummarizationSetBy = User
+
+	column Orden
+		dataType: int64
+		isHidden
+		lineageTag: d7ee2be5-55fa-58ac-bea7-755c245e13b3
+		summarizeBy: none
+		sourceColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	partition ConceptoComparable = m
+		mode: import
+		source =
+				let
+				    Fuente = #table({"Concepto", "Campo", "Orden"}, {{"Margen EBITDA", "margen_ebitda", 1}, {"Deuda neta / EBITDA", "deuda_neta_ebitda", 2}, {"Capex / EBITDA", "capex_sobre_ebitda", 3}}),
+				    Tipos = Table.TransformColumnTypes(Fuente, {{"Concepto", type text}, {"Campo", type text}, {"Orden", Int64.Type}})
+				in
+				    Tipos
+

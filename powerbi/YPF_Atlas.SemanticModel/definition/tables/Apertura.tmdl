@@ -1,0 +1,30 @@
+table Apertura
+	lineageTag: 6a692994-62bb-51fa-b2ea-97d7576c9270
+
+	column Apertura
+		dataType: string
+		lineageTag: fb9f73d3-a191-5b04-8a24-d74a379fffd7
+		summarizeBy: none
+		sourceColumn: Apertura
+		sortByColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	column Orden
+		dataType: int64
+		isHidden
+		lineageTag: 80692047-bebb-58c4-8240-967a1a5b2d9c
+		summarizeBy: none
+		sourceColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	partition Apertura = m
+		mode: import
+		source =
+				let
+				    Fuente = #table({"Apertura", "Orden"}, {{"Cuenca", 1}, {"Provincia", 2}, {"Concesión", 3}, {"Yacimiento", 4}, {"Localidad", 5}}),
+				    Tipos = Table.TransformColumnTypes(Fuente, {{"Apertura", type text}, {"Orden", Int64.Type}})
+				in
+				    Tipos
+

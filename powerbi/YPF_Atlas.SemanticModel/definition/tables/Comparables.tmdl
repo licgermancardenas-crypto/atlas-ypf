@@ -1,0 +1,64 @@
+table Comparables
+	lineageTag: 4f4ff3ed-7b8f-5dcb-9480-41ee46293077
+
+	column Ticker
+		dataType: string
+		isHidden
+		lineageTag: d1518427-39e4-5f66-b864-041ced773a15
+		summarizeBy: none
+		sourceColumn: Ticker
+
+		annotation SummarizationSetBy = User
+
+	column Empresa
+		dataType: string
+		isHidden
+		lineageTag: 5d14cc28-560e-5e63-b9c2-31c32e80f150
+		summarizeBy: none
+		sourceColumn: Empresa
+
+		annotation SummarizationSetBy = User
+
+	column Ejercicio
+		dataType: string
+		isHidden
+		lineageTag: abbf71ef-8e4a-527a-ba5a-a4170bac6459
+		summarizeBy: none
+		sourceColumn: Ejercicio
+
+		annotation SummarizationSetBy = User
+
+	column Concepto
+		dataType: string
+		isHidden
+		lineageTag: 55cf951d-28f6-5ad7-9bee-e44fc2520781
+		summarizeBy: none
+		sourceColumn: Concepto
+
+		annotation SummarizationSetBy = User
+
+	column Valor
+		dataType: double
+		isHidden
+		lineageTag: f8a6d666-5758-5216-840e-619e9ee3adcf
+		summarizeBy: none
+		sourceColumn: Valor
+
+		annotation SummarizationSetBy = User
+
+	partition Comparables = m
+		mode: import
+		source =
+				let
+				    Fuente = Parquet.Document(File.Contents(RutaDatos & "tablero_comparables.parquet")),
+				    Comparables = Table.SelectRows(Fuente, each [comparable] = true),
+				    Largo = Table.UnpivotOtherColumns(
+				        Table.SelectColumns(Comparables, {"ticker", "empresa", "anio", "ingresos", "ebitda", "margen_ebitda",
+				                                          "capex", "deuda_neta", "deuda_neta_ebitda", "capex_sobre_ebitda",
+				                                          "flujo_libre", "retorno_patrimonio"}),
+				        {"ticker", "empresa", "anio"}, "Concepto", "Valor"),
+				    Renombrado = Table.RenameColumns(Largo, {{"ticker", "Ticker"}, {"empresa", "Empresa"}, {"anio", "Ejercicio"}}),
+				    Final = Table.TransformColumnTypes(Renombrado, {{"Ticker", type text}, {"Empresa", type text}, {"Ejercicio", type text}, {"Concepto", type text}, {"Valor", type number}})
+				in
+				    Final
+

@@ -1,0 +1,59 @@
+{
+  "generado": "2026-09-15T23:19:53Z",
+  "metodo": "Descomposición contable exacta del EBITDA de Upstream (volumen × margen unitario), más la variación de los otros negocios y de las eliminaciones entre segmentos; el resto es lo que la compañía ajusta para llegar a su EBITDA publicado.",
+  "unidades": {
+    "musd": "millones de dólares",
+    "precio_por_boe": "US$ por boe de producción"
+  },
+  "advertencia": "El precio por boe es el ingreso de Upstream sobre la producción: adentro conviven crudo, gas y mezcla. Para aislar el Brent está ebitda_sensitivity.json.",
+  "comparaciones": [
+    "Año anterior",
+    "Trimestre anterior"
+  ],
+  "trimestres": [
+    "2020Q1",
+    "2020Q2",
+    "2020Q3",
+    "2020Q4",
+    "2021Q1",
+    "2021Q2",
+    "2021Q3",
+    "2021Q4",
+    "2022Q1",
+    "2022Q2",
+    "2022Q3",
+    "2022Q4",
+    "2023Q1",
+    "2023Q2",
+    "2023Q3",
+    "2023Q4",
+    "2024Q1",
+    "2024Q2",
+    "2024Q3",
+    "2024Q4",
+    "2025Q1",
+    "2025Q2",
+    "2025Q3",
+    "2025Q4",
+    "2026Q1",
+    "2026Q2"
+  ],
+  "ultimo": {
+    "periodo": "2026Q2",
+    "comparacion": "Año anterior",
+    "periodo_base": "2025Q2",
+    "ebitda_base_musd": 1124.0,
+    "ebitda_musd": 2804.0,
+    "delta_musd": 1680.0,
+    "volumen_musd": -1.724757192596737,
+    "precio_musd": 850.5143851933298,
+    "costo_musd": -27.789628000733046,
+    "otros_negocios_musd": 434.0,
+    "administracion_musd": -111.0,
+    "consolidacion_musd": 341.0,
+    "ajustes_musd": 195.0,
+    "volumen_mmboe": 49.5404,
+    "precio_por_boe": 55.328580310211464,
+    "costo_por_boe": 24.141912459326125
+  }
+}

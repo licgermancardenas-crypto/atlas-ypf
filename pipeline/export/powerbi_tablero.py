@@ -244,6 +244,147 @@ in
     },
 ]
 
+# --------------------------------------------------------------------------- #
+# Análisis: puente, simulador, deuda, comparables y territorio
+# --------------------------------------------------------------------------- #
+# Los mismos datos que usan las tarjetas de análisis del Excel
+# (export/tablero_analisis.py), acá como tablas del modelo.
+COMPONENTES_PUENTE = [
+    ("volumen_musd", "Volumen"),
+    ("precio_musd", "Precio"),
+    ("costo_musd", "Costo"),
+    ("otros_negocios_musd", "Otros negocios"),
+    ("administracion_musd", "Administración"),
+    ("consolidacion_musd", "Consolidación"),
+    ("ajustes_musd", "Ajustes de la compañía"),
+]
+# (tabla del modelo, rótulo, unidad, coeficiente del modelo, mínimo, máximo, paso)
+PALANCAS = [
+    ("Brent", "Brent", "US$/bbl", "brent_usd", 40, 140, 5),
+    ("Produccion", "Producción", "kboe/d", "produccion_kboed", 420, 660, 10),
+    ("Lifting", "Lifting cost", "US$/boe", "lifting_cost_usd_boe", 5, 18, 0.5),
+    ("Refino", "Crudo procesado", "kbbl/d", "crudo_procesado_kbbld", 260, 420, 10),
+]
+COMPARADAS = [
+    ("margen_ebitda", "Margen EBITDA", "0.0%"),
+    ("deuda_neta_ebitda", "Deuda neta / EBITDA", '0.0"x"'),
+    ("capex_sobre_ebitda", "Capex / EBITDA", "0%"),
+]
+
+TABLAS += [
+    {
+        "nombre": "Puente",
+        "oculta": True,
+        "columnas": [("Comparacion", "string"), ("Componente", "string"), ("ValorMUSD", "double"),
+                     ("Orden", "int64")],
+        "m": f"""let
+    Fuente = Parquet.Document(File.Contents(RutaDatos & "ebitda_puente.parquet")),
+    Largo = Table.UnpivotOtherColumns(
+        Table.SelectColumns(Fuente, {{"periodo", "comparacion", {", ".join(f'"{c}"' for c, _ in COMPONENTES_PUENTE)}}}),
+        {{"periodo", "comparacion"}}, "campo", "ValorMUSD"),
+    Nombres = Table.AddColumn(Largo, "Componente", each
+        Record.FieldOrDefault(
+            [{", ".join(f'{c} = "{e}"' for c, e in COMPONENTES_PUENTE)}], [campo], [campo]), type text),
+{m_con_orden("Nombres", "periodo")},
+    Renombrado = Table.RenameColumns(Table.RemoveColumns(Expandido, {{"periodo", "campo"}}), {{{{"comparacion", "Comparacion"}}}}),
+    Final = Table.TransformColumnTypes(Renombrado, {{{{"ValorMUSD", type number}}, {{"Orden", Int64.Type}}, {{"Comparacion", type text}}}})
+in
+    Final""",
+    },
+    {
+        "nombre": "PuenteTotales",
+        "oculta": True,
+        "columnas": [("Comparacion", "string"), ("BaseMUSD", "double"), ("TotalMUSD", "double"), ("Orden", "int64")],
+        "m": f"""let
+    Fuente = Parquet.Document(File.Contents(RutaDatos & "ebitda_puente.parquet")),
+    Columnas = Table.SelectColumns(Fuente, {{"periodo", "comparacion", "ebitda_base_musd", "ebitda_musd"}}),
+{m_con_orden("Columnas", "periodo")},
+    Renombrado = Table.RenameColumns(Table.RemoveColumns(Expandido, {{"periodo"}}),
+        {{{{"comparacion", "Comparacion"}}, {{"ebitda_base_musd", "BaseMUSD"}}, {{"ebitda_musd", "TotalMUSD"}}}}),
+    Final = Table.TransformColumnTypes(Renombrado, {{{{"BaseMUSD", type number}}, {{"TotalMUSD", type number}}, {{"Orden", Int64.Type}}}})
+in
+    Final""",
+    },
+    {
+        "nombre": "Deuda",
+        "columnas": [("Anio", "int64"), ("MontoMUSD", "double"), ("TasaPct", "double"), ("Instrumentos", "int64")],
+        "m": """let
+    Fuente = Parquet.Document(File.Contents(RutaDatos & "deuda_perfil.parquet")),
+    Renombrado = Table.RenameColumns(Table.SelectColumns(Fuente, {"anio", "monto_musd", "tasa_promedio_pct", "instrumentos"}),
+        {{"anio", "Anio"}, {"monto_musd", "MontoMUSD"}, {"tasa_promedio_pct", "TasaPct"}, {"instrumentos", "Instrumentos"}}),
+    Final = Table.TransformColumnTypes(Renombrado, {{"Anio", Int64.Type}, {"MontoMUSD", type number}, {"TasaPct", type number}, {"Instrumentos", Int64.Type}})
+in
+    Final""",
+    },
+    {
+        "nombre": "Comparables",
+        "columnas": [("Ticker", "string"), ("Empresa", "string"), ("Ejercicio", "string"), ("Concepto", "string"),
+                     ("Valor", "double")],
+        "oculta": True,
+        "m": """let
+    Fuente = Parquet.Document(File.Contents(RutaDatos & "tablero_comparables.parquet")),
+    Comparables = Table.SelectRows(Fuente, each [comparable] = true),
+    Largo = Table.UnpivotOtherColumns(
+        Table.SelectColumns(Comparables, {"ticker", "empresa", "anio", "ingresos", "ebitda", "margen_ebitda",
+                                          "capex", "deuda_neta", "deuda_neta_ebitda", "capex_sobre_ebitda",
+                                          "flujo_libre", "retorno_patrimonio"}),
+        {"ticker", "empresa", "anio"}, "Concepto", "Valor"),
+    Renombrado = Table.RenameColumns(Largo, {{"ticker", "Ticker"}, {"empresa", "Empresa"}, {"anio", "Ejercicio"}}),
+    Final = Table.TransformColumnTypes(Renombrado, {{"Ticker", type text}, {"Empresa", type text}, {"Ejercicio", type text}, {"Concepto", type text}, {"Valor", type number}})
+in
+    Final""",
+    },
+    {
+        "nombre": "Multiplos",
+        "oculta": True,
+        "columnas": [("Ticker", "string"), ("EvEbitda", "double"), ("PrecioValorLibro", "double"),
+                     ("PrecioAdr", "double"), ("Ejercicio", "string")],
+        "m": """let
+    Fuente = Json.Document(File.Contents(RutaDatos & "tablero_comparables.json")),
+    Tabla = Table.FromRecords(Fuente[multiplos], {"ticker", "ev_ebitda", "precio_valor_libro", "precio_adr", "ejercicio"}, MissingField.UseNull),
+    Renombrado = Table.RenameColumns(Tabla, {{"ticker", "Ticker"}, {"ev_ebitda", "EvEbitda"}, {"precio_valor_libro", "PrecioValorLibro"}, {"precio_adr", "PrecioAdr"}, {"ejercicio", "Ejercicio"}}),
+    Final = Table.TransformColumnTypes(Renombrado, {{"Ticker", type text}, {"EvEbitda", type number}, {"PrecioValorLibro", type number}, {"PrecioAdr", type number}, {"Ejercicio", type text}})
+in
+    Final""",
+    },
+    {
+        "nombre": "Territorio",
+        "oculta": True,
+        "columnas": [("Dimension", "string"), ("Miembro", "string"), ("Boed", "double"), ("ShaleBoed", "double"),
+                     ("Orden", "int64")],
+        "m": f"""let
+    Fuente = Parquet.Document(File.Contents(RutaDatos & "tablero_territorio.parquet")),
+    Columnas = Table.SelectColumns(Fuente, {{"dimension", "miembro", "periodo", "boed", "shale_boed"}}),
+{m_con_orden("Columnas", "periodo")},
+    Renombrado = Table.RenameColumns(Table.RemoveColumns(Expandido, {{"periodo"}}),
+        {{{{"dimension", "Dimension"}}, {{"miembro", "Miembro"}}, {{"boed", "Boed"}}, {{"shale_boed", "ShaleBoed"}}}}),
+    Final = Table.TransformColumnTypes(Renombrado, {{{{"Dimension", type text}}, {{"Miembro", type text}}, {{"Boed", type number}}, {{"ShaleBoed", type number}}, {{"Orden", Int64.Type}}}})
+in
+    Final""",
+    },
+    # La lista de aperturas. Se llama Apertura y no Dimension para no repetir el
+    # nombre de la columna Territorio[Dimension] en otra tabla.
+    tabla_fija("Apertura", [("Apertura", "string"), ("Orden", "int64")],
+               [(d, i + 1) for i, d in enumerate(["Cuenca", "Provincia", "Concesión", "Yacimiento", "Localidad"])],
+               orden={"Apertura": "Orden"}),
+    tabla_fija("ConceptoComparable", [("Concepto", "string"), ("Campo", "string"), ("Orden", "int64")],
+               [(etiqueta, clave, i + 1) for i, (clave, etiqueta, _) in enumerate(COMPARADAS)],
+               orden={"Concepto": "Orden"}),
+    tabla_fija("Componente", [("Componente", "string"), ("Orden", "int64")],
+               [(etiqueta, i + 1) for i, (_, etiqueta) in enumerate(COMPONENTES_PUENTE)],
+               orden={"Componente": "Orden"}),
+]
+
+# Las palancas del simulador: una tabla por palanca, como las de un parámetro
+# de hipótesis de Power BI.
+for tabla_palanca, _, _, _, minimo, maximo, paso in PALANCAS:
+    valores, valor = [], minimo
+    while valor <= maximo + 1e-9:
+        valores.append((round(valor, 2),))
+        valor += paso
+    TABLAS.append(tabla_fija(tabla_palanca, [("Valor", "double")], valores))
+
+
 CFO = "net cash flows from operating activities"
 CAPEX = "acquisition of property plant and equipment and intangible assets | net cash flows used in investing activities"
 DA = [
@@ -448,6 +589,150 @@ MEDIDAS_DAX += [
     ("Color reacción", f'VAR o = SELECTEDVALUE(Eje[Orden])\nRETURN\n    IF(o = [_Orden elegido], "{AMBAR}", '
                        f'IF([Retorno anormal] < 0, "#7c5a1e", "{APAGADO}"))', None, "Mercado", True),
 ]
+
+
+# --- análisis: puente, simulador, deuda, comparables y territorio ------------
+def _coeficientes() -> dict:
+    """Los coeficientes del modelo, escritos como constantes en las medidas."""
+    ruta = PROCESSED / "scenario_coefficients.json"
+    if not ruta.exists():
+        return {}
+    return json.loads(ruta.read_text(encoding="utf-8"))
+
+
+def territorio_medida(columna: str) -> str:
+    """La producción de la apertura elegida.
+
+    El miembro lo pone el propio visual: su eje es Territorio[Miembro], de la
+    misma tabla, así que ese filtro ya está en contexto y la medida solo agrega
+    el trimestre y la apertura.
+    """
+    return "\n".join([
+        "VAR o = [_Orden]",
+        "VAR d = [_Dimensión]",
+        "RETURN",
+        "    CALCULATE(",
+        f"        SUM(Territorio[{columna}]),",
+        "        Territorio[Orden] = o,",
+        "        Territorio[Dimension] = d",
+        "    )",
+    ])
+
+
+_MODELO = _coeficientes()
+_EBITDA_MODELO = _MODELO.get("ebitda", {})
+_CASO_BASE = _MODELO.get("caso_base", {})
+# Lo que el modelo estima para el trimestre base: contra esto se compara un
+# escenario, y no contra el EBITDA publicado, que incluye el residuo.
+_BASE_ESTIMADA = _EBITDA_MODELO.get("const", 0) + _EBITDA_MODELO.get("brent_usd", 0) * _CASO_BASE.get("brent_usd", 0) + _EBITDA_MODELO.get("produccion_kboed", 0) * _CASO_BASE.get("produccion_kboed", 0) + _EBITDA_MODELO.get("lifting_cost_usd_boe", 0) * _CASO_BASE.get("lifting_cost_usd_boe", 0) + _EBITDA_MODELO.get("crudo_procesado_kbbld", 0) * _CASO_BASE.get("crudo_procesado_kbbld", 0)
+
+MEDIDAS_DAX += [
+    # --- puente ---------------------------------------------------------------
+    ("Puente componente",
+     'VAR o = [_Orden elegido]\nVAR comparacion = SELECTEDVALUE(Comparacion[Comparacion], "Año anterior")\n'
+     'VAR componente = SELECTEDVALUE(Componente[Componente])\nRETURN\n'
+     '    CALCULATE(SUM(Puente[ValorMUSD]), Puente[Orden] = o, Puente[Comparacion] = comparacion, '
+     'Puente[Componente] = componente)', FORMATO_MUSD, "Puente", False),
+    ("Puente base",
+     'VAR o = [_Orden elegido]\nVAR comparacion = SELECTEDVALUE(Comparacion[Comparacion], "Año anterior")\nRETURN\n'
+     '    CALCULATE(SUM(PuenteTotales[BaseMUSD]), PuenteTotales[Orden] = o, PuenteTotales[Comparacion] = comparacion)',
+     FORMATO_MUSD, "Puente", False),
+    ("Puente total",
+     'VAR o = [_Orden elegido]\nVAR comparacion = SELECTEDVALUE(Comparacion[Comparacion], "Año anterior")\nRETURN\n'
+     '    CALCULATE(SUM(PuenteTotales[TotalMUSD]), PuenteTotales[Orden] = o, PuenteTotales[Comparacion] = comparacion)',
+     FORMATO_MUSD, "Puente", False),
+    ("Puente variación", "[Puente total] - [Puente base]", FORMATO_MUSD, "Puente", False),
+    ("Puente: efecto precio",
+     'VAR o = [_Orden elegido]\nVAR comparacion = SELECTEDVALUE(Comparacion[Comparacion], "Año anterior")\nRETURN\n'
+     '    CALCULATE(SUM(Puente[ValorMUSD]), REMOVEFILTERS(Componente), Puente[Orden] = o, '
+     'Puente[Comparacion] = comparacion, Puente[Componente] = "Precio")', FORMATO_MUSD, "Puente", False),
+    ("Puente: efecto volumen",
+     'VAR o = [_Orden elegido]\nVAR comparacion = SELECTEDVALUE(Comparacion[Comparacion], "Año anterior")\nRETURN\n'
+     '    CALCULATE(SUM(Puente[ValorMUSD]), REMOVEFILTERS(Componente), Puente[Orden] = o, '
+     'Puente[Comparacion] = comparacion, Puente[Componente] = "Volumen")', FORMATO_MUSD, "Puente", False),
+    ("Puente: efecto costo",
+     'VAR o = [_Orden elegido]\nVAR comparacion = SELECTEDVALUE(Comparacion[Comparacion], "Año anterior")\nRETURN\n'
+     '    CALCULATE(SUM(Puente[ValorMUSD]), REMOVEFILTERS(Componente), Puente[Orden] = o, '
+     'Puente[Comparacion] = comparacion, Puente[Componente] = "Costo")', FORMATO_MUSD, "Puente", False),
+    ("Título puente",
+     '"Puente del EBITDA: de " & [Trimestre de comparación] & " a " & [Trimestre elegido] & ", en millones de US$"',
+     None, "Textos", False),
+
+    # --- simulador -------------------------------------------------------------
+    ("EBITDA simulado",
+     f'{_EBITDA_MODELO.get("const", 0)}\n'
+     f'    + {_EBITDA_MODELO.get("brent_usd", 0)} * [Brent elegido]\n'
+     f'    + {_EBITDA_MODELO.get("produccion_kboed", 0)} * [Producción elegida]\n'
+     f'    + {_EBITDA_MODELO.get("lifting_cost_usd_boe", 0)} * [Lifting elegido]\n'
+     f'    + {_EBITDA_MODELO.get("crudo_procesado_kbbld", 0)} * [Refino elegido]',
+     FORMATO_MUSD, "Simulador", False),
+    ("Piso del rango", f'[EBITDA simulado] - 1.96 * {_EBITDA_MODELO.get("error_estandar", 0)}',
+     FORMATO_MUSD, "Simulador", False),
+    ("Techo del rango", f'[EBITDA simulado] + 1.96 * {_EBITDA_MODELO.get("error_estandar", 0)}',
+     FORMATO_MUSD, "Simulador", False),
+    ("EBITDA del caso base", str(_CASO_BASE.get("adj_ebitda_musd", 0)), FORMATO_MUSD, "Simulador", False),
+    # Contra lo que el propio modelo estima para el trimestre base, no contra el
+    # EBITDA publicado: así el cero del escenario es no mover ninguna palanca.
+    ("EBITDA estimado del caso base", f"{_BASE_ESTIMADA}", FORMATO_MUSD, "Simulador", True),
+    ("Simulado contra el caso base",
+     "VAR base = [EBITDA estimado del caso base]\nRETURN\n"
+     "    IF(base <> 0, ([EBITDA simulado] - base) / ABS(base))", FORMATO_VAR, "Simulador", False),
+    ("Título simulador",
+     f'"Caso base {_CASO_BASE.get("trimestre", "")}: Brent {_CASO_BASE.get("brent_usd", 0)} US$/bbl · '
+     f'producción {_CASO_BASE.get("produccion_kboed", 0)} kboe/d · lifting {_CASO_BASE.get("lifting_cost_usd_boe", 0)} '
+     f'US$/boe · refino {_CASO_BASE.get("crudo_procesado_kbbld", 0)} kbbl/d"', None, "Textos", False),
+
+    # --- deuda ------------------------------------------------------------------
+    ("Vencimientos", "SUM(Deuda[MontoMUSD])", FORMATO_MUSD, "Deuda", False),
+    ("Cupón del año", "AVERAGE(Deuda[TasaPct]) / 100", "0.0%", "Deuda", False),
+    ("Deuda total", "CALCULATE(SUM(Deuda[MontoMUSD]), REMOVEFILTERS(Deuda))", FORMATO_MUSD, "Deuda", False),
+    ("Cupón promedio ponderado",
+     "VAR tabla = ALL(Deuda)\nRETURN\n    DIVIDE(SUMX(tabla, Deuda[MontoMUSD] * Deuda[TasaPct]), "
+     "SUMX(tabla, Deuda[MontoMUSD])) / 100", "0.0%", "Deuda", False),
+    ("Mayor vencimiento",
+     "VAR tabla = ALL(Deuda)\nVAR maximo = MAXX(tabla, Deuda[MontoMUSD])\nRETURN\n"
+     '    MAXX(FILTER(tabla, Deuda[MontoMUSD] = maximo), Deuda[Anio]) & ": US$ " & FORMAT(maximo, "#,##0") & "M"',
+     None, "Deuda", False),
+
+    # --- comparables -------------------------------------------------------------
+    ("Valor comparable",
+     'VAR concepto = SELECTEDVALUE(ConceptoComparable[Campo], "margen_ebitda")\nRETURN\n'
+     "    CALCULATE(SUM(Comparables[Valor]), Comparables[Concepto] = concepto)", "0.0%", "Comparables", False),
+    ("Margen EBITDA comparable",
+     'CALCULATE(SUM(Comparables[Valor]), Comparables[Concepto] = "margen_ebitda")', "0.0%", "Comparables", False),
+    ("Apalancamiento comparable",
+     'CALCULATE(SUM(Comparables[Valor]), Comparables[Concepto] = "deuda_neta_ebitda")', '0.0"x"',
+     "Comparables", False),
+    ("Capex sobre EBITDA comparable",
+     'CALCULATE(SUM(Comparables[Valor]), Comparables[Concepto] = "capex_sobre_ebitda")', "0%", "Comparables", False),
+    ("EV / EBITDA", "SUM(Multiplos[EvEbitda])", '0.0"x"', "Comparables", False),
+    ("Precio / valor libro", "SUM(Multiplos[PrecioValorLibro])", '0.0"x"', "Comparables", False),
+
+    # --- territorio ---------------------------------------------------------------
+    ("_Dimensión", 'SELECTEDVALUE(Apertura[Apertura], "Cuenca")', None, "Territorio", True),
+    # El filtro por miembro no puede ir adentro de un IF dentro de CALCULATE:
+    # se elige la rama y recién ahí se filtra.
+    ("Producción del territorio", territorio_medida("Boed"), "#,##0", "Territorio", False),
+    ("Shale del territorio", territorio_medida("ShaleBoed"), "#,##0", "Territorio", False),
+    ("Parte shale", "DIVIDE([Shale del territorio], [Producción del territorio])", "0%", "Territorio", False),
+    ("Variación del territorio",
+     "VAR a = [Producción del territorio]\nVAR b = CALCULATE([Producción del territorio], "
+     "TREATAS({[_Trimestres comparación]}, Desfase[N]))\nRETURN\n    IF(NOT ISBLANK(b) && b > 0, (a - b) / b)",
+     FORMATO_VAR, "Territorio", False),
+    ("Participación del territorio",
+     "VAR total = CALCULATE([Producción del territorio], REMOVEFILTERS(Territorio[Miembro]))\nRETURN\n"
+     "    DIVIDE([Producción del territorio], total)", "0.0%", "Territorio", False),
+    ("Título territorio",
+     '[_Dimensión] & " · " & [Trimestre elegido] & " · boe/d promedio del trimestre, bruto operado"',
+     None, "Textos", False),
+]
+
+for tabla_palanca, _rotulo, _unidad, campo, _minimo, _maximo, _paso in PALANCAS:
+    base = _CASO_BASE.get(campo, 0)
+    nombre_medida = {"Brent": "Brent elegido", "Produccion": "Producción elegida",
+                     "Lifting": "Lifting elegido", "Refino": "Refino elegido"}[tabla_palanca]
+    MEDIDAS_DAX.append((nombre_medida, f"SELECTEDVALUE({tabla_palanca}[Valor], {base})", "#,##0.0",
+                        "Simulador", False))
 
 
 def tabla_tmdl(tabla: dict) -> str:
@@ -664,7 +949,7 @@ def serie_colores(*pares: tuple[str, str]) -> list:
 
 
 def filtro(pagina: Pagina, semilla: str, tabla: str, columna: str, rotulo: str, x, y, w, h,
-           descendente: bool = False, elegido: str | None = None) -> None:
+           descendente: bool = False, elegido: str | float | None = None) -> None:
     campo = columna_campo(tabla, columna)
     general = []
     if elegido is not None:
@@ -674,7 +959,8 @@ def filtro(pagina: Pagina, semilla: str, tabla: str, columna: str, rotulo: str, 
             "From": [{"Name": "t", "Entity": tabla, "Type": 0}],
             "Where": [{"Condition": {"In": {
                 "Expressions": [{"Column": {"Expression": {"SourceRef": {"Source": "t"}}, "Property": columna}}],
-                "Values": [[{"Literal": {"Value": "'" + elegido + "'"}}]],
+                "Values": [[{"Literal": {"Value": (f"{elegido}D" if isinstance(elegido, (int, float))
+                                                  else "'" + str(elegido) + "'")}}]],
             }}}],
         }}}}]
     pagina.agregar(
@@ -740,7 +1026,7 @@ def escribir_reporte() -> None:
         },
     })
 
-    paginas = [pagina_tablero(), pagina_operativo()]
+    paginas = [pagina_tablero(), pagina_operativo(), pagina_puente(), pagina_deuda(), pagina_territorio()]
     escribir(definicion / "pages" / "pages.json", {
         "$schema": f"{ESQUEMA}/item/report/definition/pagesMetadata/1.0.0/schema.json",
         "pageOrder": [p.nombre for p in paginas],
@@ -1071,6 +1357,187 @@ def pagina_operativo() -> Pagina:
                   "precio_volumen": "ducto", "mercado_marco": "velas", "merc_0": "dolar", "merc_1": "velas",
                   "merc_2": "rayo", "merc_3": "flujo", "merc_4": "porcentaje", "merc_5": "balanza",
                   "reaccion": "llama"})
+    return p
+
+
+def pagina_puente() -> Pagina:
+    """El puente del EBITDA y el simulador: por qué cambió y qué pasaría si."""
+    p = Pagina("puente", "Puente y escenarios", 1600, 1000)
+    M = 24
+    cabecera(p)
+
+    y1, h1 = 104, 120
+    fichas = [("pu_delta", "Puente variación", "Variación del EBITDA", CIAN),
+              ("pu_precio", "Puente: efecto precio", "Efecto precio", CIAN),
+              ("pu_volumen", "Puente: efecto volumen", "Efecto volumen", TEXTO),
+              ("pu_costo", "Puente: efecto costo", "Efecto costo", TEXTO)]
+    ancho = (1000 - 3 * 16) / 4
+    for i, (semilla, medida, titulo, tinte) in enumerate(fichas):
+        tarjeta(p, semilla, medida, M + i * (ancho + 16), y1, ancho, h1, titulo=titulo, tinte=tinte, tamanio=22.0)
+
+    componente = columna_campo("Componente", "Componente")
+    p.agregar(
+        "cascada", "waterfallChart", M, y1 + h1 + 16, 1000, 1000 - (y1 + h1 + 16) - 40,
+        roles={"Category": [proyeccion(componente)], "Y": [proyeccion(medida_campo("Puente componente"))]},
+        objetos=ejes(
+            legend=[props(show=True, position="Bottom")],
+            sentimentColors=[{"properties": {"increaseFill": color(CIAN), "decreaseFill": color(AMBAR),
+                                             "totalFill": color(AZUL)}}],
+        ),
+        titulo_medida="Título puente",
+        orden={"sort": [{"field": componente, "direction": "Ascending"}]},
+    )
+
+    # --- simulador -------------------------------------------------------------
+    x2 = M + 1024
+    w2 = 1600 - M - x2
+    marco(p, "sim_marco", "Título simulador", x2, y1, w2, 1000 - y1 - 40)
+    for i, (tabla_palanca, rotulo, unidad, campo, minimo, maximo, paso) in enumerate(PALANCAS):
+        # Arranca en el escalón más cercano al caso base: el lector ve el último
+        # trimestre y de ahí mueve.
+        base = _CASO_BASE.get(campo, minimo)
+        escalon = round(min(max(round((base - minimo) / paso) * paso + minimo, minimo), maximo), 2)
+        filtro(p, f"sim_{tabla_palanca}", tabla_palanca, "Valor", f"{rotulo} · {unidad}",
+               x2 + 12, y1 + 56 + i * 76, w2 - 24, 68, elegido=escalon)
+    y_salida = y1 + 56 + 4 * 76 + 12
+    tarjeta(p, "sim_ebitda", "EBITDA simulado", x2 + 12, y_salida, w2 - 24, 120,
+            titulo="EBITDA estimado del trimestre", tinte=CIAN, tamanio=26.0)
+    ancho_rango = (w2 - 24 - 12) / 2
+    tarjeta(p, "sim_piso", "Piso del rango", x2 + 12, y_salida + 132, ancho_rango, 100,
+            titulo="Piso (95%)", tinte=TEXTO_SUAVE, tamanio=16.0)
+    tarjeta(p, "sim_techo", "Techo del rango", x2 + 24 + ancho_rango, y_salida + 132, ancho_rango, 100,
+            titulo="Techo (95%)", tinte=TEXTO_SUAVE, tamanio=16.0)
+    tarjeta(p, "sim_contra", "Simulado contra el caso base", x2 + 12, y_salida + 244, w2 - 24, 100,
+            titulo="Contra el caso base", tinte=AMBAR, tamanio=20.0)
+    p.agregar("sim_nota", "textbox", x2 + 12, y_salida + 352, w2 - 24, 60,
+              objetos={"general": [{"properties": {"paragraphs": [{"textRuns": [{
+                  "value": "Regresión sobre quince trimestres: el rango importa más que el punto, y no es una "
+                           "proyección de la compañía.",
+                  "textStyle": {"fontFamily": "Segoe UI", "fontSize": "8pt", "color": TEXTO_SUAVE}}]}]}}]},
+              fondo=False)
+    iconos_en(p, {"pu_delta": "flujo", "pu_precio": "barril", "pu_volumen": "cigueña", "pu_costo": "engranaje",
+                  "cascada": "gota", "sim_marco": "rayo"})
+    return p
+
+
+def pagina_deuda() -> Pagina:
+    """La deuda y los comparables: lo que explica el múltiplo."""
+    p = Pagina("deuda", "Deuda y comparables", 1600, 1000)
+    M = 24
+    cabecera(p)
+
+    y1, h1 = 104, 120
+    fichas = [("de_total", "Deuda total", "Deuda total", TEXTO),
+              ("de_cupon", "Cupón promedio ponderado", "Cupón promedio", CIAN),
+              ("de_apalancamiento", "Deuda neta / EBITDA", "Deuda neta / EBITDA", TEXTO),
+              ("de_mayor", "Mayor vencimiento", "Año con más vencimientos", AMBAR)]
+    ancho = (1000 - 3 * 16) / 4
+    for i, (semilla, medida, titulo, tinte) in enumerate(fichas):
+        tarjeta(p, semilla, medida, M + i * (ancho + 16), y1, ancho, h1, titulo=titulo, tinte=tinte,
+                tamanio=20.0 if semilla != "de_mayor" else 15.0)
+
+    anio = columna_campo("Deuda", "Anio")
+    p.agregar(
+        "escalera", "clusteredColumnChart", M, y1 + h1 + 16, 1000, 320,
+        roles={"Category": [proyeccion(anio)], "Y": [proyeccion(medida_campo("Vencimientos"))]},
+        objetos=ejes(legend=[props(show=False)], dataPoint=[{"properties": {"fill": color(CIAN)}}]),
+        titulo="Vencimientos de capital por año, en millones de US$",
+        orden={"sort": [{"field": anio, "direction": "Ascending"}]},
+    )
+    p.agregar(
+        "deuda_tabla", "tableEx", M, y1 + h1 + 352, 1000, 1000 - (y1 + h1 + 352) - 40,
+        roles={"Values": [proyeccion(anio, "Año"), proyeccion(medida_campo("Vencimientos"), "Monto"),
+                          proyeccion(medida_campo("Cupón del año"), "Cupón")]},
+        objetos={"columnHeaders": [props(fontColor=color(TEXTO_SUAVE), backColor=color(TARJETA), fontSize=8.0)],
+                 "values": [props(fontColorPrimary=color(TEXTO), backColorPrimary=color(TARJETA),
+                                  fontColorSecondary=color(TEXTO), backColorSecondary=color(TARJETA))],
+                 "grid": [props(gridVertical=False, gridHorizontalColor=color("#1a2e4a"), textSize=9.0)]},
+        titulo="El detalle, año por año",
+        orden={"sort": [{"field": anio, "direction": "Ascending"}]},
+    )
+
+    # --- comparables -------------------------------------------------------------
+    x2 = M + 1024
+    w2 = 1600 - M - x2
+    ejercicio = columna_campo("Comparables", "Ejercicio")
+    ticker = columna_campo("Comparables", "Ticker")
+    p.agregar(
+        "comp_margen", "clusteredColumnChart", x2, y1, w2, 300,
+        roles={"Category": [proyeccion(ejercicio)], "Series": [proyeccion(ticker)],
+               "Y": [proyeccion(medida_campo("Margen EBITDA comparable"))]},
+        objetos=ejes(legend=[props(show=True, position="Top")]),
+        titulo="Margen EBITDA por ejercicio: YPF, Vista y Pampa",
+        orden={"sort": [{"field": ejercicio, "direction": "Ascending"}]},
+    )
+    ticker_multiplos = columna_campo("Multiplos", "Ticker")
+    p.agregar(
+        "comp_multiplos", "tableEx", x2, y1 + 316, w2, 260,
+        roles={"Values": [proyeccion(ticker_multiplos, "Ticker"),
+                          proyeccion(medida_campo("EV / EBITDA"), "EV/EBITDA"),
+                          proyeccion(medida_campo("Precio / valor libro"), "P/VL")]},
+        objetos={"columnHeaders": [props(fontColor=color(TEXTO_SUAVE), backColor=color(TARJETA), fontSize=8.0)],
+                 "values": [props(fontColorPrimary=color(TEXTO), backColorPrimary=color(TARJETA),
+                                  fontColorSecondary=color(TEXTO), backColorSecondary=color(TARJETA))],
+                 "grid": [props(gridVertical=False, gridHorizontalColor=color("#1a2e4a"), textSize=10.0)]},
+        titulo="Múltiplos con el precio de hoy contra el último ejercicio cerrado",
+    )
+    p.agregar(
+        "comp_apalancamiento", "clusteredBarChart", x2, y1 + 592, w2, 1000 - (y1 + 592) - 40,
+        roles={"Category": [proyeccion(ticker)],
+               "Y": [proyeccion(medida_campo("Apalancamiento comparable"), "Deuda neta / EBITDA"),
+                     proyeccion(medida_campo("Capex sobre EBITDA comparable"), "Capex / EBITDA")]},
+        objetos=ejes(False, legend=[props(show=True, position="Top")],
+                     dataPoint=serie_colores(("Apalancamiento comparable", CIAN),
+                                             ("Capex sobre EBITDA comparable", INDIGO))),
+        titulo="Apalancamiento y esfuerzo de inversión, último ejercicio",
+        orden={"sort": [{"field": ticker, "direction": "Ascending"}]},
+    )
+    iconos_en(p, {"de_total": "balanza", "de_cupon": "porcentaje", "de_apalancamiento": "flujo",
+                  "de_mayor": "calendario", "escalera": "calendario", "deuda_tabla": "balanza",
+                  "comp_margen": "velas", "comp_multiplos": "dolar", "comp_apalancamiento": "engranaje"})
+    return p
+
+
+def pagina_territorio() -> Pagina:
+    """De dónde sale la producción: cuenca, provincia, concesión, yacimiento o localidad."""
+    p = Pagina("territorio", "Territorio", 1600, 1000)
+    M = 24
+    cabecera(p)
+
+    y1 = 104
+    filtro(p, "ter_dimension", "Apertura", "Apertura", "Abrir por", M, y1, 260, 72, elegido="Cuenca")
+    tarjeta(p, "ter_total", "Producción del territorio", M + 276, y1, 240, 120,
+            titulo="Producción total", tinte=CIAN, tamanio=24.0)
+    tarjeta(p, "ter_shale", "Shale del territorio", M + 532, y1, 240, 120, titulo="De shale", tamanio=24.0)
+    tarjeta(p, "ter_parte", "Parte shale", M + 788, y1, 200, 120, titulo="Parte shale", tamanio=24.0)
+    tarjeta(p, "ter_variacion", "Variación del territorio", M + 1004, y1, 240, 120,
+            titulo="Contra la comparación", tinte=AMBAR, tamanio=24.0)
+
+    miembro = columna_campo("Territorio", "Miembro")
+    p.agregar(
+        "ter_barras", "clusteredBarChart", M, y1 + 136, 820, 1000 - (y1 + 136) - 40,
+        roles={"Category": [proyeccion(miembro)], "Y": [proyeccion(medida_campo("Producción del territorio"))]},
+        objetos=ejes(False, legend=[props(show=False)], dataPoint=[{"properties": {"fill": color(CIAN)}}]),
+        titulo_medida="Título territorio",
+        orden={"sort": [{"field": medida_campo("Producción del territorio"), "direction": "Descending"}]},
+    )
+    p.agregar(
+        "ter_tabla", "tableEx", M + 836, y1 + 136, 1600 - M - (M + 836), 1000 - (y1 + 136) - 40,
+        roles={"Values": [proyeccion(miembro, "Miembro"),
+                          proyeccion(medida_campo("Producción del territorio"), "boe/d"),
+                          proyeccion(medida_campo("Variación del territorio"), "Contra"),
+                          proyeccion(medida_campo("Parte shale"), "Shale"),
+                          proyeccion(medida_campo("Participación del territorio"), "Parte")]},
+        objetos={"columnHeaders": [props(fontColor=color(TEXTO_SUAVE), backColor=color(TARJETA), fontSize=8.0)],
+                 "values": [props(fontColorPrimary=color(TEXTO), backColorPrimary=color(TARJETA),
+                                  fontColorSecondary=color(TEXTO), backColorSecondary=color(TARJETA))],
+                 "grid": [props(gridVertical=False, gridHorizontalColor=color("#1a2e4a"), textSize=9.0)],
+                 "total": [props(totals=True)]},
+        titulo="El detalle, ordenado por producción",
+        orden={"sort": [{"field": medida_campo("Producción del territorio"), "direction": "Descending"}]},
+    )
+    iconos_en(p, {"ter_total": "cigueña", "ter_shale": "gota", "ter_parte": "porcentaje",
+                  "ter_variacion": "flujo", "ter_barras": "pin", "ter_tabla": "ducto"})
     return p
 
 

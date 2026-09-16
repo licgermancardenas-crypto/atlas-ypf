@@ -78,6 +78,12 @@ TRANSFORM_SCRIPTS: list[tuple[str, Path, list[str]]] = [
     # Despues del mapa: usa su proyeccion y su marco para ubicar las burbujas
     # del mapa del tablero del Excel.
     ("transform/tablero-mapa", TRANSFORM / "tablero_mapa.py", []),
+    # Las piezas de analisis de los tableros: el puente del EBITDA, el perfil de
+    # vencimientos, los comparables y la produccion por territorio.
+    ("transform/ebitda-puente", TRANSFORM / "ebitda_puente.py", []),
+    ("transform/deuda-perfil", TRANSFORM / "deuda_perfil.py", []),
+    ("transform/tablero-comparables", TRANSFORM / "tablero_comparables.py", []),
+    ("transform/tablero-territorio", TRANSFORM / "tablero_territorio.py", []),
     # Despues de geo: la titularidad sale del padron de concesiones que baja
     # ingest/geo_layers.py, y las metricas del panel de produccion.
     ("transform/grafo", TRANSFORM / "entity_graph.py", []),

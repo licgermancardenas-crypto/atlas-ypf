@@ -659,6 +659,276 @@ table Medidas
 		displayFolder: Mercado
 		lineageTag: 8a00dc43-53de-5f88-98a7-99884a308759
 
+	measure 'Puente componente' =
+			VAR o = [_Orden elegido]
+			VAR comparacion = SELECTEDVALUE(Comparacion[Comparacion], "Año anterior")
+			VAR componente = SELECTEDVALUE(Componente[Componente])
+			RETURN
+			    CALCULATE(SUM(Puente[ValorMUSD]), Puente[Orden] = o, Puente[Comparacion] = comparacion, Puente[Componente] = componente)
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Puente
+		lineageTag: e247c834-f8f9-59c6-ac70-fd9b5531086f
+
+	measure 'Puente base' =
+			VAR o = [_Orden elegido]
+			VAR comparacion = SELECTEDVALUE(Comparacion[Comparacion], "Año anterior")
+			RETURN
+			    CALCULATE(SUM(PuenteTotales[BaseMUSD]), PuenteTotales[Orden] = o, PuenteTotales[Comparacion] = comparacion)
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Puente
+		lineageTag: e963b474-f1fa-57d3-95de-d2c5d2416c1d
+
+	measure 'Puente total' =
+			VAR o = [_Orden elegido]
+			VAR comparacion = SELECTEDVALUE(Comparacion[Comparacion], "Año anterior")
+			RETURN
+			    CALCULATE(SUM(PuenteTotales[TotalMUSD]), PuenteTotales[Orden] = o, PuenteTotales[Comparacion] = comparacion)
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Puente
+		lineageTag: 794ff530-dc57-551b-a9a3-d9a78ce807b3
+
+	measure 'Puente variación' =
+			[Puente total] - [Puente base]
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Puente
+		lineageTag: e355770a-dd3f-5857-9793-fa9db4761d7a
+
+	measure 'Puente: efecto precio' =
+			VAR o = [_Orden elegido]
+			VAR comparacion = SELECTEDVALUE(Comparacion[Comparacion], "Año anterior")
+			RETURN
+			    CALCULATE(SUM(Puente[ValorMUSD]), REMOVEFILTERS(Componente), Puente[Orden] = o, Puente[Comparacion] = comparacion, Puente[Componente] = "Precio")
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Puente
+		lineageTag: df25ec46-056f-59dc-a71f-3d1ba76db81e
+
+	measure 'Puente: efecto volumen' =
+			VAR o = [_Orden elegido]
+			VAR comparacion = SELECTEDVALUE(Comparacion[Comparacion], "Año anterior")
+			RETURN
+			    CALCULATE(SUM(Puente[ValorMUSD]), REMOVEFILTERS(Componente), Puente[Orden] = o, Puente[Comparacion] = comparacion, Puente[Componente] = "Volumen")
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Puente
+		lineageTag: 50db77fe-d712-5eef-8b04-3992467a878b
+
+	measure 'Puente: efecto costo' =
+			VAR o = [_Orden elegido]
+			VAR comparacion = SELECTEDVALUE(Comparacion[Comparacion], "Año anterior")
+			RETURN
+			    CALCULATE(SUM(Puente[ValorMUSD]), REMOVEFILTERS(Componente), Puente[Orden] = o, Puente[Comparacion] = comparacion, Puente[Componente] = "Costo")
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Puente
+		lineageTag: 7378c6ab-4418-5f8e-9052-771e083a693c
+
+	measure 'Título puente' =
+			"Puente del EBITDA: de " & [Trimestre de comparación] & " a " & [Trimestre elegido] & ", en millones de US$"
+		displayFolder: Textos
+		lineageTag: 90da4d1e-17bc-5373-84ea-1cbe9e181933
+
+	measure 'EBITDA simulado' =
+			-7235.2023
+			    + 24.6631 * [Brent elegido]
+			    + 7.671 * [Producción elegida]
+			    + -57.1854 * [Lifting elegido]
+			    + 10.6381 * [Refino elegido]
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Simulador
+		lineageTag: 4f2d1be5-b21f-5e48-b657-45c33f2154be
+
+	measure 'Piso del rango' =
+			[EBITDA simulado] - 1.96 * 164.9
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Simulador
+		lineageTag: 30719210-4a88-5b80-85e4-47943efe54b8
+
+	measure 'Techo del rango' =
+			[EBITDA simulado] + 1.96 * 164.9
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Simulador
+		lineageTag: 7bacecf7-7725-50f6-a9bb-93d71333aada
+
+	measure 'EBITDA del caso base' =
+			2804.0
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Simulador
+		lineageTag: 14e4e187-1a50-5ff8-a4d6-4e54395ac66a
+
+	measure 'EBITDA estimado del caso base' =
+			2583.219133999999
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		isHidden
+		displayFolder: Simulador
+		lineageTag: a5303033-b0fc-5a57-8983-2fe816c870ad
+
+	measure 'Simulado contra el caso base' =
+			VAR base = [EBITDA estimado del caso base]
+			RETURN
+			    IF(base <> 0, ([EBITDA simulado] - base) / ABS(base))
+		formatString: """▲ ""0.0%;""▼ ""0.0%;""–"""
+		displayFolder: Simulador
+		lineageTag: ac82dee9-fb03-53d3-a165-53d0df41dc89
+
+	measure 'Título simulador' =
+			"Caso base 2026Q2: Brent 96.94 US$/bbl · producción 544.4 kboe/d · lifting 8.4 US$/boe · refino 350.8 kbbl/d"
+		displayFolder: Textos
+		lineageTag: 5204d90d-c0d5-59d6-98fa-85380118439c
+
+	measure Vencimientos =
+			SUM(Deuda[MontoMUSD])
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Deuda
+		lineageTag: 6c5e65c4-bc47-5e6e-877f-2b3c650eed29
+
+	measure 'Cupón del año' =
+			AVERAGE(Deuda[TasaPct]) / 100
+		formatString: 0.0%
+		displayFolder: Deuda
+		lineageTag: f39c1ea9-3861-5d10-a49a-597c7a8edf2c
+
+	measure 'Deuda total' =
+			CALCULATE(SUM(Deuda[MontoMUSD]), REMOVEFILTERS(Deuda))
+		formatString: """US$ ""#,##0""M"";""−US$ ""#,##0""M"""
+		displayFolder: Deuda
+		lineageTag: c6280ebc-4f04-5b0f-9cf4-47dd4af35719
+
+	measure 'Cupón promedio ponderado' =
+			VAR tabla = ALL(Deuda)
+			RETURN
+			    DIVIDE(SUMX(tabla, Deuda[MontoMUSD] * Deuda[TasaPct]), SUMX(tabla, Deuda[MontoMUSD])) / 100
+		formatString: 0.0%
+		displayFolder: Deuda
+		lineageTag: b7efdc5a-e7d6-5fe0-9d5c-6181023882eb
+
+	measure 'Mayor vencimiento' =
+			VAR tabla = ALL(Deuda)
+			VAR maximo = MAXX(tabla, Deuda[MontoMUSD])
+			RETURN
+			    MAXX(FILTER(tabla, Deuda[MontoMUSD] = maximo), Deuda[Anio]) & ": US$ " & FORMAT(maximo, "#,##0") & "M"
+		displayFolder: Deuda
+		lineageTag: a3d12c23-56a8-5ef4-bc73-0de5800dcf65
+
+	measure 'Valor comparable' =
+			VAR concepto = SELECTEDVALUE(ConceptoComparable[Campo], "margen_ebitda")
+			RETURN
+			    CALCULATE(SUM(Comparables[Valor]), Comparables[Concepto] = concepto)
+		formatString: 0.0%
+		displayFolder: Comparables
+		lineageTag: 8da72ce9-7cab-58b0-984c-aabfc44d84cf
+
+	measure 'Margen EBITDA comparable' =
+			CALCULATE(SUM(Comparables[Valor]), Comparables[Concepto] = "margen_ebitda")
+		formatString: 0.0%
+		displayFolder: Comparables
+		lineageTag: bfac1bd0-aec0-55cc-ae57-552e5530b4fb
+
+	measure 'Apalancamiento comparable' =
+			CALCULATE(SUM(Comparables[Valor]), Comparables[Concepto] = "deuda_neta_ebitda")
+		formatString: "0.0""x"""
+		displayFolder: Comparables
+		lineageTag: b0adbdc3-8def-569c-985d-cc840f52f485
+
+	measure 'Capex sobre EBITDA comparable' =
+			CALCULATE(SUM(Comparables[Valor]), Comparables[Concepto] = "capex_sobre_ebitda")
+		formatString: 0%
+		displayFolder: Comparables
+		lineageTag: 4ccd8779-c34d-530a-8d27-05826b545bf3
+
+	measure 'EV / EBITDA' =
+			SUM(Multiplos[EvEbitda])
+		formatString: "0.0""x"""
+		displayFolder: Comparables
+		lineageTag: ea3cd168-e313-5e55-a3dc-020e6326914f
+
+	measure 'Precio / valor libro' =
+			SUM(Multiplos[PrecioValorLibro])
+		formatString: "0.0""x"""
+		displayFolder: Comparables
+		lineageTag: 73dd1a43-faec-5593-976f-b9d7dad855eb
+
+	measure _Dimensión =
+			SELECTEDVALUE(Apertura[Apertura], "Cuenca")
+		isHidden
+		displayFolder: Territorio
+		lineageTag: 3a481d21-5e6f-5a4b-bb0a-678585c4047e
+
+	measure 'Producción del territorio' =
+			VAR o = [_Orden]
+			VAR d = [_Dimensión]
+			RETURN
+			    CALCULATE(
+			        SUM(Territorio[Boed]),
+			        Territorio[Orden] = o,
+			        Territorio[Dimension] = d
+			    )
+		formatString: #,##0
+		displayFolder: Territorio
+		lineageTag: c162a1b4-ed0a-517e-9a4e-bee62cf9da5b
+
+	measure 'Shale del territorio' =
+			VAR o = [_Orden]
+			VAR d = [_Dimensión]
+			RETURN
+			    CALCULATE(
+			        SUM(Territorio[ShaleBoed]),
+			        Territorio[Orden] = o,
+			        Territorio[Dimension] = d
+			    )
+		formatString: #,##0
+		displayFolder: Territorio
+		lineageTag: 2f748aeb-7667-555f-aea2-aced68db1cd2
+
+	measure 'Parte shale' =
+			DIVIDE([Shale del territorio], [Producción del territorio])
+		formatString: 0%
+		displayFolder: Territorio
+		lineageTag: 85a3720d-4d77-5b0d-b49a-e29579c8d70a
+
+	measure 'Variación del territorio' =
+			VAR a = [Producción del territorio]
+			VAR b = CALCULATE([Producción del territorio], TREATAS({[_Trimestres comparación]}, Desfase[N]))
+			RETURN
+			    IF(NOT ISBLANK(b) && b > 0, (a - b) / b)
+		formatString: """▲ ""0.0%;""▼ ""0.0%;""–"""
+		displayFolder: Territorio
+		lineageTag: 98763d6a-b890-55bf-9081-a96347e52bf5
+
+	measure 'Participación del territorio' =
+			VAR total = CALCULATE([Producción del territorio], REMOVEFILTERS(Territorio[Miembro]))
+			RETURN
+			    DIVIDE([Producción del territorio], total)
+		formatString: 0.0%
+		displayFolder: Territorio
+		lineageTag: 7d3fd87b-38cf-565d-b219-b6ff634f3036
+
+	measure 'Título territorio' =
+			[_Dimensión] & " · " & [Trimestre elegido] & " · boe/d promedio del trimestre, bruto operado"
+		displayFolder: Textos
+		lineageTag: 16727eff-5213-522f-83f1-c7f393bb3b32
+
+	measure 'Brent elegido' =
+			SELECTEDVALUE(Brent[Valor], 96.94)
+		formatString: #,##0.0
+		displayFolder: Simulador
+		lineageTag: f57fe962-d326-59d5-9bb8-e502dc36930b
+
+	measure 'Producción elegida' =
+			SELECTEDVALUE(Produccion[Valor], 544.4)
+		formatString: #,##0.0
+		displayFolder: Simulador
+		lineageTag: ea8c99ea-f8e3-5769-a996-fb7bf0a1d622
+
+	measure 'Lifting elegido' =
+			SELECTEDVALUE(Lifting[Valor], 8.4)
+		formatString: #,##0.0
+		displayFolder: Simulador
+		lineageTag: ba145975-165c-56c9-bea9-613b7c6fc5a8
+
+	measure 'Refino elegido' =
+			SELECTEDVALUE(Refino[Valor], 350.8)
+		formatString: #,##0.0
+		displayFolder: Simulador
+		lineageTag: e81e972c-b9ef-5401-a3ca-64b968c64623
+
 	column _
 		dataType: int64
 		isHidden

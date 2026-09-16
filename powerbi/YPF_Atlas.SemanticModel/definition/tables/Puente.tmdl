@@ -1,0 +1,57 @@
+table Puente
+	lineageTag: f67587bc-daa1-5cac-a9f3-72d88d0a1963
+
+	column Comparacion
+		dataType: string
+		isHidden
+		lineageTag: e7bdf8f3-8cb5-53b7-967d-ee8621370c43
+		summarizeBy: none
+		sourceColumn: Comparacion
+
+		annotation SummarizationSetBy = User
+
+	column Componente
+		dataType: string
+		isHidden
+		lineageTag: 2bbbaa07-33bf-5683-b93e-64d1cba7ae82
+		summarizeBy: none
+		sourceColumn: Componente
+
+		annotation SummarizationSetBy = User
+
+	column ValorMUSD
+		dataType: double
+		isHidden
+		lineageTag: 18920251-2593-5c9d-87e9-ff2599cec105
+		summarizeBy: none
+		sourceColumn: ValorMUSD
+
+		annotation SummarizationSetBy = User
+
+	column Orden
+		dataType: int64
+		isHidden
+		lineageTag: e81cbc6c-28a7-5d43-a1dc-5aa371810aa1
+		summarizeBy: none
+		sourceColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	partition Puente = m
+		mode: import
+		source =
+				let
+				    Fuente = Parquet.Document(File.Contents(RutaDatos & "ebitda_puente.parquet")),
+				    Largo = Table.UnpivotOtherColumns(
+				        Table.SelectColumns(Fuente, {"periodo", "comparacion", "volumen_musd", "precio_musd", "costo_musd", "otros_negocios_musd", "administracion_musd", "consolidacion_musd", "ajustes_musd"}),
+				        {"periodo", "comparacion"}, "campo", "ValorMUSD"),
+				    Nombres = Table.AddColumn(Largo, "Componente", each
+				        Record.FieldOrDefault(
+				            [volumen_musd = "Volumen", precio_musd = "Precio", costo_musd = "Costo", otros_negocios_musd = "Otros negocios", administracion_musd = "Administración", consolidacion_musd = "Consolidación", ajustes_musd = "Ajustes de la compañía"], [campo], [campo]), type text),
+				    ConOrden = Table.NestedJoin(Nombres, {"periodo"}, Trimestres, {"Codigo"}, "T", JoinKind.Inner),
+				    Expandido = Table.ExpandTableColumn(ConOrden, "T", {"Orden"}),
+				    Renombrado = Table.RenameColumns(Table.RemoveColumns(Expandido, {"periodo", "campo"}), {{"comparacion", "Comparacion"}}),
+				    Final = Table.TransformColumnTypes(Renombrado, {{"ValorMUSD", type number}, {"Orden", Int64.Type}, {"Comparacion", type text}})
+				in
+				    Final
+

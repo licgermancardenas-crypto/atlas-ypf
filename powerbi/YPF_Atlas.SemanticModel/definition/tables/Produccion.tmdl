@@ -1,0 +1,20 @@
+table Produccion
+	lineageTag: 6b58ebc9-30f6-5564-8707-162596404887
+
+	column Valor
+		dataType: double
+		lineageTag: 0bb7b972-a60e-5586-aee8-1744ff70bc65
+		summarizeBy: none
+		sourceColumn: Valor
+
+		annotation SummarizationSetBy = User
+
+	partition Produccion = m
+		mode: import
+		source =
+				let
+				    Fuente = #table({"Valor"}, {{420}, {430}, {440}, {450}, {460}, {470}, {480}, {490}, {500}, {510}, {520}, {530}, {540}, {550}, {560}, {570}, {580}, {590}, {600}, {610}, {620}, {630}, {640}, {650}, {660}}),
+				    Tipos = Table.TransformColumnTypes(Fuente, {{"Valor", type number}})
+				in
+				    Tipos
+

@@ -1,0 +1,62 @@
+table Territorio
+	lineageTag: 5dc59bd6-260a-53ea-b73b-248603c36956
+
+	column Dimension
+		dataType: string
+		isHidden
+		lineageTag: 7cc3af4f-3a53-541f-a575-82d8242457fb
+		summarizeBy: none
+		sourceColumn: Dimension
+
+		annotation SummarizationSetBy = User
+
+	column Miembro
+		dataType: string
+		isHidden
+		lineageTag: c8040e9a-2c0a-5abf-951d-3e42f0b8effa
+		summarizeBy: none
+		sourceColumn: Miembro
+
+		annotation SummarizationSetBy = User
+
+	column Boed
+		dataType: double
+		isHidden
+		lineageTag: 079aca0f-5f14-5094-beff-84ea4f98e5ed
+		summarizeBy: none
+		sourceColumn: Boed
+
+		annotation SummarizationSetBy = User
+
+	column ShaleBoed
+		dataType: double
+		isHidden
+		lineageTag: fb5830ee-2b03-5dba-b03e-ebd64e857da0
+		summarizeBy: none
+		sourceColumn: ShaleBoed
+
+		annotation SummarizationSetBy = User
+
+	column Orden
+		dataType: int64
+		isHidden
+		lineageTag: 4566fe09-7a1f-5c43-b860-390ace39a672
+		summarizeBy: none
+		sourceColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	partition Territorio = m
+		mode: import
+		source =
+				let
+				    Fuente = Parquet.Document(File.Contents(RutaDatos & "tablero_territorio.parquet")),
+				    Columnas = Table.SelectColumns(Fuente, {"dimension", "miembro", "periodo", "boed", "shale_boed"}),
+				    ConOrden = Table.NestedJoin(Columnas, {"periodo"}, Trimestres, {"Codigo"}, "T", JoinKind.Inner),
+				    Expandido = Table.ExpandTableColumn(ConOrden, "T", {"Orden"}),
+				    Renombrado = Table.RenameColumns(Table.RemoveColumns(Expandido, {"periodo"}),
+				        {{"dimension", "Dimension"}, {"miembro", "Miembro"}, {"boed", "Boed"}, {"shale_boed", "ShaleBoed"}}),
+				    Final = Table.TransformColumnTypes(Renombrado, {{"Dimension", type text}, {"Miembro", type text}, {"Boed", type number}, {"ShaleBoed", type number}, {"Orden", Int64.Type}})
+				in
+				    Final
+

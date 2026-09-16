@@ -1,0 +1,30 @@
+table Componente
+	lineageTag: 852ca80d-ef33-565c-9341-33b46098b810
+
+	column Componente
+		dataType: string
+		lineageTag: 8d01514e-3c93-514e-a9f2-0f197f072510
+		summarizeBy: none
+		sourceColumn: Componente
+		sortByColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	column Orden
+		dataType: int64
+		isHidden
+		lineageTag: 104ea5e9-7cb4-562c-aaba-587f9e16a4fe
+		summarizeBy: none
+		sourceColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	partition Componente = m
+		mode: import
+		source =
+				let
+				    Fuente = #table({"Componente", "Orden"}, {{"Volumen", 1}, {"Precio", 2}, {"Costo", 3}, {"Otros negocios", 4}, {"Administración", 5}, {"Consolidación", 6}, {"Ajustes de la compañía", 7}}),
+				    Tipos = Table.TransformColumnTypes(Fuente, {{"Componente", type text}, {"Orden", Int64.Type}})
+				in
+				    Tipos
+

@@ -1,0 +1,46 @@
+table Deuda
+	lineageTag: 8c2c00b9-38ca-56b6-8785-9c8ef31edbc6
+
+	column Anio
+		dataType: int64
+		lineageTag: 6e922b0b-d4e3-5372-9ec0-cfd156c1f8f0
+		summarizeBy: none
+		sourceColumn: Anio
+
+		annotation SummarizationSetBy = User
+
+	column MontoMUSD
+		dataType: double
+		lineageTag: d7e16004-0f68-586a-b44c-ba630a964485
+		summarizeBy: none
+		sourceColumn: MontoMUSD
+
+		annotation SummarizationSetBy = User
+
+	column TasaPct
+		dataType: double
+		lineageTag: 0cf992df-936e-54dc-8d8d-519a294fbef9
+		summarizeBy: none
+		sourceColumn: TasaPct
+
+		annotation SummarizationSetBy = User
+
+	column Instrumentos
+		dataType: int64
+		lineageTag: 7684a48e-4fd4-589e-80d3-9a5c0faa1baf
+		summarizeBy: none
+		sourceColumn: Instrumentos
+
+		annotation SummarizationSetBy = User
+
+	partition Deuda = m
+		mode: import
+		source =
+				let
+				    Fuente = Parquet.Document(File.Contents(RutaDatos & "deuda_perfil.parquet")),
+				    Renombrado = Table.RenameColumns(Table.SelectColumns(Fuente, {"anio", "monto_musd", "tasa_promedio_pct", "instrumentos"}),
+				        {{"anio", "Anio"}, {"monto_musd", "MontoMUSD"}, {"tasa_promedio_pct", "TasaPct"}, {"instrumentos", "Instrumentos"}}),
+				    Final = Table.TransformColumnTypes(Renombrado, {{"Anio", Int64.Type}, {"MontoMUSD", type number}, {"TasaPct", type number}, {"Instrumentos", Int64.Type}})
+				in
+				    Final
+

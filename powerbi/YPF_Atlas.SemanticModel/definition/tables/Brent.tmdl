@@ -1,0 +1,20 @@
+table Brent
+	lineageTag: 1ae561e7-d48d-5170-8eea-988eef0d9455
+
+	column Valor
+		dataType: double
+		lineageTag: 826e1c95-2ce1-5273-aafd-bc0c7644d740
+		summarizeBy: none
+		sourceColumn: Valor
+
+		annotation SummarizationSetBy = User
+
+	partition Brent = m
+		mode: import
+		source =
+				let
+				    Fuente = #table({"Valor"}, {{40}, {45}, {50}, {55}, {60}, {65}, {70}, {75}, {80}, {85}, {90}, {95}, {100}, {105}, {110}, {115}, {120}, {125}, {130}, {135}, {140}}),
+				    Tipos = Table.TransformColumnTypes(Fuente, {{"Valor", type number}})
+				in
+				    Tipos
+

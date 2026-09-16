@@ -1,0 +1,106 @@
+{
+  "generado": "2026-09-15T23:21:22Z",
+  "unidades": {
+    "monto_musd": "millones de dólares",
+    "tasa_promedio_pct": "cupón, en % anual"
+  },
+  "total_musd": 8950.0,
+  "tasa_promedio_pct": 7.3135698324022345,
+  "vida_promedio_anios": 5.391843575418995,
+  "instrumentos": 24,
+  "primer_vencimiento": 2026,
+  "ultimo_vencimiento": 2047,
+  "escalera": [
+    {
+      "anio": 2026,
+      "monto_musd": 253.0,
+      "corriente_musd": 253.0,
+      "no_corriente_musd": 0.0,
+      "tasa_promedio_pct": 0.5019762845849802,
+      "instrumentos": 2,
+      "clases": "Class XXVII, Class XXX"
+    },
+    {
+      "anio": 2027,
+      "monto_musd": 1338.0,
+      "corriente_musd": 443.0,
+      "no_corriente_musd": 895.0,
+      "tasa_promedio_pct": 6.745104633781764,
+      "instrumentos": 6,
+      "clases": "Class LIII, Class XLI, Class XXIV, Class XXXV, Class XXXVII, Class XXXVIII"
+    },
+    {
+      "anio": 2028,
+      "monto_musd": 616.0,
+      "corriente_musd": 2.0,
+      "no_corriente_musd": 614.0,
+      "tasa_promedio_pct": 2.4650974025974026,
+      "instrumentos": 5,
+      "clases": "Class XL, Class XXVI, Class XXXII, Class XXXIII"
+    },
+    {
+      "anio": 2029,
+      "monto_musd": 1403.0,
+      "corriente_musd": 218.0,
+      "no_corriente_musd": 1185.0,
+      "tasa_promedio_pct": 8.344975053456878,
+      "instrumentos": 3,
+      "clases": "Class I, Class XLII, Class XVII"
+    },
+    {
+      "anio": 2030,
+      "monto_musd": 285.0,
+      "corriente_musd": 10.0,
+      "no_corriente_musd": 275.0,
+      "tasa_promedio_pct": 7.347368421052631,
+      "instrumentos": 2,
+      "clases": "Class XLIII, Class XXXIX"
+    },
+    {
+      "anio": 2031,
+      "monto_musd": 1901.0,
+      "corriente_musd": 219.0,
+      "no_corriente_musd": 1682.0,
+      "tasa_promedio_pct": 9.076670173592845,
+      "instrumentos": 2,
+      "clases": "Class XXVIII, Class XXXI"
+    },
+    {
+      "anio": 2032,
+      "monto_musd": 366.0,
+      "corriente_musd": 64.0,
+      "no_corriente_musd": 302.0,
+      "tasa_promedio_pct": 5.75,
+      "instrumentos": 1,
+      "clases": "Class XX"
+    },
+    {
+      "anio": 2033,
+      "monto_musd": 570.0,
+      "corriente_musd": 11.0,
+      "no_corriente_musd": 559.0,
+      "tasa_promedio_pct": 7.0,
+      "instrumentos": 1,
+      "clases": "Class XVIII"
+    },
+    {
+      "anio": 2034,
+      "monto_musd": 1687.0,
+      "corriente_musd": 63.0,
+      "no_corriente_musd": 1624.0,
+      "tasa_promedio_pct": 8.25,
+      "instrumentos": 1,
+      "clases": "Class XXXIV"
+    },
+    {
+      "anio": 2047,
+      "monto_musd": 531.0,
+      "corriente_musd": 1.0,
+      "no_corriente_musd": 530.0,
+      "tasa_promedio_pct": 7.0,
+      "instrumentos": 1,
+      "clases": "Class LIV"
+    }
+  ],
+  "nota": "El año es el del vencimiento del capital. Los instrumentos que amortizan en cuotas figuran enteros contra su último vencimiento: la escalera es un techo por año, no un calendario de pagos."
+}

@@ -40,8 +40,11 @@ import xlsxwriter
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 import iconos
+import tablero_analisis
 
 NOMBRE = "Tablero"
+# Dónde están los datos cuando el exportador no lo dice (correr el módulo suelto).
+PROCESADOS_POR_DEFECTO = Path(__file__).resolve().parents[2] / "data" / "processed"
 
 # --------------------------------------------------------------------------- #
 # Paleta
@@ -71,7 +74,7 @@ CELDA = 20
 # Geometría, en píxeles desde la esquina de la hoja
 # --------------------------------------------------------------------------- #
 PANEL_X, PANEL_Y = 20, 20
-PANEL_W, PANEL_H = 1560, 1760
+PANEL_W, PANEL_H = 1560, 2960
 
 IZQ_X, CEN_X, DER_X = 44, 440, 1144
 IZQ_W, CEN_W, DER_W = 372, 680, 412
@@ -82,6 +85,9 @@ FILA_B_Y, FILA_B_H = 430, 244
 FILA_C_Y, FILA_C_H = 698, 228
 FILA_D_Y, FILA_D_H = 950, 480
 FILA_E_Y, FILA_E_H = 1454, 296
+FILA_F_Y, FILA_F_H = 1780, 380
+FILA_G_Y, FILA_G_H = 2184, 380
+FILA_H_Y, FILA_H_H = 2588, 372
 
 # El mapa: el recuadro donde se dibuja, relativo a la tarjeta. Su proporción
 # es la de la ventana que arma transform/tablero_mapa.py.
@@ -109,6 +115,11 @@ TARJETAS = {
                   DER_X + DER_W - (IZQ_X + MAPA_ANCHO_TARJETA + 24), FILA_D_H),
     "mercado": (IZQ_X, FILA_E_Y, DER_X - 24 - IZQ_X, FILA_E_H),
     "sensibilidad": (DER_X, FILA_E_Y, DER_W, FILA_E_H),
+    "puente": (IZQ_X, FILA_F_Y, DER_X - 24 - IZQ_X, FILA_F_H),
+    "simulador": (DER_X, FILA_F_Y, DER_W, FILA_F_H),
+    "deuda": (IZQ_X, FILA_G_Y, 700, FILA_G_H),
+    "comparables": (IZQ_X + 724, FILA_G_Y, DER_X + DER_W - (IZQ_X + 724), FILA_G_H),
+    "territorio": (IZQ_X, FILA_H_Y, DER_X + DER_W - IZQ_X, FILA_H_H),
 }
 
 # Las celdas de las listas desplegables, en píxeles y alineadas a la grilla:
@@ -118,6 +129,13 @@ CONTROLES = {
     "segmento": (1120, 60, 180, 20),
     "metrica": (640, 140, 160, 20),
     "comparar": (1380, 140, 140, 20),
+    # El simulador: cuatro celdas que el lector cambia a mano.
+    "brent": (1400, 1860, 80, 20),
+    "produccion": (1400, 1900, 80, 20),
+    "lifting": (1400, 1940, 80, 20),
+    "refino": (1400, 1980, 80, 20),
+    # La dimensión del territorio.
+    "dimension": (240, 2600, 160, 20),
 }
 # Lo que el marco de la pastilla sobresale de la celda: a la derecha deja lugar
 # para la flecha.
@@ -133,7 +151,7 @@ DATOS_FILA = (PANEL_Y + PANEL_H) // CELDA + 3
 # un rango combinado; las fórmulas y las series de los gráficos van a la
 # primera celda del rango, que en vertical queda contigua.
 DATOS_ETIQUETA = (1, 12)
-DATOS_VALORES = [(13 + 6 * i, 18 + 6 * i) for i in range(20)]
+DATOS_VALORES = [(13 + 6 * i, 18 + 6 * i) for i in range(40)]
 ULTIMA_COLUMNA = DATOS_VALORES[-1][1] + 1
 
 # El filtro usa la apertura homologada (transform/segments_ypf.py): la
@@ -640,6 +658,9 @@ def escribir_tablero(libro: xlsxwriter.Workbook, hoja, hojas: dict, mapas: dict,
     SEG = control("segmento", "Consolidado")
     MET = control("metrica", METRICAS[0])
     COMP = control("comparar", COMPARACIONES[0])
+    # La dimensión del territorio: su tarjeta está más abajo, pero el texto que
+    # la nombra se arma acá, con el resto.
+    DIMENSION = control("dimension", "Cuenca")
 
     # --- 1. listas ----------------------------------------------------------
     # Con la misma etiqueta que la celda de control: la selección se busca por
@@ -712,6 +733,12 @@ def escribir_tablero(libro: xlsxwriter.Workbook, hoja, hojas: dict, mapas: dict,
         "operativo_sub": f'="Producción y precio del crudo, doce trimestres hasta "&{SEL}',
         "comparacion": f'="contra "&{CMP}',
         "capex_serie": f'=IF({SEGI}>1,"Capex devengado del segmento","")',
+        # Las tarjetas de análisis (export/tablero_analisis.py).
+        "puente_sub": f'="De "&{CMP}&" a "&{SEL}&": de dónde salió la variación, en millones de US$"',
+        "simulador_sub": '="Modelo estimado sobre quince trimestres · R² 0,91 · no es una proyección de la compañía"',
+        "deuda_sub": '="Instrumentos vigentes al último balance, en millones de US$"',
+        "comparables_sub": '="Mismo cálculo para los tres · Vista y Pampa también presentan 20-F"',
+        "territorio_sub": f'={DIMENSION}&" · "&{SEL}&" · boe/d promedio del trimestre, bruto operado"',
         # Por segmento el EBITDA no es el ajustado: el título lo dice.
         "serie": f'=IF({SEGI}>1,SUBSTITUTE({MET},"ajustado","del segmento"),{MET})&{SUFIJO}'
                  f'&" · doce trimestres hasta "&{SEL}&", en millones de US$"',
@@ -1222,6 +1249,19 @@ def escribir_tablero(libro: xlsxwriter.Workbook, hoja, hojas: dict, mapas: dict,
         if enlace:
             opciones["textlink"] = enlace
         hoja.insert_textbox(0, 0, contenido, opciones)
+
+    def saltar() -> None:
+        """Una fila en blanco entre bloques del pie de datos."""
+        nonlocal fila
+        fila += 1
+
+    def validar(celda: str, opciones: list[str], titulo: str) -> None:
+        """Una lista desplegable escrita en la propia validación, sin rango aparte."""
+        hoja.data_validation(celda.replace("$", ""), {
+            "validate": "list", "source": opciones,
+            "input_title": titulo, "input_message": "Elegí de la lista",
+            "error_title": titulo, "error_message": "El valor tiene que salir de la lista.",
+        })
 
     def texto_de(clave: str) -> str:
         return f"='{nombre}'!{sel[clave]}"
@@ -1835,8 +1875,31 @@ def escribir_tablero(libro: xlsxwriter.Workbook, hoja, hojas: dict, mapas: dict,
             texto(x + 140, y + h - 54, w - 152, 36, "balances cayeron más de lo que explicaban Vista y el Brent", 8,
                   TEXTO_SUAVE)
 
+    # --- tarjetas de análisis ------------------------------------------------
+    # El puente, el simulador, la deuda, los comparables y el territorio viven
+    # en su propio módulo: son otra lectura y ya son medio tablero.
+    from types import SimpleNamespace
+
+    contexto = SimpleNamespace(
+        libro=libro, hoja=hoja, nombre=nombre, letra=letra, FUENTE=FUENTE, CONTROLES=CONTROLES,
+        SEL=SEL, CMP=CMP, COMP=COMP, SEG=SEG, DIMENSION=DIMENSION,
+        texto=texto, texto_de=texto_de, poner_icono=poner_icono, titulo_tarjeta=titulo_tarjeta, aviso=aviso,
+        insertar=insertar, ejes_limpios=ejes_limpios, eje_oculto=eje_oculto,
+        bloque=bloque, renglon=renglon, local=local, vinculo=vinculo, serie=serie, categorias=categorias,
+        control=control, validar=validar, etiqueta_trimestre=etiqueta_trimestre,
+        fila=lambda: fila, saltar=saltar, columna_valor=lambda i: DATOS_VALORES[i][0],
+        fmt={
+            "millones": f_millones, "millones_vacio": f_millones_vacio, "porcentaje": f_porcentaje,
+            "porcentaje_decimal": f_porcentaje_decimal, "porcentaje_chico": f_porcentaje_chico,
+            "variacion": f_variacion, "variacion_corta": f_variacion_corta, "numero": f_numero,
+            "decimal": f_decimal, "entero": f_entero, "miles": f_miles, "multiplo": f_multiplo,
+            "texto": f_texto, "texto_izq": f_texto_izq,
+        },
+    )
+    tablero_analisis.escribir(contexto, procesados or PROCESADOS_POR_DEFECTO)
+
     # --- pie ----------------------------------------------------------------
-    texto(PANEL_X + 24, FILA_E_Y + FILA_E_H + 1, PANEL_W - 48, 20,
+    texto(PANEL_X + 24, FILA_H_Y + FILA_H_H + 1, PANEL_W - 48, 20,
           "Las cuatro listas cambian todo el tablero. Los botones llevan a cada hoja; los datos que alimentan "
           "cada tarjeta están al pie de esta hoja.", 7, TEXTO_TENUE)
 

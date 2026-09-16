@@ -1,0 +1,55 @@
+{
+  "generado": "2026-09-15T23:23:15Z",
+  "fuente": "Secretaría de Energía, series SESCO por yacimiento (vía transform/ypf_production.py)",
+  "unidades": {
+    "boed": "boe/d, promedio del trimestre; producción bruta operada"
+  },
+  "dimensiones": [
+    "Cuenca",
+    "Provincia",
+    "Concesión",
+    "Yacimiento",
+    "Localidad"
+  ],
+  "trimestres": [
+    "2019Q1",
+    "2019Q2",
+    "2019Q3",
+    "2019Q4",
+    "2020Q1",
+    "2020Q2",
+    "2020Q3",
+    "2020Q4",
+    "2021Q1",
+    "2021Q2",
+    "2021Q3",
+    "2021Q4",
+    "2022Q1",
+    "2022Q2",
+    "2022Q3",
+    "2022Q4",
+    "2023Q1",
+    "2023Q2",
+    "2023Q3",
+    "2023Q4",
+    "2024Q1",
+    "2024Q2",
+    "2024Q3",
+    "2024Q4",
+    "2025Q1",
+    "2025Q2",
+    "2025Q3",
+    "2025Q4",
+    "2026Q1",
+    "2026Q2"
+  ],
+  "ultimo": "2026Q2",
+  "miembros_por_dimension": {
+    "Concesión": 17,
+    "Cuenca": 4,
+    "Localidad": 17,
+    "Provincia": 6,
+    "Yacimiento": 17
+  },
+  "nota": "Bruta operada: incluye la parte de los socios en las áreas que YPF opera. No es la producción neta del release, que es la que se cruza con los estados."
+}

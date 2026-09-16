@@ -1,0 +1,59 @@
+table Multiplos
+	lineageTag: 3da3c978-91f3-5333-a457-5aaf0addc652
+
+	column Ticker
+		dataType: string
+		isHidden
+		lineageTag: c7cfdbb8-38b4-5024-ae08-79ebab61a943
+		summarizeBy: none
+		sourceColumn: Ticker
+
+		annotation SummarizationSetBy = User
+
+	column EvEbitda
+		dataType: double
+		isHidden
+		lineageTag: 1be3c2c3-cc1c-5ff2-b137-f01d3322ea15
+		summarizeBy: none
+		sourceColumn: EvEbitda
+
+		annotation SummarizationSetBy = User
+
+	column PrecioValorLibro
+		dataType: double
+		isHidden
+		lineageTag: ba809586-7d44-5f68-be2f-5820e9823942
+		summarizeBy: none
+		sourceColumn: PrecioValorLibro
+
+		annotation SummarizationSetBy = User
+
+	column PrecioAdr
+		dataType: double
+		isHidden
+		lineageTag: 40907179-c29c-5747-bd03-f1b83d59c371
+		summarizeBy: none
+		sourceColumn: PrecioAdr
+
+		annotation SummarizationSetBy = User
+
+	column Ejercicio
+		dataType: string
+		isHidden
+		lineageTag: 39153546-13bb-5389-9828-18cf6e939daa
+		summarizeBy: none
+		sourceColumn: Ejercicio
+
+		annotation SummarizationSetBy = User
+
+	partition Multiplos = m
+		mode: import
+		source =
+				let
+				    Fuente = Json.Document(File.Contents(RutaDatos & "tablero_comparables.json")),
+				    Tabla = Table.FromRecords(Fuente[multiplos], {"ticker", "ev_ebitda", "precio_valor_libro", "precio_adr", "ejercicio"}, MissingField.UseNull),
+				    Renombrado = Table.RenameColumns(Tabla, {{"ticker", "Ticker"}, {"ev_ebitda", "EvEbitda"}, {"precio_valor_libro", "PrecioValorLibro"}, {"precio_adr", "PrecioAdr"}, {"ejercicio", "Ejercicio"}}),
+				    Final = Table.TransformColumnTypes(Renombrado, {{"Ticker", type text}, {"EvEbitda", type number}, {"PrecioValorLibro", type number}, {"PrecioAdr", type number}, {"Ejercicio", type text}})
+				in
+				    Final
+

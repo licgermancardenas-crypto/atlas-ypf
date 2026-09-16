@@ -1,0 +1,53 @@
+table PuenteTotales
+	lineageTag: 5f885d42-d92f-5283-9a8b-3f5910e3e3a0
+
+	column Comparacion
+		dataType: string
+		isHidden
+		lineageTag: 913c3056-20e3-5a31-aeb1-0242e1f172c2
+		summarizeBy: none
+		sourceColumn: Comparacion
+
+		annotation SummarizationSetBy = User
+
+	column BaseMUSD
+		dataType: double
+		isHidden
+		lineageTag: a1cb8cca-0110-503a-abad-2ae1525b4621
+		summarizeBy: none
+		sourceColumn: BaseMUSD
+
+		annotation SummarizationSetBy = User
+
+	column TotalMUSD
+		dataType: double
+		isHidden
+		lineageTag: d02aaac3-c7b2-528f-8900-8d9be11b2249
+		summarizeBy: none
+		sourceColumn: TotalMUSD
+
+		annotation SummarizationSetBy = User
+
+	column Orden
+		dataType: int64
+		isHidden
+		lineageTag: 90d92a29-ee66-5c5f-8e87-a8ef48fe6cde
+		summarizeBy: none
+		sourceColumn: Orden
+
+		annotation SummarizationSetBy = User
+
+	partition PuenteTotales = m
+		mode: import
+		source =
+				let
+				    Fuente = Parquet.Document(File.Contents(RutaDatos & "ebitda_puente.parquet")),
+				    Columnas = Table.SelectColumns(Fuente, {"periodo", "comparacion", "ebitda_base_musd", "ebitda_musd"}),
+				    ConOrden = Table.NestedJoin(Columnas, {"periodo"}, Trimestres, {"Codigo"}, "T", JoinKind.Inner),
+				    Expandido = Table.ExpandTableColumn(ConOrden, "T", {"Orden"}),
+				    Renombrado = Table.RenameColumns(Table.RemoveColumns(Expandido, {"periodo"}),
+				        {{"comparacion", "Comparacion"}, {"ebitda_base_musd", "BaseMUSD"}, {"ebitda_musd", "TotalMUSD"}}),
+				    Final = Table.TransformColumnTypes(Renombrado, {{"BaseMUSD", type number}, {"TotalMUSD", type number}, {"Orden", Int64.Type}})
+				in
+				    Final
+

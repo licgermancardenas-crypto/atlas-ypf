@@ -240,9 +240,9 @@
     "note": "2016Q4–2026Q2 en USD; el 4T sale del anual menos nueve meses"
   },
   "export/excel": {
-    "generated_at": "2026-09-15T19:21:51+00:00",
+    "generated_at": "2026-09-16T00:19:13+00:00",
     "rows": 5174,
-    "bytes": 874607,
+    "bytes": 1075362,
     "outputs": [
       "docs/YPF_estados_financieros.xlsx"
     ],
@@ -327,5 +327,45 @@
       "data/processed/tablero_mapa.json"
     ],
     "note": "2019Q1–2026Q2, 14 concesiones"
+  },
+  "transform/ebitda-puente": {
+    "generated_at": "2026-09-15T23:19:53+00:00",
+    "rows": 49,
+    "bytes": 15204,
+    "outputs": [
+      "data/processed/ebitda_puente.parquet",
+      "data/processed/ebitda_puente.json"
+    ],
+    "note": "precio/volumen/costo de Upstream + otros negocios + ajustes, por trimestre"
+  },
+  "transform/deuda-perfil": {
+    "generated_at": "2026-09-15T23:21:22+00:00",
+    "rows": 10,
+    "bytes": 8388,
+    "outputs": [
+      "data/processed/deuda_perfil.parquet",
+      "data/processed/deuda_perfil.json"
+    ],
+    "note": "2026–2047; US$ 8,950M en 24 instrumentos"
+  },
+  "transform/tablero-comparables": {
+    "generated_at": "2026-09-15T23:22:20+00:00",
+    "rows": 16,
+    "bytes": 16686,
+    "outputs": [
+      "data/processed/tablero_comparables.parquet",
+      "data/processed/tablero_comparables.json"
+    ],
+    "note": "YPF, VIST y PAM; ejercicios comparables 2022, 2023, 2024"
+  },
+  "transform/tablero-territorio": {
+    "generated_at": "2026-09-15T23:23:15+00:00",
+    "rows": 1830,
+    "bytes": 70124,
+    "outputs": [
+      "data/processed/tablero_territorio.parquet",
+      "data/processed/tablero_territorio.json"
+    ],
+    "note": "5 dimensiones, 2019Q1–2026Q2"
   }
 }

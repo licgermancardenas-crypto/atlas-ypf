@@ -9,7 +9,7 @@ model Model
 
 annotation __PBI_TimeIntelligenceEnabled = 0
 
-annotation PBI_QueryOrder = ["RutaDatos", "Trimestres", "Eje", "Estados", "Release", "Segmentos", "Segmento", "Metrica", "Comparacion", "Desfase", "Margen", "Acumulado", "Mapa", "MapaConcesiones", "Mercado", "Medidas"]
+annotation PBI_QueryOrder = ["RutaDatos", "Trimestres", "Eje", "Estados", "Release", "Segmentos", "Segmento", "Metrica", "Comparacion", "Desfase", "Margen", "Acumulado", "Mapa", "MapaConcesiones", "Mercado", "Puente", "PuenteTotales", "Deuda", "Comparables", "Multiplos", "Territorio", "Apertura", "ConceptoComparable", "Componente", "Brent", "Produccion", "Lifting", "Refino", "Medidas"]
 
 ref table Trimestres
 ref table Eje
@@ -25,4 +25,17 @@ ref table Acumulado
 ref table Mapa
 ref table MapaConcesiones
 ref table Mercado
+ref table Puente
+ref table PuenteTotales
+ref table Deuda
+ref table Comparables
+ref table Multiplos
+ref table Territorio
+ref table Apertura
+ref table ConceptoComparable
+ref table Componente
+ref table Brent
+ref table Produccion
+ref table Lifting
+ref table Refino
 ref table Medidas

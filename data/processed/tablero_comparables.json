@@ -1,0 +1,54 @@
+{
+  "generado": "2026-09-15T23:22:20Z",
+  "moneda": "USD",
+  "unidad": "millones",
+  "metodo": "EBITDA = resultado operativo + depreciaciones; deuda neta = deuda financiera − caja; capex del estado de flujo. Las tres compañías, con la misma cuenta.",
+  "advertencia": "El múltiplo mezcla el precio del ADR de hoy con el balance del último ejercicio cerrado, que es como lo arma cualquier pantalla de mercado.",
+  "anios_comparables": [
+    "2022",
+    "2023",
+    "2024"
+  ],
+  "ultimo_ejercicio_comun": "2024",
+  "multiplos": [
+    {
+      "ticker": "PAM",
+      "empresa": "Pampa Energía",
+      "precio_adr": 86.19,
+      "fecha_precio": "2026-09-08",
+      "capitalizacion_musd": 4687.3781179212,
+      "deuda_neta_musd": 1341.0,
+      "valor_empresa_musd": 6028.3781179212,
+      "ebitda_musd": 782.0,
+      "ev_ebitda": 7.708923424451663,
+      "precio_valor_libro": 1.4225730251657664,
+      "ejercicio": "2024"
+    },
+    {
+      "ticker": "VIST",
+      "empresa": "Vista Energy",
+      "precio_adr": 75.86,
+      "fecha_precio": "2026-09-08",
+      "capitalizacion_musd": 7912.17546958,
+      "deuda_neta_musd": 684.3,
+      "valor_empresa_musd": 8596.47546958,
+      "ebitda_musd": 1063.1,
+      "ev_ebitda": 8.086234097996426,
+      "precio_valor_libro": 4.880443788292623,
+      "ejercicio": "2024"
+    },
+    {
+      "ticker": "YPF",
+      "empresa": "YPF S.A.",
+      "precio_adr": 53.09000015258789,
+      "fecha_precio": "2026-09-08",
+      "capitalizacion_musd": 20880.97624038477,
+      "deuda_neta_musd": 7434.0,
+      "valor_empresa_musd": 28314.97624038477,
+      "ebitda_musd": 4239.0,
+      "ev_ebitda": 6.679635819859582,
+      "precio_valor_libro": 1.7591386891646816,
+      "ejercicio": "2024"
+    }
+  ]
+}

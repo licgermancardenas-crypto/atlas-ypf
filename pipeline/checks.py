@@ -505,6 +505,55 @@ def chequear_segmentos_homologados(problemas: list[str]) -> None:
             )
 
 
+def chequear_puente_ebitda(problemas: list[str]) -> None:
+    """El puente tiene que cerrar: las partes suman la variacion del EBITDA.
+
+    Es una identidad contable, no una estimacion: si no cierra, algo se leyo
+    mal o se sumo dos veces un segmento.
+    """
+    ruta = PROCESSED / "ebitda_puente.parquet"
+    if not ruta.exists():
+        return
+
+    import pandas as pd
+
+    puente = pd.read_parquet(ruta)
+    componentes = ["volumen_musd", "precio_musd", "costo_musd", "otros_negocios_musd",
+                   "administracion_musd", "consolidacion_musd", "ajustes_musd"]
+    for fila in puente.itertuples():
+        partes = sum(getattr(fila, c) for c in componentes if not pd.isna(getattr(fila, c)))
+        if abs(partes - fila.delta_musd) > 1:
+            problemas.append(
+                f"puente del ebitda: en {fila.periodo} contra {fila.comparacion} las partes no dan la variacion "
+                f"({partes:.0f} contra {fila.delta_musd:.0f} MUSD)"
+            )
+
+
+def chequear_territorio(problemas: list[str]) -> None:
+    """Cada dimension tiene que sumar la misma produccion en cada trimestre.
+
+    Cuenca, provincia, concesion, yacimiento y localidad son cinco cortes del
+    mismo panel de pozos: si dos no dan lo mismo, se perdio o se duplico un area.
+    """
+    ruta = PROCESSED / "tablero_territorio.parquet"
+    if not ruta.exists():
+        return
+
+    import pandas as pd
+
+    tabla = pd.read_parquet(ruta)
+    totales = tabla.groupby(["periodo", "dimension"])["boed"].sum().unstack("dimension")
+    for periodo, fila in totales.iterrows():
+        valores = fila.dropna()
+        if len(valores) < 2:
+            continue
+        if not cerca(float(valores.max()), float(valores.min()), 0.01):
+            problemas.append(
+                f"territorio: en {periodo} las dimensiones no suman lo mismo "
+                f"({valores.min():.0f} a {valores.max():.0f} boe/d)"
+            )
+
+
 def chequear_produccion_ypf(problemas: list[str]) -> None:
     """Las cinco dimensiones de YPF tienen que sumar lo mismo entre sí.
 
@@ -651,6 +700,8 @@ CHEQUEOS = (
     ("estados contables", chequear_estados),
     ("segmentos", chequear_segmentos),
     ("segmentos homologados", chequear_segmentos_homologados),
+    ("puente del ebitda", chequear_puente_ebitda),
+    ("territorio", chequear_territorio),
     ("produccion de ypf", chequear_produccion_ypf),
 )
 
